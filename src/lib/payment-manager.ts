@@ -4,7 +4,11 @@
  */
 
 import { getFlutterwaveClient, FlutterwavePaymentOptions } from './flutterwave';
-import { getPaystackClient, PaystackPaymentOptions } from './paystack';
+import {
+  getPaystackClient,
+  PaystackPaymentChannel,
+  PaystackPaymentOptions,
+} from './paystack';
 
 export type PaymentProvider = 'flutterwave' | 'paystack';
 export type Currency = 'NGN' | 'USD' | 'GHS' | 'KES' | 'ZAR' | 'UGX';
@@ -24,6 +28,8 @@ export interface PaymentOptions {
   provider: PaymentProvider;
   amount: number;
   currency: Currency;
+  channels?: PaystackPaymentChannel[];
+  countryCode?: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -49,6 +55,54 @@ export interface PaymentTransaction {
   metadata?: Record<string, any>;
 }
 
+export interface ProcessedSubscription {
+  reference: string;
+  provider: PaymentProvider;
+  amount: number;
+  currency: Currency;
+  planId: string;
+  planName: string;
+  countryCode?: string;
+}
+
+export interface PaystackLocationConfig {
+  currency: Currency;
+  channels: PaystackPaymentChannel[];
+}
+
+const PAYSTACK_LOCATION_MAP: Record<string, PaystackLocationConfig> = {
+  NG: {
+    currency: 'NGN',
+    channels: ['card', 'bank', 'ussd', 'bank_transfer'],
+  },
+  GH: {
+    currency: 'GHS',
+    channels: ['card', 'mobile_money', 'bank'],
+  },
+  ZA: {
+    currency: 'ZAR',
+    channels: ['card', 'bank_transfer', 'eft'],
+  },
+  KE: {
+    currency: 'KES',
+    channels: ['card', 'mobile_money'],
+  },
+  UG: {
+    currency: 'UGX',
+    channels: ['card', 'mobile_money'],
+  },
+};
+
+const DEFAULT_PAYSTACK_LOCATION_CONFIG: PaystackLocationConfig = {
+  currency: 'USD',
+  channels: ['card'],
+};
+
+export const getPaystackLocationConfig = (countryCode?: string): PaystackLocationConfig => {
+  const normalizedCode = (countryCode || '').trim().toUpperCase();
+  return PAYSTACK_LOCATION_MAP[normalizedCode] || DEFAULT_PAYSTACK_LOCATION_CONFIG;
+};
+
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'premium-monthly',
@@ -57,9 +111,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     monthlyPrice: 4.99,
     yearlyPrice: 0,
     features: [
-      'Unlimited babies',
+      'Doctor access',
       'Growth charts',
-      'Vaccination tracking',
+      'Vaccination calendar',
+      'Health alerts',
       'Cloud sync',
       'Data export',
     ],
@@ -73,46 +128,15 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     monthlyPrice: 0,
     yearlyPrice: 49.99,
     features: [
-      'Unlimited babies',
+      'Doctor access',
       'Growth charts',
-      'Vaccination tracking',
-      'Cloud sync',
-      'Data export',
-      '24/7 Support',
+      'Vaccination calendar',
+      'AI & advanced analytics',
+      'Family + community features',
+      'Cloud sync and export',
     ],
     provider: 'paystack',
     planCode: 'PLN_premium_yearly_usd',
-  },
-  {
-    id: 'pro-monthly',
-    name: 'Pro Monthly',
-    description: 'Advanced features for developers',
-    monthlyPrice: 9.99,
-    yearlyPrice: 0,
-    features: [
-      'All Premium features',
-      'API access',
-      'Advanced analytics',
-      'Priority support',
-    ],
-    provider: 'flutterwave',
-    planCode: 'PLN_pro_monthly',
-  },
-  {
-    id: 'pro-yearly',
-    name: 'Pro Yearly',
-    description: 'Advanced features annually (save 20%)',
-    monthlyPrice: 0,
-    yearlyPrice: 95.88,
-    features: [
-      'All Premium features',
-      'API access',
-      'Advanced analytics',
-      'Priority support',
-      'Custom branding',
-    ],
-    provider: 'flutterwave',
-    planCode: 'PLN_pro_yearly',
   },
 ];
 
@@ -184,15 +208,14 @@ export class UnifiedPaymentManager {
    */
   private async processPaystackPayment(options: PaymentOptions): Promise<void> {
     const client = getPaystackClient();
-
-    // Convert USD to NGN (approximate rate: 1 USD = 1500 NGN)
-    const amountInKobo =
-      options.currency === 'NGN' ? options.amount * 100 : options.amount * 150000;
+    const amountInMinorUnit = Math.round(options.amount * 100);
 
     const paystackOptions: PaystackPaymentOptions = {
       email: options.email,
-      amount: Math.round(amountInKobo),
+      amount: amountInMinorUnit,
       reference: options.reference,
+      currency: options.currency,
+      channels: options.channels,
       firstName: options.firstName,
       lastName: options.lastName,
       phoneNumber: options.phoneNumber,
@@ -247,17 +270,23 @@ export class UnifiedPaymentManager {
     email: string,
     firstName: string,
     lastName: string,
-    phoneNumber?: string
-  ): Promise<void> {
+    phoneNumber?: string,
+    countryCode?: string,
+  ): Promise<ProcessedSubscription> {
     const amount = plan.monthlyPrice || plan.yearlyPrice;
-    const currency: Currency = plan.provider === 'paystack' ? 'NGN' : 'USD';
+    const paystackLocationConfig = getPaystackLocationConfig(countryCode);
+    const currency: Currency =
+      plan.provider === 'paystack' ? paystackLocationConfig.currency : 'USD';
+    const normalizedCountryCode = countryCode?.trim().toUpperCase();
 
     const reference = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    return this.processPayment({
+    await this.processPayment({
       provider: plan.provider,
       amount,
       currency,
+      channels: plan.provider === 'paystack' ? paystackLocationConfig.channels : undefined,
+      countryCode: normalizedCountryCode,
       email,
       firstName,
       lastName,
@@ -268,8 +297,19 @@ export class UnifiedPaymentManager {
         planId: plan.id,
         planName: plan.name,
         isSubscription: true,
+        countryCode: normalizedCountryCode,
       },
     });
+
+    return {
+      reference,
+      provider: plan.provider,
+      amount,
+      currency,
+      planId: plan.id,
+      planName: plan.name,
+      countryCode: normalizedCountryCode,
+    };
   }
 
   /**

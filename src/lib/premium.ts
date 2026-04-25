@@ -28,6 +28,17 @@ export interface PremiumFeatures {
   multiBaby: boolean;
   weeklyAnalytics: boolean;
   advancedNotifications: boolean;
+  healthAlerts: boolean;
+  voiceLogging: boolean;
+  aiInsights: boolean;
+  doctorAccess: boolean;
+  doctorReports: boolean;
+  wearableIntegration: boolean;
+  communityAccess: boolean;
+  familySharing: boolean;
+  contentLibrary: boolean;
+  caregiverHandoff: boolean;
+  advancedAnalytics: boolean;
   noAds: boolean;
 }
 
@@ -41,6 +52,17 @@ const featureMatrix: Record<SubscriptionTier, PremiumFeatures> = {
     multiBaby: false,
     weeklyAnalytics: false,
     advancedNotifications: false,
+    healthAlerts: false,
+    voiceLogging: false,
+    aiInsights: false,
+    doctorAccess: false,
+    doctorReports: false,
+    wearableIntegration: false,
+    communityAccess: false,
+    familySharing: false,
+    contentLibrary: false,
+    caregiverHandoff: false,
+    advancedAnalytics: false,
     noAds: false,
   },
   premium: {
@@ -51,9 +73,24 @@ const featureMatrix: Record<SubscriptionTier, PremiumFeatures> = {
     multiBaby: true,
     weeklyAnalytics: true,
     advancedNotifications: true,
+    healthAlerts: true,
+    voiceLogging: true,
+    aiInsights: true,
+    doctorAccess: true,
+    doctorReports: true,
+    wearableIntegration: true,
+    communityAccess: true,
+    familySharing: true,
+    contentLibrary: true,
+    caregiverHandoff: true,
+    advancedAnalytics: true,
     noAds: true,
   },
 };
+
+export const isPremiumSubscriptionActive = (
+  status?: 'free' | 'active' | 'expired' | 'trial' | string,
+): boolean => status === 'active' || status === 'trial';
 
 // Pricing information
 export const pricing = {
@@ -219,7 +256,7 @@ class SubscriptionManager {
   /**
    * Check if subscription is expiring soon (within 7 days)
    */
-  isExpiringsoon(): boolean {
+  isExpiringSoon(): boolean {
     return this.getDaysRemaining() <= 7 && this.getDaysRemaining() > 0;
   }
 
@@ -281,7 +318,7 @@ export const useSubscription = (userId: string) => {
     hasFeature: (feature: keyof PremiumFeatures) => subscriptionManager.hasFeature(feature),
     getAvailableFeatures: () => subscriptionManager.getAvailableFeatures(),
     getDaysRemaining: () => subscriptionManager.getDaysRemaining(),
-    isExpiringSoon: subscriptionManager.isExpiringsin(),
+    isExpiringSoon: subscriptionManager.isExpiringSoon(),
   };
 };
 

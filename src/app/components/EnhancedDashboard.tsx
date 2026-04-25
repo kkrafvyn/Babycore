@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
-import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap } from 'lucide-react';
+import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock } from 'lucide-react';
 import { FeedingTracker } from './FeedingTracker';
 import { SleepTracker } from './SleepTracker';
 import { DiaperLogScreen as DiaperLog } from './DiaperLog';
@@ -43,16 +43,32 @@ import { WearableDeviceManager } from './WearableDeviceManager';
 import { FamilySharing } from './FamilySharing';
 import { VoiceLogging } from './VoiceLogging';
 import { DoctorReportGenerator } from './DoctorReportGenerator';
+import { Paywall } from './Paywall';
+import { PaymentScreen } from './PaymentScreen';
 import { getSleepLogsByBaby, getFeedLogsByBaby, getDiaperLogsByBaby, getVaccinationRecordsByBaby, addFeedLog } from '../../lib/supabase-storage';
 import { getBabyAge, timeAgo, getDefaultAvatar, formatDuration } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
 import type { SleepLog, FeedLog, DiaperLog as DiaperLogType, VaccinationRecord } from '../../types';
 import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
+import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 
-type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'voice-logging' | 'doctor-reports';
+type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'voice-logging' | 'doctor-reports' | 'payment';
 
 const MotionDiv = motion.div as any;
+
+const PREMIUM_FEATURE_BY_VIEW: Partial<Record<ViewMode, keyof PremiumFeatures>> = {
+  'health-alerts': 'healthAlerts',
+  'advanced-analytics': 'advancedAnalytics',
+  'ai-insights': 'aiInsights',
+  'wearable': 'wearableIntegration',
+  'voice-logging': 'voiceLogging',
+  'doctor-reports': 'doctorAccess',
+  'family-sharing': 'familySharing',
+  'community': 'communityAccess',
+  'content-library': 'contentLibrary',
+  'handoff': 'caregiverHandoff',
+};
 
 interface EnhancedDashboardProps {
   onSignOut?: () => void;
@@ -75,6 +91,9 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   const [activeView, setActiveView] = useState<ViewMode>('dashboard');
   const [showBabySwitcher, setShowBabySwitcher] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
+  const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
+  const hasPremiumAccess = isPremiumSubscriptionActive(settings?.subscriptionStatus);
 
   const sorted = (arr: any[], key: string) => [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
   
@@ -97,7 +116,9 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     settings: 'settings'
   };
 
-  const viewToNav = Object.fromEntries(Object.entries(navToView).map(([k, v]) => [v, k])) as Record<ViewMode, any>;
+  const viewToNav = Object.fromEntries(
+    Object.entries(navToView).map(([k, v]) => [v, k]),
+  ) as Partial<Record<ViewMode, 'home' | 'logs' | 'growth' | 'settings' | 'journal'>>;
   const viewsNeedingGlobalBack = new Set<ViewMode>([
     'handoff',
     'health-alerts',
@@ -114,8 +135,18 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     'doctor-reports',
   ]);
 
+  const openView = (view: ViewMode, label?: string) => {
+    const premiumFeature = PREMIUM_FEATURE_BY_VIEW[view];
+    if (premiumFeature && !hasPremiumAccess) {
+      setPendingPremiumView(view);
+      setPaywallFeature(label || 'Premium Feature');
+      return;
+    }
+    setActiveView(view);
+  };
+
   const handleNavChange = (navId: string) => {
-    setActiveView(navToView[navId] || 'dashboard');
+    openView(navToView[navId] || 'dashboard');
   };
 
   const backToDashboard = () => setActiveView('dashboard');
@@ -168,12 +199,12 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     const handleDeepLink = (e: any) => {
       const view = e.detail?.view;
       if (view) {
-        setActiveView(view as ViewMode);
+        openView(view as ViewMode);
       }
     };
     window.addEventListener('nav_deep_link', handleDeepLink);
     return () => window.removeEventListener('nav_deep_link', handleDeepLink);
-  }, []);
+  }, [hasPremiumAccess]);
 
   const handleTimerComplete = async (side: 'left' | 'right' | 'both', duration: number) => {
     if (!currentBaby) return;
@@ -196,6 +227,18 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   if (activeView === 'sleep') return <SleepTracker onBack={backToDashboard} />;
   if (activeView === 'diaper') return <DiaperLog onBack={backToDashboard} />;
   if (activeView === 'vaccination') return <VaccinationCalendar onBack={backToDashboard} />;
+  if (activeView === 'payment') {
+    return (
+      <PaymentScreen
+        onBack={() => setActiveView('dashboard')}
+        onSuccess={() => {
+          const destination = pendingPremiumView || 'dashboard';
+          setPendingPremiumView(null);
+          setActiveView(destination);
+        }}
+      />
+    );
+  }
 
   const ageStr = currentBaby?.dateOfBirth ? getBabyAge(currentBaby.dateOfBirth) : '? months old';
 
@@ -321,19 +364,33 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
               { id: 'family-sharing', label: 'Family', icon: <Users size={20} />, bg: 'bg-green-50 dark:bg-green-900/20 text-green-500' },
               { id: 'community', label: 'Community', icon: <Users size={20} />, bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-500' },
               { id: 'content-library', label: 'Content', icon: <BookOpen size={20} />, bg: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600' },
-              { id: 'subscriptions', label: 'Premium', icon: <Zap size={20} />, bg: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600' },
-            ].map((tool, i) => (
-              <button 
-                key={tool.id}
-                onClick={() => setActiveView(tool.id as ViewMode)}
-                className="snap-start shrink-0 w-28 sm:w-32 bg-surface p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border border-border-gray dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 transition-all text-center hover:shadow-md"
-              >
-                 <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shadow-inner ${tool.bg}`}>
-                    {tool.icon}
-                 </div>
-                 <span className="text-[9px] sm:text-[10px] font-black text-foreground uppercase tracking-[0.12em] sm:tracking-widest leading-tight">{tool.label}</span>
-              </button>
-            ))}
+              { id: 'payment', label: 'Premium', icon: <Zap size={20} />, bg: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600' },
+            ].map((tool) => {
+              const view = tool.id as ViewMode;
+              const isPremiumTool = Boolean(PREMIUM_FEATURE_BY_VIEW[view]);
+              const isLocked = isPremiumTool && !hasPremiumAccess;
+
+              return (
+                <button 
+                  key={tool.id}
+                  onClick={() => openView(view, tool.label)}
+                  className="snap-start shrink-0 w-28 sm:w-32 bg-surface p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border border-border-gray dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center gap-2 sm:gap-3 active:scale-95 transition-all text-center hover:shadow-md"
+                >
+                   <div className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shadow-inner ${tool.bg}`}>
+                       {tool.icon}
+                       {isLocked && (
+                         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-foreground text-background flex items-center justify-center">
+                           <Lock size={10} />
+                         </span>
+                       )}
+                    </div>
+                    <span className="text-[9px] sm:text-[10px] font-black text-foreground uppercase tracking-[0.12em] sm:tracking-widest leading-tight">{tool.label}</span>
+                    {isLocked && (
+                      <span className="text-[8px] font-black uppercase tracking-wider text-secondary">Premium</span>
+                    )}
+                </button>
+              );
+            })}
          </div>
       </div>
 
@@ -503,9 +560,19 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
 
   return (
     <>
-      <AppLayout activeNav={viewToNav[activeView]} onNavChange={handleNavChange}>
+      <AppLayout activeNav={viewToNav[activeView] ?? 'home'} onNavChange={handleNavChange}>
          {renderContent()}
       </AppLayout>
+      {paywallFeature && (
+        <Paywall
+          feature={paywallFeature}
+          onClose={() => setPaywallFeature(null)}
+          onUpgrade={async () => {
+            setPaywallFeature(null);
+            setActiveView('payment');
+          }}
+        />
+      )}
       {viewsNeedingGlobalBack.has(activeView) && (
         <button
           onClick={backToDashboard}

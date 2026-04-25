@@ -8,17 +8,31 @@ export interface PaystackConfig {
   baseURL?: string;
 }
 
+export type PaystackPaymentChannel =
+  | 'card'
+  | 'bank'
+  | 'ussd'
+  | 'qr'
+  | 'mobile_money'
+  | 'bank_transfer'
+  | 'eft';
+
 export interface PaystackInitializeOptions {
   email: string;
   amount: number; // Amount in kobo
   reference: string;
+  currency?: 'NGN' | 'GHS' | 'USD' | 'ZAR' | 'KES' | 'UGX';
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
+  channels?: PaystackPaymentChannel[];
   metadata?: Record<string, any>;
   onSuccess?: () => void;
   onError?: (error: any) => void;
   onClose?: () => void;
 }
+
+export type PaystackPaymentOptions = PaystackInitializeOptions;
 
 export interface PaystackTransactionResponse {
   status: boolean;
@@ -106,25 +120,20 @@ class PaystackPaymentClient {
         email: options.email,
         amount: options.amount,
         ref: options.reference,
-        currency: 'NGN',
+        currency: options.currency || 'NGN',
+        channels: options.channels,
         firstname: options.firstName || '',
         lastname: options.lastName || '',
+        phone: options.phoneNumber || '',
         metadata: options.metadata || {},
         onClose: () => {
           options.onClose?.();
           resolve();
         },
         callback: (response: any) => {
-          // Verify transaction on backend before marking as successful
-          this.verifyTransaction(response.reference)
-            .then(() => {
-              options.onSuccess?.();
-              resolve();
-            })
-            .catch((error) => {
-              options.onError?.(error);
-              reject(error);
-            });
+          // Frontend callback only; authoritative verification should happen server-side/webhook.
+          options.onSuccess?.();
+          resolve();
         },
       });
 

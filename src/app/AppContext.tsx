@@ -162,7 +162,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         // Load settings
         const userSettings = await getUserSettings(user.id);
         if (userSettings) {
-          setSettings(userSettings);
+          setSettings({
+            subscriptionPlan: userSettings.subscriptionPlan || 'free',
+            subscriptionStatus: userSettings.subscriptionStatus || 'free',
+            ...userSettings,
+          });
           setTheme(userSettings.theme || 'system');
         } else {
           const defaultSettings: UserSettings = {
@@ -171,6 +175,8 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             notificationsEnabled: onboardingSettings?.notificationsEnabled !== false,
             feedingInterval: onboardingSettings?.feedingInterval || 3,
             theme: onboardingSettings?.theme || 'system',
+            subscriptionPlan: 'free',
+            subscriptionStatus: 'free',
             updatedAt: new Date().toISOString(),
           };
           await setUserSettings(user.id, defaultSettings);
