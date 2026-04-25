@@ -153,13 +153,13 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
           </button>
         </form>
 
-        <div className="mt-12 space-y-6 text-center">
+        <div className="mt-12 w-full max-w-sm space-y-4 text-center">
           <button
             onClick={() => {
               setMode(mode === 'signin' ? 'signup' : 'signin');
               setError(null);
             }}
-            className="text-sm font-bold text-text-dim transition-colors hover:text-primary"
+            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
           >
             {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
             <span className="ml-1 font-black uppercase tracking-widest text-primary underline">
@@ -169,14 +169,14 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
 
           <button
             onClick={onGuestMode}
-            className="text-sm font-bold text-text-dim transition-colors hover:text-secondary"
+            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
           >
             <span className="font-black uppercase tracking-widest text-secondary underline">
               Continue as Guest
             </span>
           </button>
 
-          <div className="flex flex-col items-center gap-2 pt-4">
+          <div className="flex flex-col items-center gap-2 pt-6">
             <div className="h-1 w-8 rounded-full bg-border-gray dark:bg-zinc-800" />
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-text-light">
               BABYLOG BIOMETRIC ACCESS - V3.0
