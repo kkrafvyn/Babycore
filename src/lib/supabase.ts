@@ -12,6 +12,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 const SUPABASE_AUTH_REDIRECT_URL = import.meta.env.VITE_SUPABASE_AUTH_REDIRECT_URL || '';
+const CANONICAL_VERCEL_ORIGIN = 'https://babycore.vercel.app';
 
 const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
 const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
@@ -84,6 +85,11 @@ const getOAuthRedirectUrl = () => {
 
   if (typeof window === 'undefined') {
     return undefined;
+  }
+
+  // For Vercel preview URLs, always return the canonical production origin.
+  if (window.location.hostname.endsWith('.vercel.app')) {
+    return new URL(window.location.pathname + window.location.search, CANONICAL_VERCEL_ORIGIN).toString();
   }
 
   const redirectUrl = new URL(window.location.origin + window.location.pathname + window.location.search);
