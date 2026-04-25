@@ -6,7 +6,7 @@ export interface AuthenticatedUser {
   user_metadata?: Record<string, any>;
 }
 
-export type SocialAuthProvider = 'google' | 'facebook' | 'apple';
+export type SocialAuthProvider = 'google' | 'apple';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY =
@@ -68,10 +68,6 @@ const getProviderOAuthOptions = (provider: SocialAuthProvider) => {
           access_type: 'offline',
           prompt: 'consent',
         },
-      };
-    case 'facebook':
-      return {
-        scopes: 'email',
       };
     case 'apple':
       return {

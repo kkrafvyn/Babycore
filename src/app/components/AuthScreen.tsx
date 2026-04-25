@@ -9,7 +9,6 @@ import {
   Fingerprint,
   Apple,
   Chrome,
-  Facebook,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -33,7 +32,6 @@ const socialProviders: Array<{
   Icon: LucideIcon;
 }> = [
   { provider: 'google', label: 'Google', Icon: Chrome },
-  { provider: 'facebook', label: 'Facebook', Icon: Facebook },
   { provider: 'apple', label: 'Apple', Icon: Apple },
 ];
 
