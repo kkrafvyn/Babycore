@@ -33,3 +33,5 @@ scratch/
 *.zip
 *.timestamp-*.mjs
 package-lock.broken-*.json
+
+.vercel

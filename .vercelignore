@@ -1,0 +1,35 @@
+# Dependencies / caches
+node_modules
+node_modules.broken-*
+.vite
+
+# Build outputs
+dist
+dev-dist
+
+# VCS / editor / local metadata
+.git
+.github
+.vscode
+.idea
+.vercel
+
+# Environment files
+.env
+.env.*
+
+# Native and platform folders not needed for web deploy
+ios
+android
+artifacts
+scratch
+logs
+
+# Documentation and large local artifacts
+*.md
+*.pdf
+*.zip
+
+# Optional generated files
+vite.config.ts.timestamp-*.mjs
+package-lock.broken-*.json
