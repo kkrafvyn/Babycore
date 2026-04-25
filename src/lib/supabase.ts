@@ -47,9 +47,39 @@ const missingSupabaseConfigError = () =>
     'Supabase auth is not configured. Add VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY to enable authentication.',
   );
 
+const isLocalHost = (hostname: string) =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+const sanitizeConfiguredRedirectUrl = (url: string): string | undefined => {
+  try {
+    const parsed = new URL(url);
+
+    if (typeof window !== 'undefined') {
+      const appIsLocal = isLocalHost(window.location.hostname);
+      const redirectIsLocal = isLocalHost(parsed.hostname);
+
+      // Guard against production builds accidentally shipping localhost callback URLs.
+      if (!appIsLocal && redirectIsLocal) {
+        console.warn(
+          `Ignoring local OAuth redirect URL "${url}" because app is running on "${window.location.origin}".`,
+        );
+        return undefined;
+      }
+    }
+
+    return parsed.toString();
+  } catch {
+    console.warn(`Invalid VITE_SUPABASE_AUTH_REDIRECT_URL value ignored: "${url}"`);
+    return undefined;
+  }
+};
+
 const getOAuthRedirectUrl = () => {
   if (SUPABASE_AUTH_REDIRECT_URL) {
-    return SUPABASE_AUTH_REDIRECT_URL;
+    const safeConfiguredUrl = sanitizeConfiguredRedirectUrl(SUPABASE_AUTH_REDIRECT_URL);
+    if (safeConfiguredUrl) {
+      return safeConfiguredUrl;
+    }
   }
 
   if (typeof window === 'undefined') {
