@@ -7,12 +7,16 @@ import { Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import * as webpush from 'web-push';
 
+const vapidSubject = process.env.VAPID_SUBJECT || 'support@babylog.app';
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VITE_VAPID_PRIVATE_KEY;
+
 // Configure web-push with VAPID keys
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_SUBJECT}`,
-  process.env.VITE_VAPID_PUBLIC_KEY!,
-  process.env.VITE_VAPID_PRIVATE_KEY!
-);
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(`mailto:${vapidSubject}`, vapidPublicKey, vapidPrivateKey);
+} else {
+  console.warn('VAPID keys are missing. Push notifications sending is disabled.');
+}
 
 /**
  * POST /api/notifications/subscribe

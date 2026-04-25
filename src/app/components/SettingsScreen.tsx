@@ -6,6 +6,7 @@ import { deleteBaby, updateBaby } from '../../lib/supabase-storage';
 import { getDefaultAvatar, getBabyAge } from '../../lib/baby-utils';
 import { i18nT, i18nInstance, SupportedLanguage } from '../../lib/i18n';
 import { NotificationsManager } from '../../lib/notifications';
+import { toast } from 'sonner';
 
 const MotionDiv = motion.div as any;
 
@@ -69,6 +70,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onLogout
     if (isEnabled) {
       const granted = await NotificationsManager.requestPermission();
       if (!granted) return;
+    } else {
+      await NotificationsManager.unsubscribeFromPush();
     }
     await updateSettings({ notificationsEnabled: isEnabled });
   };
@@ -88,7 +91,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onLogout
   const handlePushSubscribe = async () => {
     const subscription = await NotificationsManager.subscribeToPush();
     if (subscription) {
-      console.log('Push subscription ready for back-end storage');
+      toast.success(i18nT('settings.pushEnabled'));
+    } else {
+      toast.error(i18nT('settings.pushDisabled'));
     }
   };
 

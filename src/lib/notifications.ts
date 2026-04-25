@@ -4,10 +4,16 @@
  * Consolidates scheduling, permissions, and service worker integration.
  */
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-
 import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
+import { supabase } from './supabase';
+
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const hasSupabaseClientConfig = Boolean(
+  import.meta.env.VITE_SUPABASE_URL &&
+    (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY),
+);
 
 export type NotificationType = 
   | 'feeding' 
@@ -32,19 +38,77 @@ export interface BabyLogNotification {
   read: boolean;
 }
 
+interface WebPushSubscriptionPayload {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys?: {
+    p256dh?: string;
+    auth?: string;
+  };
+}
+
 export class NotificationsManager {
   private static isSupported(): boolean {
     return typeof window !== 'undefined' && 'Notification' in window;
+  }
+
+  private static isIOS(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
+  }
+
+  private static isStandaloneDisplayMode(): boolean {
+    if (typeof window === 'undefined') return false;
+    const navWithStandalone = navigator as Navigator & { standalone?: boolean };
+    return window.matchMedia('(display-mode: standalone)').matches || navWithStandalone.standalone === true;
+  }
+
+  private static getPushPlatformLabel(): 'android' | 'ios' | 'web' {
+    if (typeof navigator === 'undefined') return 'web';
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('android')) return 'android';
+    if (/iphone|ipad|ipod/.test(userAgent)) return 'ios';
+    return 'web';
+  }
+
+  private static async ensureServiceWorkerReady(): Promise<ServiceWorkerRegistration | null> {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      return null;
+    }
+
+    try {
+      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    } catch (error) {
+      console.warn('Service worker registration failed:', error);
+    }
+
+    try {
+      return await navigator.serviceWorker.ready;
+    } catch (error) {
+      console.warn('Service worker not ready:', error);
+      return null;
+    }
   }
 
   /**
    * Request permission from the user to show notifications
    */
   static async requestPermission(): Promise<boolean> {
-    if (!this.isSupported()) return false;
-    
+    if (!this.isSupported() || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return false;
+    }
+
+    // iOS web push requires the app to be installed to the home screen.
+    if (this.isIOS() && !this.isStandaloneDisplayMode()) {
+      toast('Install BabyLog on your home screen to enable iOS push notifications.');
+      return false;
+    }
+
     if (Notification.permission === 'granted') return true;
-    
+
     const permission = await Notification.requestPermission();
     return permission === 'granted';
   }
@@ -60,20 +124,33 @@ export class NotificationsManager {
    * Subscribe to Push Notifications
    */
   static async subscribeToPush(): Promise<PushSubscription | null> {
-    if (!this.isSupported() || !('serviceWorker' in navigator) || !VAPID_PUBLIC_KEY) {
+    if (!this.isSupported() || !VAPID_PUBLIC_KEY) {
       console.warn('Push not supported or VAPID key missing');
       return null;
     }
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
+      const hasPermission = await this.requestPermission();
+      if (!hasPermission) {
+        return null;
+      }
 
-      console.log('Push Subscription successful:', subscription);
-      // In a real app, you would send this subscription to your backend (Supabase)
+      const registration = await this.ensureServiceWorkerReady();
+      if (!registration) {
+        return null;
+      }
+
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+
+      await this.persistSubscription(subscription);
+      console.log('Push subscription ready:', subscription.endpoint);
       return subscription;
     } catch (error) {
       console.error('Failed to subscribe to push notifications:', error);
@@ -88,16 +165,138 @@ export class NotificationsManager {
     if (!('serviceWorker' in navigator)) return false;
 
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await this.ensureServiceWorkerReady();
+      if (!registration) {
+        return false;
+      }
+
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
+        const endpoint = subscription.endpoint;
         await subscription.unsubscribe();
+        await this.removePersistedSubscription(endpoint);
         return true;
       }
       return false;
     } catch (error) {
       console.error('Failed to unsubscribe:', error);
       return false;
+    }
+  }
+
+  private static async persistSubscription(subscription: PushSubscription): Promise<void> {
+    const subscriptionJson = subscription.toJSON() as WebPushSubscriptionPayload;
+    if (!subscriptionJson.endpoint) {
+      return;
+    }
+
+    const savedInSupabase = await this.persistSubscriptionToSupabase(subscriptionJson);
+
+    if (!savedInSupabase) {
+      await this.persistSubscriptionToApi(subscriptionJson);
+    }
+  }
+
+  private static async persistSubscriptionToSupabase(
+    subscription: WebPushSubscriptionPayload,
+  ): Promise<boolean> {
+    if (!hasSupabaseClientConfig) {
+      return false;
+    }
+
+    try {
+      const authClient = supabase.auth as any;
+      const {
+        data: { user },
+        error: userError,
+      } = await authClient.getUser();
+
+      if (userError || !user) {
+        return false;
+      }
+
+      const payload = {
+        user_id: user.id,
+        endpoint: subscription.endpoint,
+        auth: subscription.keys?.auth || '',
+        p256dh: subscription.keys?.p256dh || '',
+        platform: this.getPushPlatformLabel(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { error: upsertError } = await (supabase as any)
+        .from('push_subscriptions')
+        .upsert(payload, { onConflict: 'endpoint' });
+
+      if (upsertError) {
+        const { error: insertError } = await (supabase as any).from('push_subscriptions').insert(payload);
+        if (insertError) throw insertError;
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('Supabase push subscription save failed:', error);
+      return false;
+    }
+  }
+
+  private static async persistSubscriptionToApi(subscription: WebPushSubscriptionPayload): Promise<boolean> {
+    try {
+      const authClient = supabase.auth as any;
+      const {
+        data: { session },
+      } = await authClient.getSession();
+
+      const accessToken: string | undefined = session?.access_token;
+      if (!accessToken) {
+        return false;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/notifications/subscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ subscription }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.warn('API push subscription save failed:', error);
+      return false;
+    }
+  }
+
+  private static async removePersistedSubscription(endpoint: string): Promise<void> {
+    if (!endpoint) return;
+
+    if (hasSupabaseClientConfig) {
+      try {
+        await (supabase as any).from('push_subscriptions').delete().eq('endpoint', endpoint);
+      } catch (error) {
+        console.warn('Supabase push unsubscription cleanup failed:', error);
+      }
+    }
+
+    try {
+      const authClient = supabase.auth as any;
+      const {
+        data: { session },
+      } = await authClient.getSession();
+      const accessToken: string | undefined = session?.access_token;
+      if (!accessToken) return;
+
+      await fetch(`${API_BASE_URL}/notifications/unsubscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch (error) {
+      console.warn('API push unsubscription cleanup failed:', error);
     }
   }
 
