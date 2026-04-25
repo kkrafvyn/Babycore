@@ -1,0 +1,38 @@
+-- ============================================================================
+-- ACTIVITY LOGGING & INTELLIGENCE
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  activity_type TEXT NOT NULL CHECK (activity_type IN ('tummy_time', 'reading', 'outdoor', 'music', 'sensory', 'social', 'other')),
+  duration_minutes INT NOT NULL,
+  activity_date DATE NOT NULL,
+  notes TEXT,
+  developmental_benefit TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_recommendations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  recommended_activities TEXT[],
+  age_in_months INT,
+  rationale TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_impact_analysis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  activity_type TEXT,
+  sleep_quality_change DECIMAL(3,1),
+  mood_improvement BOOLEAN,
+  engagement_level INT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_activity_logs_baby_id ON activity_logs(baby_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_date ON activity_logs(activity_date);
+CREATE INDEX IF NOT EXISTS idx_activity_recommendations_baby_id ON activity_recommendations(baby_id);

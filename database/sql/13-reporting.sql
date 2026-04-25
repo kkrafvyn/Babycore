@@ -1,0 +1,25 @@
+-- ============================================================================
+-- ADVANCED REPORTING
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS email_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  report_type TEXT CHECK (report_type IN ('weekly_digest', 'monthly_newsletter', 'milestone_announcement')),
+  scheduled_for TIMESTAMP,
+  sent_at TIMESTAMP,
+  email_html TEXT,
+  recipient_email TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS milestone_announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  milestone_type TEXT,
+  milestone_date DATE,
+  social_media_card_url TEXT,
+  shared_to TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW()
+);

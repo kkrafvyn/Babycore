@@ -1,0 +1,42 @@
+-- ============================================================================
+-- ADVANCED SLEEP & FEEDING ANALYTICS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS sleep_analytics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  total_sleep_minutes INT,
+  sleep_quality_score DECIMAL(3,1),
+  night_sleep_continuous BOOLEAN,
+  nap_count INT,
+  sleep_regression_detected BOOLEAN DEFAULT false,
+  sleep_debt_minutes INT,
+  longest_stretch_minutes INT,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(baby_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS feeding_analytics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  total_feeds INT,
+  total_duration_minutes INT,
+  breast_milk_sessions INT,
+  bottle_sessions INT,
+  solids_sessions INT,
+  average_feed_duration INT,
+  supply_sufficiency DECIMAL(3,1),
+  solids_introduced BOOLEAN DEFAULT false,
+  solids_types TEXT[],
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(baby_id, date)
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_sleep_analytics_baby_date ON sleep_analytics(baby_id, date);
+CREATE INDEX IF NOT EXISTS idx_feeding_analytics_baby_date ON feeding_analytics(baby_id, date);

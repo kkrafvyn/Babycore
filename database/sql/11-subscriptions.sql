@@ -1,0 +1,26 @@
+-- ============================================================================
+-- SUBSCRIPTION ADD-ONS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS subscription_addons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  addon_name TEXT NOT NULL,
+  addon_type TEXT CHECK (addon_type IN ('content_course', 'consultant_chat', 'doctor_qa', 'premium_reports')),
+  price DECIMAL(10,2),
+  currency TEXT,
+  description TEXT,
+  content_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_addon_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  addon_id UUID NOT NULL REFERENCES subscription_addons(id) ON DELETE CASCADE,
+  subscribed_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, addon_id)
+);

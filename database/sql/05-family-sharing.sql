@@ -1,0 +1,42 @@
+-- ============================================================================
+-- FAMILY SHARING ENHANCEMENTS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS family_sharing_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  invited_email TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('owner', 'editor', 'viewer', 'caregiver')),
+  invite_token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMP,
+  accepted_at TIMESTAMP,
+  created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS caregiver_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  access_type TEXT CHECK (access_type IN ('read_only', 'log_only', 'full')),
+  session_token TEXT UNIQUE,
+  pin_code TEXT,
+  starts_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  activity_log JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sharing_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES babies(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  action TEXT,
+  details JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_family_sharing_baby_id ON family_sharing_invites(baby_id);
+CREATE INDEX IF NOT EXISTS idx_family_sharing_email ON family_sharing_invites(invited_email);
+CREATE INDEX IF NOT EXISTS idx_sharing_activity_baby_id ON sharing_activity_log(baby_id);

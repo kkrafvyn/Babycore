@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+node_modules.broken-*/
+
+# Build output
+dist/
+dev-dist/
+.vite/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local artifacts and backups
+artifacts/
+scratch/
+*.zip
+*.timestamp-*.mjs
+package-lock.broken-*.json
