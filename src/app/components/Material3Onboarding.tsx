@@ -36,6 +36,7 @@ interface Material3OnboardingProps {
 }
 
 const STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'units', 'notifications', 'complete'];
+const DOCTOR_STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'notifications', 'complete'];
 
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
@@ -87,8 +88,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
     );
   });
 
-  const activeStepIndex = STEPS.indexOf(currentStep);
-  const progress = Math.round((activeStepIndex / (STEPS.length - 1)) * 100);
+  const activeSteps = formData.profileType === 'doctor' ? DOCTOR_STEPS : STEPS;
+  const activeStepIndex = activeSteps.indexOf(currentStep);
+  const progress = Math.round((activeStepIndex / (activeSteps.length - 1)) * 100);
 
   const selectedCountry = countryOptions.find((country) => country.code === formData.country);
   const avatarPreview =
@@ -111,7 +113,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
 
   const handlePrevious = () => {
     if (activeStepIndex <= 0) return;
-    setCurrentStep(STEPS[activeStepIndex - 1]);
+    setCurrentStep(activeSteps[activeStepIndex - 1]);
   };
 
   const handleNext = () => {
@@ -121,7 +123,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
     }
 
     if (!canProceed) return;
-    setCurrentStep(STEPS[activeStepIndex + 1]);
+    setCurrentStep(activeSteps[activeStepIndex + 1]);
   };
 
   const handleBabyPhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +166,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                   />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8] dark:text-zinc-500">
-                  Step {activeStepIndex + 1} of {STEPS.length}
+                  Step {activeStepIndex + 1} of {activeSteps.length}
                 </span>
               </div>
             )}
