@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const DEFAULT_COUNTRY_CODE = 'US';
+const GLOBAL_REGION_CODE = 'GLOBAL';
+
 export interface HealthAlert {
   id: string;
   type: 'epidemic' | 'seasonal' | 'outbreak' | 'warning';
@@ -22,6 +26,50 @@ export interface HealthPreferences {
   primary_region: string;
 }
 
+const SEVERITY_PRIORITY: Record<HealthAlert['severity'], number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+const normalizeCountryCode = (countryCode: string): string => {
+  const cleaned = countryCode.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(cleaned) ? cleaned : DEFAULT_COUNTRY_CODE;
+};
+
+const isAlertActive = (alert: Pick<HealthAlert, 'end_date'>): boolean => {
+  if (!alert.end_date) {
+    return true;
+  }
+
+  const endTimestamp = new Date(alert.end_date).getTime();
+  return Number.isFinite(endTimestamp) && endTimestamp >= Date.now();
+};
+
+const matchesRegion = (alert: Pick<HealthAlert, 'regions'>, countryCode: string): boolean => {
+  if (!Array.isArray(alert.regions)) {
+    return false;
+  }
+
+  const normalizedRegions = alert.regions.map((region) => String(region).toUpperCase());
+  return (
+    normalizedRegions.includes(countryCode) || normalizedRegions.includes(GLOBAL_REGION_CODE)
+  );
+};
+
+const sortAlerts = (alerts: HealthAlert[]): HealthAlert[] =>
+  [...alerts].sort((left, right) => {
+    const severityDiff =
+      (SEVERITY_PRIORITY[right.severity] || 0) - (SEVERITY_PRIORITY[left.severity] || 0);
+
+    if (severityDiff !== 0) {
+      return severityDiff;
+    }
+
+    return new Date(right.start_date).getTime() - new Date(left.start_date).getTime();
+  });
+
 /**
  * Fetch health alerts for user's region
  */
@@ -30,15 +78,22 @@ export async function getUserHealthAlerts(
   countryCode: string
 ): Promise<HealthAlert[]> {
   try {
+    const normalizedCountryCode = normalizeCountryCode(countryCode || DEFAULT_COUNTRY_CODE);
+
     const { data, error } = await supabase
       .from('health_alerts')
       .select('*')
-      .contains('regions', [countryCode])
-      .gte('end_date', new Date().toISOString())
-      .order('severity', { ascending: false });
+      .order('start_date', { ascending: false })
+      .limit(200);
 
     if (error) throw error;
-    return data || [];
+
+    const alerts = (data || []) as HealthAlert[];
+    return sortAlerts(
+      alerts.filter(
+        (alert) => isAlertActive(alert) && matchesRegion(alert, normalizedCountryCode),
+      ),
+    );
   } catch (err) {
     console.error('Error fetching health alerts:', err);
     return [];
@@ -137,26 +192,20 @@ export async function getActiveAlertsForUser(
   countryCode: string
 ): Promise<HealthAlert[]> {
   try {
+    const normalizedCountryCode = normalizeCountryCode(countryCode || DEFAULT_COUNTRY_CODE);
+
     // Get dismissed alert IDs
-    const { data: dismissedData } = await supabase
+    const { data: dismissedData, error: dismissedError } = await supabase
       .from('user_health_alerts_dismissed')
       .select('alert_id')
       .eq('user_id', userId);
 
-    const dismissedIds = (dismissedData || []).map((d) => d.alert_id);
+    if (dismissedError) throw dismissedError;
 
-    // Get active alerts
-    const { data: alerts } = await supabase
-      .from('health_alerts')
-      .select('*')
-      .contains('regions', [countryCode])
-      .gte('end_date', new Date().toISOString())
-      .order('severity', { ascending: false });
+    const dismissedIds = new Set((dismissedData || []).map((record) => record.alert_id));
+    const alerts = await getUserHealthAlerts(userId, normalizedCountryCode);
 
-    if (!alerts) return [];
-
-    // Filter out dismissed ones
-    return alerts.filter((alert) => !dismissedIds.includes(alert.id));
+    return alerts.filter((alert) => !dismissedIds.has(alert.id));
   } catch (err) {
     console.error('Error getting active alerts:', err);
     return [];
@@ -164,18 +213,46 @@ export async function getActiveAlertsForUser(
 }
 
 /**
- * Fetch latest alerts from WHO/CDC API (backend should call this)
+ * Trigger backend sync for WHO + CDC outbreak feeds
  */
-export async function fetchExternalHealthAlerts(): Promise<void> {
+export async function syncExternalHealthAlerts(): Promise<boolean> {
   try {
-    // This would be called by a backend cron job
-    // Pseudo code for integration:
-    // 1. Fetch from WHO Disease Outbreak News API
-    // 2. Fetch from CDC Outbreak Alerts
-    // 3. Parse and transform to HealthAlert format
-    // 4. Upsert into health_alerts table
-    console.log('Health alerts sync initiated');
+    const authClient = supabase.auth as any;
+    const {
+      data: { session },
+      error: sessionError,
+    } = await authClient.getSession();
+
+    if (sessionError) throw sessionError;
+
+    const accessToken: string | undefined = session?.access_token;
+    if (!accessToken) {
+      return false;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/health-alerts/sync-external`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Health alerts sync failed (${response.status}): ${body}`);
+    }
+
+    return true;
   } catch (err) {
     console.error('Error syncing health alerts:', err);
+    return false;
   }
+}
+
+/**
+ * Backwards-compatible alias
+ */
+export async function fetchExternalHealthAlerts(): Promise<boolean> {
+  return syncExternalHealthAlerts();
 }

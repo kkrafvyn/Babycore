@@ -10,7 +10,11 @@ import { Material3SplashScreen } from './app/components/Material3SplashScreen';
 import { Material3Welcome } from './app/components/Material3Welcome';
 import { AppErrorBoundary } from './app/components/AppErrorBoundary';
 import { PrivacyLock } from './app/components/PrivacyLock';
-import { saveBabyToOnboarding, saveSettingsToOnboarding } from './lib/onboarding-storage';
+import {
+  saveBabyToOnboarding,
+  saveProfileToOnboarding,
+  saveSettingsToOnboarding,
+} from './lib/onboarding-storage';
 import { signOut } from './lib/supabase';
 
 type PublicRoute = 'welcome' | 'onboarding' | 'login';
@@ -157,6 +161,7 @@ function AppShell() {
   };
 
   const handleOnboardingComplete = (data: {
+    profileType: 'baby' | 'doctor';
     country: string;
     units: 'metric' | 'imperial';
     notificationsEnabled: boolean;
@@ -164,16 +169,32 @@ function AppShell() {
     babyDateOfBirth: string;
     babyGender: 'boy' | 'girl' | 'other';
     babyPhotoUrl?: string;
+    doctorName: string;
+    doctorSpecialty: string;
   }) => {
-    saveBabyToOnboarding({
-      id: crypto.randomUUID(),
-      name: data.babyName.trim(),
-      dateOfBirth: data.babyDateOfBirth,
-      gender: data.babyGender,
-      photoUrl: data.babyPhotoUrl || undefined,
-      country: data.country,
-      createdAt: new Date().toISOString(),
-    });
+    const isDoctorProfile = data.profileType === 'doctor';
+
+    saveProfileToOnboarding(
+      data.profileType,
+      isDoctorProfile
+        ? {
+            name: data.doctorName.trim(),
+            specialty: data.doctorSpecialty.trim() || undefined,
+          }
+        : null,
+    );
+
+    if (!isDoctorProfile) {
+      saveBabyToOnboarding({
+        id: crypto.randomUUID(),
+        name: data.babyName.trim(),
+        dateOfBirth: data.babyDateOfBirth,
+        gender: data.babyGender,
+        photoUrl: data.babyPhotoUrl || undefined,
+        country: data.country,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     saveSettingsToOnboarding({
       language: 'en',
