@@ -11,6 +11,7 @@ export type SocialAuthProvider = 'google' | 'facebook' | 'apple';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+const SUPABASE_AUTH_REDIRECT_URL = import.meta.env.VITE_SUPABASE_AUTH_REDIRECT_URL || '';
 
 const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
 const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
@@ -47,13 +48,38 @@ const missingSupabaseConfigError = () =>
   );
 
 const getOAuthRedirectUrl = () => {
+  if (SUPABASE_AUTH_REDIRECT_URL) {
+    return SUPABASE_AUTH_REDIRECT_URL;
+  }
+
   if (typeof window === 'undefined') {
     return undefined;
   }
 
-  const redirectUrl = new URL(window.location.href);
-  redirectUrl.hash = '#app';
+  const redirectUrl = new URL(window.location.origin + window.location.pathname + window.location.search);
   return redirectUrl.toString();
+};
+
+const getProviderOAuthOptions = (provider: SocialAuthProvider) => {
+  switch (provider) {
+    case 'google':
+      return {
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      };
+    case 'facebook':
+      return {
+        scopes: 'email',
+      };
+    case 'apple':
+      return {
+        scopes: 'name email',
+      };
+    default:
+      return {};
+  }
 };
 
 // Auth helpers
@@ -106,9 +132,13 @@ export const signInWithSocialProvider = async (provider: SocialAuthProvider) => 
 
   const auth = supabase.auth as any;
   const redirectTo = getOAuthRedirectUrl();
+  const providerOptions = getProviderOAuthOptions(provider);
   const { data, error } = await auth.signInWithOAuth({
     provider,
-    options: redirectTo ? { redirectTo } : undefined,
+    options: {
+      ...(redirectTo ? { redirectTo } : {}),
+      ...providerOptions,
+    },
   });
 
   if (error) throw error;

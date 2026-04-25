@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_RESEND_API_KEY?: string;
   readonly VITE_SENDGRID_API_KEY?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  readonly VITE_SUPABASE_AUTH_REDIRECT_URL?: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_VAPID_PUBLIC_KEY?: string;
