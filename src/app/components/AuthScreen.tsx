@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Fingerprint } from 'lucide-react';
-import { signUpWithEmail, signInWithEmail } from '../../lib/supabase';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Fingerprint,
+  Apple,
+  Chrome,
+  Facebook,
+  type LucideIcon,
+} from 'lucide-react';
+import {
+  signUpWithEmail,
+  signInWithEmail,
+  signInWithSocialProvider,
+  type SocialAuthProvider,
+} from '../../lib/supabase';
 
 interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
@@ -11,6 +27,15 @@ interface AuthScreenProps {
 type AuthMode = 'signin' | 'signup';
 
 const MotionDiv = motion.div as any;
+const socialProviders: Array<{
+  provider: SocialAuthProvider;
+  label: string;
+  Icon: LucideIcon;
+}> = [
+  { provider: 'google', label: 'Google', Icon: Chrome },
+  { provider: 'facebook', label: 'Facebook', Icon: Facebook },
+  { provider: 'apple', label: 'Apple', Icon: Apple },
+];
 
 export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -18,10 +43,16 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [socialLoadingProvider, setSocialLoadingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isAuthBusy = loading || socialLoadingProvider !== null;
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAuthBusy) {
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
@@ -37,6 +68,23 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
       setError(err?.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSocialAuth = async (provider: SocialAuthProvider) => {
+    if (isAuthBusy) {
+      return;
+    }
+
+    setError(null);
+    setSocialLoadingProvider(provider);
+
+    try {
+      await signInWithSocialProvider(provider);
+    } catch (err: any) {
+      setError(err?.message || 'Social authentication failed. Please try again.');
+    } finally {
+      setSocialLoadingProvider(null);
     }
   };
 
@@ -102,6 +150,7 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
                 placeholder="parent@domain.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isAuthBusy}
                 className="h-20 w-full rounded-3xl border border-border-gray bg-surface-gray pl-16 pr-8 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900"
                 required
               />
@@ -121,12 +170,14 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isAuthBusy}
                 className="h-20 w-full rounded-3xl border border-border-gray bg-surface-gray pl-16 pr-14 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                disabled={isAuthBusy}
                 className="absolute right-6 top-1/2 -translate-y-1/2 text-text-light transition-colors hover:text-foreground"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -136,7 +187,7 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isAuthBusy}
             className="btn-primary mt-6 h-20 w-full shadow-2xl shadow-primary/20 active:scale-95 disabled:opacity-70"
           >
             {loading ? (
@@ -153,12 +204,48 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
           </button>
         </form>
 
+        <div className="mt-8 w-full max-w-sm space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
+            <span className="text-[9px] font-black uppercase tracking-[0.28em] text-text-light">
+              Or Continue With
+            </span>
+            <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
+          </div>
+
+          <div className="space-y-3">
+            {socialProviders.map(({ provider, label, Icon }) => (
+              <button
+                key={provider}
+                type="button"
+                onClick={() => handleSocialAuth(provider)}
+                disabled={isAuthBusy}
+                className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-border-gray bg-surface-gray px-5 font-bold text-foreground transition-all hover:border-primary/40 hover:bg-white active:scale-[0.99] disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              >
+                {socialLoadingProvider === provider ? (
+                  <>
+                    <ShieldCheck size={18} className="animate-pulse" />
+                    <span>Connecting {label}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon size={18} />
+                    <span>Continue with {label}</span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-12 w-full max-w-sm space-y-4 text-center">
           <button
+            type="button"
             onClick={() => {
               setMode(mode === 'signin' ? 'signup' : 'signin');
               setError(null);
             }}
+            disabled={isAuthBusy}
             className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
           >
             {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
@@ -168,7 +255,9 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
           </button>
 
           <button
+            type="button"
             onClick={onGuestMode}
+            disabled={isAuthBusy}
             className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
           >
             <span className="font-black uppercase tracking-widest text-secondary underline">

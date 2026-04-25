@@ -6,6 +6,8 @@ export interface AuthenticatedUser {
   user_metadata?: Record<string, any>;
 }
 
+export type SocialAuthProvider = 'google' | 'facebook' | 'apple';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
@@ -41,8 +43,18 @@ export const supabase = createClient(
 
 const missingSupabaseConfigError = () =>
   new Error(
-    'Supabase auth is not configured. Add VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY to enable email sign in.',
+    'Supabase auth is not configured. Add VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY to enable authentication.',
   );
+
+const getOAuthRedirectUrl = () => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const redirectUrl = new URL(window.location.href);
+  redirectUrl.hash = '#app';
+  return redirectUrl.toString();
+};
 
 // Auth helpers
 export const getCurrentUser = async (): Promise<AuthenticatedUser | null> => {
@@ -83,6 +95,22 @@ export const signInWithEmail = async (email: string, password: string) => {
     email,
     password,
   });
+  if (error) throw error;
+  return data;
+};
+
+export const signInWithSocialProvider = async (provider: SocialAuthProvider) => {
+  if (!hasSupabaseConfig) {
+    throw missingSupabaseConfigError();
+  }
+
+  const auth = supabase.auth as any;
+  const redirectTo = getOAuthRedirectUrl();
+  const { data, error } = await auth.signInWithOAuth({
+    provider,
+    options: redirectTo ? { redirectTo } : undefined,
+  });
+
   if (error) throw error;
   return data;
 };
