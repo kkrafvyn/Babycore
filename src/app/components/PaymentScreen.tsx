@@ -194,40 +194,6 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             </div>
           </div>
 
-          <div className="space-y-6">
-            <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-2">
-              Gateway Registry
-            </h3>
-            <div className="bg-surface border border-border-gray dark:border-zinc-800 rounded-[2.5rem] p-8 space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center text-sm font-black tracking-widest">
-                  PS
-                </div>
-                <div>
-                  <p className="font-black text-sm uppercase tracking-[0.2em] text-foreground">Paystack</p>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-text-dim">
-                    Country: {currentBaby?.country || 'GLOBAL'} • Currency: {paystackLocationConfig.currency}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-border-gray dark:border-zinc-800">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-light mb-3">
-                  Enabled Payment Channels
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {paystackLocationConfig.channels.map((channel) => (
-                    <span
-                      key={channel}
-                      className="px-3 py-2 rounded-full bg-surface-gray dark:bg-zinc-900 border border-border-gray/40 text-[9px] font-black uppercase tracking-widest text-text-dim"
-                    >
-                      {channel.replace('_', ' ')}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
 
           <div className="space-y-6">
             <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-2">
