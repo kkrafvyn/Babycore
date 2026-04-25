@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
+import { getApiBaseUrl } from './api-base-url';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const API_BASE_URL = getApiBaseUrl();
 const DEFAULT_COUNTRY_CODE = 'US';
 const GLOBAL_REGION_CODE = 'GLOBAL';
 

@@ -7,9 +7,10 @@
 import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
 import { supabase } from './supabase';
+import { getApiBaseUrl } from './api-base-url';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const API_BASE_URL = getApiBaseUrl();
 const hasSupabaseClientConfig = Boolean(
   import.meta.env.VITE_SUPABASE_URL &&
     (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY),
