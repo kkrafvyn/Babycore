@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { deleteBaby, updateBaby } from '../../lib/supabase-storage';
+import { addBaby, deleteBaby, updateBaby } from '../../lib/supabase-storage';
 import { getDefaultAvatar, getBabyAge } from '../../lib/baby-utils';
 import { i18nT, i18nInstance, SupportedLanguage } from '../../lib/i18n';
 import { NotificationsManager } from '../../lib/notifications';
 import { toast } from 'sonner';
+import { COUNTRIES } from '../../lib/countries';
 
 const MotionDiv = motion.div as any;
 
@@ -24,6 +25,19 @@ const LANGUAGES = [
   { code: 'fr', name: 'French', flag: '🇫🇷' },
   { code: 'de', name: 'German', flag: '🇩🇪' },
 ];
+
+const decodeLegacyUtf8 = (value: string): string => {
+  if (!/[\u00C3\u00E2]/.test(value)) {
+    return value;
+  }
+
+  try {
+    const bytes = Uint8Array.from(value, (char) => char.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return value;
+  }
+};
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onBack,
@@ -114,13 +128,62 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setShowEditBaby(true);
   };
 
+  const openAddBaby = () => {
+    setEditBabyId('');
+    setEditBabyName('');
+    setEditBabyDob('');
+    setEditBabyGender('other');
+    setEditBabyCountry(babies[0]?.country || 'US');
+    setShowEditBaby(true);
+  };
+
   const handleSaveBaby = async () => {
-    const baby = babies.find(b => b.id === editBabyId);
-    if (!baby) return;
-    await updateBaby({ ...baby, name: editBabyName, dateOfBirth: editBabyDob, gender: editBabyGender, country: editBabyCountry });
+    if (!editBabyName.trim()) {
+      toast.error('Baby name is required');
+      return;
+    }
+
+    if (!editBabyDob) {
+      toast.error('Date of birth is required');
+      return;
+    }
+
+    if (!editBabyCountry) {
+      toast.error('Country is required');
+      return;
+    }
+
+    if (editBabyId) {
+      const baby = babies.find(b => b.id === editBabyId);
+      if (!baby) return;
+
+      await updateBaby({
+        ...baby,
+        name: editBabyName.trim(),
+        dateOfBirth: editBabyDob,
+        gender: editBabyGender,
+        country: editBabyCountry,
+      });
+    } else {
+      await addBaby({
+        id: crypto.randomUUID(),
+        name: editBabyName.trim(),
+        dateOfBirth: editBabyDob,
+        gender: editBabyGender || 'other',
+        country: editBabyCountry,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     await refreshBabies();
     setShowEditBaby(false);
+    toast.success(editBabyId ? 'Baby profile updated' : 'Baby profile added');
   };
+
+  const countryOptions = (COUNTRIES as Array<{ code: string; name: string }>).map((country) => ({
+    code: country.code,
+    name: decodeLegacyUtf8(country.name),
+  }));
 
   return (
     <div className="fit-screen bg-background">
@@ -152,6 +215,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <div className="flex items-center gap-4 px-2">
                  <span className="text-[10px] font-black text-text-light uppercase tracking-widest">{i18nT('settings.family')}</span>
                  <div className="h-px w-full bg-border-gray dark:bg-zinc-800 opacity-50" />
+                 <button
+                   onClick={openAddBaby}
+                   className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary/10 text-secondary text-[9px] font-black uppercase tracking-widest border border-secondary/20 hover:bg-secondary hover:text-white transition-all"
+                 >
+                   <Plus size={13} />
+                   Add Baby
+                 </button>
               </div>
               <div className="space-y-4">
                  {babies.map(baby => (
@@ -374,7 +444,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 className="w-full max-w-md bg-surface rounded-[3rem] p-8 space-y-6 shadow-2xl"
              >
                 <div className="flex items-center justify-between">
-                   <h3 className="text-2xl font-headline font-black text-foreground">{i18nT('settings.editBaby')}</h3>
+                   <h3 className="text-2xl font-headline font-black text-foreground">
+                     {editBabyId ? i18nT('settings.editBaby') : 'Add Baby'}
+                   </h3>
                    <button onClick={() => setShowEditBaby(false)} title="Close edit baby" className="text-text-light"><X size={20} /></button>
                 </div>
                 <div className="space-y-4">
@@ -395,8 +467,35 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                      onChange={e => setEditBabyDob(e.target.value)} 
                      className="input-onboarding outline-none" 
                    />
+                   <select
+                     id="baby-gender-input"
+                     title="Baby's gender"
+                     value={editBabyGender || 'other'}
+                     onChange={e => setEditBabyGender(e.target.value as 'boy' | 'girl' | 'other')}
+                     className="input-onboarding outline-none"
+                   >
+                     <option value="boy">Boy</option>
+                     <option value="girl">Girl</option>
+                     <option value="other">Other</option>
+                   </select>
+                   <select
+                     id="baby-country-input"
+                     title="Baby's country"
+                     value={editBabyCountry}
+                     onChange={e => setEditBabyCountry(e.target.value)}
+                     className="input-onboarding outline-none"
+                   >
+                     {countryOptions.map((country) => (
+                       <option key={country.code} value={country.code}>
+                         {country.name} ({country.code})
+                       </option>
+                     ))}
+                   </select>
                 </div>
-                <button onClick={handleSaveBaby} className="btn-primary"><Check size={24} /><span>{i18nT('common.update')}</span></button>
+                <button onClick={handleSaveBaby} className="btn-primary">
+                  <Check size={24} />
+                  <span>{editBabyId ? i18nT('common.update') : 'Add Baby'}</span>
+                </button>
              </MotionDiv>
           </MotionDiv>
         )}
