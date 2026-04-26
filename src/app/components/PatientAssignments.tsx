@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { CheckCircle2, ChevronLeft, RefreshCw, Stethoscope, UserPlus2, UsersRound } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, RefreshCw, Stethoscope, UserPlus2, Users } from 'lucide-react';
 import {
   acceptIncomingSharingInvite,
   getIncomingSharingInvites,
@@ -95,7 +95,7 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                {profileType === 'doctor' ? <Stethoscope className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
+                {profileType === 'doctor' ? <Stethoscope className="h-5 w-5" /> : <Users className="h-5 w-5" />}
                 {heading}
               </CardTitle>
               <CardDescription>
@@ -190,4 +190,3 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
     </div>
   );
 }
-

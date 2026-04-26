@@ -67,7 +67,7 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
       user_id: invite.user_id || '',
       user_email: invite.invited_email || '',
       role: (invite.role || 'viewer') as FamilySharingRole,
-      status: invite.accepted_at ? 'accepted' : 'pending',
+      status: (invite.accepted_at ? 'accepted' : 'pending') as 'accepted' | 'pending',
     }));
     setMembers(mappedMembers);
     setLoading(false);

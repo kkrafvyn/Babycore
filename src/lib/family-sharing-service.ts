@@ -328,7 +328,8 @@ export async function updateFamilyMemberRole(
 
 const getCurrentUserEmail = async (): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const auth = supabase.auth as any;
+    const { data, error } = await auth.getUser();
     if (error) throw error;
     return data.user?.email?.trim().toLowerCase() || null;
   } catch (err) {
