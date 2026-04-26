@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield } from 'lucide-react';
+import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield, Scale } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { addBaby, deleteBaby, updateBaby } from '../../lib/supabase-storage';
@@ -387,6 +387,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <Check size={20} className="text-emerald-500 shrink-0" />
                  </div>
+                 <button
+                   onClick={() => {
+                     window.location.hash = '#policies';
+                   }}
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                       <div className="w-12 h-12 sm:w-14 sm:h-14 bg-surface-gray dark:bg-zinc-800 text-text-dim rounded-2xl flex items-center justify-center shrink-0">
+                         <Scale size={22} className="sm:h-6 sm:w-6" />
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Legal Policies</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1">
+                            Privacy, Terms & Disclaimers
+                          </p>
+                       </div>
+                    </div>
+                    <ChevronRight size={18} className="text-text-light shrink-0" />
+                 </button>
               </div>
            </div>
 

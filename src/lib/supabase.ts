@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
 }
 
 export type SocialAuthProvider = 'google' | 'apple';
+export type SignUpMetadata = Record<string, any>;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY =
@@ -129,7 +130,11 @@ export const getCurrentUser = async (): Promise<AuthenticatedUser | null> => {
   return data.user;
 };
 
-export const signUpWithEmail = async (email: string, password: string) => {
+export const signUpWithEmail = async (
+  email: string,
+  password: string,
+  metadata?: SignUpMetadata,
+) => {
   if (!hasSupabaseConfig) {
     throw missingSupabaseConfigError();
   }
@@ -138,6 +143,11 @@ export const signUpWithEmail = async (email: string, password: string) => {
   const { data, error } = await auth.signUp({
     email,
     password,
+    options: metadata
+      ? {
+          data: metadata,
+        }
+      : undefined,
   });
   if (error) throw error;
   return data;

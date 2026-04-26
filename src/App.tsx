@@ -8,16 +8,18 @@ import { Material3AddBaby } from './app/components/Material3AddBaby';
 import { Material3Onboarding } from './app/components/Material3Onboarding';
 import { Material3SplashScreen } from './app/components/Material3SplashScreen';
 import { Material3Welcome } from './app/components/Material3Welcome';
+import { LegalPolicies } from './app/components/LegalPolicies';
 import { AppErrorBoundary } from './app/components/AppErrorBoundary';
 import { PrivacyLock } from './app/components/PrivacyLock';
 import {
+  getOnboardingCache,
   saveBabyToOnboarding,
   saveProfileToOnboarding,
   saveSettingsToOnboarding,
 } from './lib/onboarding-storage';
 import { signOut } from './lib/supabase';
 
-type PublicRoute = 'welcome' | 'onboarding' | 'login';
+type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies';
 
 const GUEST_SESSION_KEY = 'babylog_guest_session';
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
@@ -26,6 +28,7 @@ const routeHashes: Record<PublicRoute, string> = {
   welcome: '#welcome',
   onboarding: '#onboarding',
   login: '#login',
+  policies: '#policies',
 };
 
 const getPublicRouteFromHash = (): PublicRoute => {
@@ -36,6 +39,8 @@ const getPublicRouteFromHash = (): PublicRoute => {
       return 'onboarding';
     case '#login':
       return 'login';
+    case '#policies':
+      return 'policies';
     default:
       return 'welcome';
   }
@@ -80,8 +85,16 @@ function AppShell() {
   const [publicRoute, setPublicRoute] = React.useState<PublicRoute>(() => getPublicRouteFromHash());
   const [isGuestHydrating, setIsGuestHydrating] = React.useState(guestSession);
   const [showMobileSplash, setShowMobileSplash] = React.useState(() => shouldShowMobileSplash());
+  const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
 
   const hasSession = Boolean(user) || guestSession;
+  const cachedOnboardingProfileType = React.useMemo(
+    () => getOnboardingCache().profileType,
+    [publicRoute, user?.id, guestSession],
+  );
+  const accountProfileType =
+    (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
+    cachedOnboardingProfileType;
 
   React.useEffect(() => {
     const handleHashChange = () => setPublicRoute(getPublicRouteFromHash());
@@ -160,8 +173,14 @@ function AppShell() {
     navigateToPublicRoute('login');
   };
 
+  const openPolicies = () => {
+    const returnRoute = publicRoute === 'policies' ? 'welcome' : publicRoute;
+    setPolicyReturnRoute(returnRoute);
+    navigateToPublicRoute('policies');
+  };
+
   const handleOnboardingComplete = (data: {
-    profileType: 'baby' | 'doctor';
+    profileType: 'baby' | 'doctor' | 'caregiver';
     country: string;
     units: 'metric' | 'imperial';
     notificationsEnabled: boolean;
@@ -171,8 +190,11 @@ function AppShell() {
     babyPhotoUrl?: string;
     doctorName: string;
     doctorSpecialty: string;
+    caregiverName: string;
+    caregiverRelationship: string;
   }) => {
     const isDoctorProfile = data.profileType === 'doctor';
+    const isCaregiverProfile = data.profileType === 'caregiver';
 
     saveProfileToOnboarding(
       data.profileType,
@@ -181,10 +203,16 @@ function AppShell() {
             name: data.doctorName.trim(),
             specialty: data.doctorSpecialty.trim() || undefined,
           }
-        : null,
+        : undefined,
+      isCaregiverProfile
+        ? {
+            name: data.caregiverName.trim(),
+            relationship: data.caregiverRelationship,
+          }
+        : undefined,
     );
 
-    if (!isDoctorProfile) {
+    if (!isDoctorProfile && !isCaregiverProfile) {
       saveBabyToOnboarding({
         id: crypto.randomUUID(),
         name: data.babyName.trim(),
@@ -219,8 +247,25 @@ function AppShell() {
     return <FullScreenLoader label="Loading BabyLog..." />;
   }
 
+  if (publicRoute === 'policies') {
+    return (
+      <LegalPolicies
+        onBack={() => {
+          if (hasSession) {
+            window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`);
+            return;
+          }
+          navigateToPublicRoute(policyReturnRoute);
+        }}
+      />
+    );
+  }
+
   if (hasSession) {
-    if (babies.length === 0) {
+    const shouldForceBabySetup =
+      babies.length === 0 && accountProfileType !== 'doctor' && accountProfileType !== 'caregiver';
+
+    if (shouldForceBabySetup) {
       return <Material3AddBaby onBabyAdded={() => window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`)} />;
     }
 
@@ -236,6 +281,7 @@ function AppShell() {
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
         onSkip={() => navigateToPublicRoute('login')}
+        onViewPolicies={openPolicies}
       />
     );
   }
@@ -247,6 +293,7 @@ function AppShell() {
           window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`);
         }}
         onGuestMode={handleGuestMode}
+        onViewPolicies={openPolicies}
       />
     );
   }
@@ -255,6 +302,7 @@ function AppShell() {
     <Material3Welcome
       onGetStarted={() => navigateToPublicRoute('onboarding')}
       onLogIn={() => navigateToPublicRoute('login')}
+      onViewPolicies={openPolicies}
     />
   );
 }

@@ -17,10 +17,12 @@ import {
   signInWithSocialProvider,
   type SocialAuthProvider,
 } from '../../lib/supabase';
+import { getOnboardingCache } from '../../lib/onboarding-storage';
 
 interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
   onGuestMode: () => void;
+  onViewPolicies: () => void;
 }
 
 type AuthMode = 'signin' | 'signup';
@@ -35,7 +37,7 @@ const socialProviders: Array<{
   { provider: 'apple', label: 'Apple', Icon: Apple },
 ];
 
-export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
+export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,7 +61,16 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
         await signInWithEmail(email, password);
         onSuccess(false);
       } else {
-        await signUpWithEmail(email, password);
+        const onboarding = getOnboardingCache();
+        const profileType = onboarding.profileType;
+
+        await signUpWithEmail(email, password, {
+          onboarding_profile_type: profileType,
+          doctor_name: onboarding.doctorProfile?.name || undefined,
+          doctor_specialty: onboarding.doctorProfile?.specialty || undefined,
+          caregiver_name: onboarding.caregiverProfile?.name || undefined,
+          caregiver_relationship: onboarding.caregiverProfile?.relationship || undefined,
+        });
         onSuccess(true);
       }
     } catch (err: any) {
@@ -260,6 +271,17 @@ export function AuthScreen({ onSuccess, onGuestMode }: AuthScreenProps) {
           >
             <span className="font-black uppercase tracking-widest text-secondary underline">
               Continue as Guest
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onViewPolicies}
+            disabled={isAuthBusy}
+            className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
+          >
+            <span className="font-black uppercase tracking-[0.22em] text-primary underline">
+              Privacy, Terms & Policies
             </span>
           </button>
 

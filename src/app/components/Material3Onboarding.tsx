@@ -10,7 +10,7 @@ import { getDefaultAvatar } from '../../lib/baby-utils';
 import { getVaccinationRegionForCountry } from '../../lib/vaccination-schedule-resolver';
 
 type OnboardingStep = 'welcome' | 'country' | 'baby' | 'units' | 'notifications' | 'complete';
-type ProfileType = 'baby' | 'doctor';
+type ProfileType = 'baby' | 'doctor' | 'caregiver';
 
 interface CountryOption {
   code: string;
@@ -29,15 +29,18 @@ interface OnboardingData {
   babyPhotoUrl?: string;
   doctorName: string;
   doctorSpecialty: string;
+  caregiverName: string;
+  caregiverRelationship: string;
 }
 
 interface Material3OnboardingProps {
   onComplete: (data: OnboardingData) => void;
   onSkip?: () => void;
+  onViewPolicies?: () => void;
 }
 
 const STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'units', 'notifications', 'complete'];
-const DOCTOR_STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'notifications', 'complete'];
+const CARE_TEAM_STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'notifications', 'complete'];
 
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
@@ -52,7 +55,11 @@ const decodeLegacyUtf8 = (value: string): string => {
   }
 };
 
-export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComplete, onSkip }) => {
+export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
+  onComplete,
+  onSkip,
+  onViewPolicies,
+}) => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState<OnboardingData>({
@@ -66,6 +73,8 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
     babyPhotoUrl: undefined,
     doctorName: '',
     doctorSpecialty: '',
+    caregiverName: '',
+    caregiverRelationship: 'Family',
   });
 
   const countryOptions = useMemo<CountryOption[]>(() => {
@@ -92,7 +101,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
     );
   });
 
-  const activeSteps = formData.profileType === 'doctor' ? DOCTOR_STEPS : STEPS;
+  const activeSteps = formData.profileType === 'baby' ? STEPS : CARE_TEAM_STEPS;
   const activeStepIndex = activeSteps.indexOf(currentStep);
   const progress = Math.round((activeStepIndex / (activeSteps.length - 1)) * 100);
 
@@ -102,13 +111,20 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
       ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
           formData.doctorName.trim() || 'doctor',
         )}`
-      : formData.babyPhotoUrl || getDefaultAvatar(formData.babyGender, formData.babyName || 'baby');
+      : formData.profileType === 'caregiver'
+        ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+            formData.caregiverName.trim() || 'caregiver',
+          )}`
+        : formData.babyPhotoUrl || getDefaultAvatar(formData.babyGender, formData.babyName || 'baby');
 
   const canProceed = (() => {
     if (currentStep === 'country') return Boolean(formData.country);
     if (currentStep === 'baby') {
       if (formData.profileType === 'doctor') {
         return Boolean(formData.doctorName.trim());
+      }
+      if (formData.profileType === 'caregiver') {
+        return Boolean(formData.caregiverName.trim()) && Boolean(formData.caregiverRelationship.trim());
       }
       return Boolean(formData.babyName.trim()) && Boolean(formData.babyDateOfBirth);
     }
@@ -294,11 +310,17 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
             <div className="max-w-2xl mx-auto space-y-8 sm:space-y-10">
               <div className="text-center space-y-3 sm:space-y-4">
                 <h2 className="text-3xl sm:text-4xl font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white tracking-tighter">
-                  {formData.profileType === 'doctor' ? 'Doctor Profile' : 'Baby Profile'}
+                  {formData.profileType === 'doctor'
+                    ? 'Doctor Profile'
+                    : formData.profileType === 'caregiver'
+                      ? 'Caregiver Profile'
+                      : 'Baby Profile'}
                 </h2>
                 <p className="text-sm sm:text-base text-[#787b80] dark:text-zinc-400 font-bold leading-relaxed">
                   {formData.profileType === 'doctor'
                     ? 'Set up your doctor profile. You can add baby/patient profiles after login.'
+                    : formData.profileType === 'caregiver'
+                      ? 'Create a caregiver account so you can support updates for the family.'
                     : "Add your baby's photo or avatar and name."}
                 </p>
               </div>
@@ -312,6 +334,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                     {[
                       { value: 'baby' as const, label: 'Parent & Baby', icon: 'child_care' },
                       { value: 'doctor' as const, label: 'Doctor', icon: 'stethoscope' },
+                      { value: 'caregiver' as const, label: 'Caregiver', icon: 'groups' },
                     ].map((option) => (
                       <button
                         key={option.value}
@@ -427,7 +450,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                       </div>
                     </div>
                   </>
-                ) : (
+                ) : formData.profileType === 'doctor' ? (
                   <div className="space-y-4">
                     <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#f8f8fb] dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
                       <img
@@ -469,6 +492,54 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                         placeholder="e.g. Pediatrics"
                         className="w-full px-5 py-4 rounded-2xl border border-gray-100 dark:border-zinc-800 bg-[#f8f8fb] dark:bg-zinc-900 text-[#2f3337] dark:text-white placeholder:text-[#a0a4ae] dark:placeholder:text-zinc-600 focus:ring-0 focus:border-[#45627d] dark:focus:border-blue-500 transition-all font-bold outline-none"
                       />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#f8f8fb] dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800">
+                      <img
+                        src={avatarPreview}
+                        alt="Caregiver avatar preview"
+                        className="w-14 h-14 rounded-2xl object-cover border border-gray-100 dark:border-zinc-700"
+                      />
+                      <p className="text-sm font-bold text-[#787b80] dark:text-zinc-400 leading-relaxed">
+                        Caregivers can add logs and daily updates while the parent remains the account owner.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] uppercase tracking-[0.25em] font-black text-[#afb2b8] dark:text-zinc-500 block">
+                        Caregiver Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.caregiverName}
+                        onChange={(event) =>
+                          setFormData((prev) => ({ ...prev, caregiverName: event.target.value }))
+                        }
+                        placeholder="e.g. Sarah Mensah"
+                        className="w-full px-5 py-4 rounded-2xl border border-gray-100 dark:border-zinc-800 bg-[#f8f8fb] dark:bg-zinc-900 text-[#2f3337] dark:text-white placeholder:text-[#a0a4ae] dark:placeholder:text-zinc-600 focus:ring-0 focus:border-[#45627d] dark:focus:border-blue-500 transition-all font-bold outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] uppercase tracking-[0.25em] font-black text-[#afb2b8] dark:text-zinc-500 block">
+                        Relationship *
+                      </label>
+                      <select
+                        value={formData.caregiverRelationship}
+                        onChange={(event) =>
+                          setFormData((prev) => ({ ...prev, caregiverRelationship: event.target.value }))
+                        }
+                        className="w-full px-5 py-4 rounded-2xl border border-gray-100 dark:border-zinc-800 bg-[#f8f8fb] dark:bg-zinc-900 text-[#2f3337] dark:text-white focus:ring-0 focus:border-[#45627d] dark:focus:border-blue-500 transition-all font-bold outline-none"
+                      >
+                        <option value="Family">Family</option>
+                        <option value="Nanny">Nanny</option>
+                        <option value="Relative">Relative</option>
+                        <option value="Daycare">Daycare</option>
+                        <option value="Night Nurse">Night Nurse</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
                   </div>
                 )}
@@ -608,6 +679,8 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                 <p className="text-base sm:text-xl text-[#787b80] dark:text-zinc-400 font-bold max-w-md mx-auto leading-relaxed">
                   {formData.profileType === 'doctor'
                     ? 'Your doctor profile is ready. Continue to login and manage alerts and patients.'
+                    : formData.profileType === 'caregiver'
+                      ? 'Your caregiver profile is ready. Continue to login and support daily care updates.'
                     : 'Your profile is ready. Continue to login and start tracking.'}
                 </p>
               </div>
@@ -621,11 +694,17 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                   />
                   <div className="min-w-0">
                     <p className="text-sm font-black text-[#afb2b8] uppercase tracking-widest">
-                      {formData.profileType === 'doctor' ? 'Doctor' : 'Baby'}
+                      {formData.profileType === 'doctor'
+                        ? 'Doctor'
+                        : formData.profileType === 'caregiver'
+                          ? 'Caregiver'
+                          : 'Baby'}
                     </p>
                     <p className="text-xl font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white truncate">
                       {formData.profileType === 'doctor'
                         ? formData.doctorName.trim()
+                        : formData.profileType === 'caregiver'
+                          ? formData.caregiverName.trim()
                         : formData.babyName.trim()}
                     </p>
                   </div>
@@ -639,11 +718,17 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
                   </div>
                   <div className="bg-[#f8f8fb] dark:bg-zinc-900 rounded-xl p-3">
                     <p className="text-[10px] font-black text-[#afb2b8] uppercase tracking-widest">
-                      {formData.profileType === 'doctor' ? 'Specialty' : 'Units'}
+                      {formData.profileType === 'doctor'
+                        ? 'Specialty'
+                        : formData.profileType === 'caregiver'
+                          ? 'Relationship'
+                          : 'Units'}
                     </p>
                     <p className="text-sm font-black text-[#2f3337] dark:text-white mt-1 uppercase">
                       {formData.profileType === 'doctor'
                         ? formData.doctorSpecialty.trim() || 'General'
+                        : formData.profileType === 'caregiver'
+                          ? formData.caregiverRelationship
                         : formData.units}
                     </p>
                   </div>
@@ -678,6 +763,17 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
             <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
           </button>
         </div>
+        {onViewPolicies && (
+          <div className="max-w-6xl mx-auto pt-3 text-center">
+            <button
+              type="button"
+              onClick={onViewPolicies}
+              className="text-[10px] font-black uppercase tracking-[0.22em] text-[#5e5f61] dark:text-zinc-400 underline hover:text-[#2f3337] dark:hover:text-white transition-colors"
+            >
+              Privacy, Terms & Policies
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

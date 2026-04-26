@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 interface WelcomeScreenProps {
   onGetStarted: () => void;
   onLogIn?: () => void;
+  onViewPolicies?: () => void;
   logoUrl?: string;
   heroImageUrl?: string;
 }
@@ -18,6 +19,7 @@ const highlights = [
 export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
   onGetStarted,
   onLogIn,
+  onViewPolicies,
   logoUrl = '/logo.png',
   heroImageUrl = '/logo.png',
 }) => {
@@ -185,6 +187,15 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                 className="text-secondary transition-colors hover:text-foreground"
               >
                 Sign In
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-text-dim">
+              <span>Before you start:</span>
+              <button
+                onClick={onViewPolicies}
+                className="text-primary transition-colors hover:text-foreground"
+              >
+                Privacy, Terms & Policies
               </button>
             </div>
           </motion.div>
