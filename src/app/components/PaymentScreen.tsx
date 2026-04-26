@@ -43,16 +43,23 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     [currentBaby?.country],
   );
   const amount = selectedPlanData?.monthlyPrice || selectedPlanData?.yearlyPrice || 0;
+  const paystackPublicKey =
+    import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY || '';
 
   React.useEffect(() => {
     try {
+      if (!paystackPublicKey) {
+        setError('Paystack public key is missing. Set VITE_PAYSTACK_PUBLIC_KEY in Vercel and redeploy.');
+        return;
+      }
+
       initializePaystack({
-        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_demo',
+        publicKey: paystackPublicKey,
       });
     } catch (err) {
       console.error('Failed to initialize Paystack:', err);
     }
-  }, []);
+  }, [paystackPublicKey]);
 
   const handlePayment = async () => {
     if (!user?.email || !selectedPlanData || !firstName.trim() || !lastName.trim()) {
