@@ -14,6 +14,8 @@ interface SettingsScreenProps {
   onBack: () => void;
   onLogout: () => void;
   showBackButton?: boolean;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
 }
 
 const LANGUAGES = [
@@ -23,7 +25,13 @@ const LANGUAGES = [
   { code: 'de', name: 'German', flag: '🇩🇪' },
 ];
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onLogout, showBackButton = true }) => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  onBack,
+  onLogout,
+  showBackButton = true,
+  isAdmin = false,
+  onOpenAdminPanel,
+}) => {
   const { babies, settings, updateSettings, user, refreshBabies } = useAppContext();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showEditBaby, setShowEditBaby] = useState(false);
@@ -234,6 +242,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onBack, onLogout
                     </div>
                     <ChevronRight size={18} className="text-text-light shrink-0" />
                  </button>
+                 {isAdmin && onOpenAdminPanel && (
+                   <button
+                     onClick={onOpenAdminPanel}
+                     className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                   >
+                      <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                         <div className="w-12 h-12 sm:w-14 sm:h-14 bg-secondary/10 dark:bg-cyan-900/20 text-secondary rounded-2xl flex items-center justify-center shrink-0">
+                           <Shield size={22} className="sm:h-6 sm:w-6" />
+                         </div>
+                         <div className="min-w-0">
+                            <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Admin Panel</p>
+                            <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Platform overview</p>
+                         </div>
+                      </div>
+                      <ChevronRight size={18} className="text-text-light shrink-0" />
+                   </button>
+                 )}
                  
                  <button onClick={() => setShowLangSettings(true)} className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left">
                     <div className="flex items-center gap-3 sm:gap-5 min-w-0">

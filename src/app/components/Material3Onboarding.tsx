@@ -7,6 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { COUNTRIES } from '../../lib/countries';
 import { getDefaultAvatar } from '../../lib/baby-utils';
+import { getVaccinationRegionForCountry } from '../../lib/vaccination-schedule-resolver';
 
 type OnboardingStep = 'welcome' | 'country' | 'baby' | 'units' | 'notifications' | 'complete';
 type ProfileType = 'baby' | 'doctor';
@@ -68,11 +69,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({ onComp
   });
 
   const countryOptions = useMemo<CountryOption[]>(() => {
-    const parsed = (COUNTRIES as Array<{ code: string; name: string; info?: string }>).map((country) => ({
-      code: country.code,
-      name: decodeLegacyUtf8(country.name),
-      info: country.info || 'Global',
-    }));
+    const parsed = (COUNTRIES as Array<{ code: string; name: string; info?: string }>).map((country) => {
+      const { regionName } = getVaccinationRegionForCountry(country.code);
+      return {
+        code: country.code,
+        name: decodeLegacyUtf8(country.name),
+        info: `${regionName} region`,
+      };
+    });
 
     return parsed.sort((a, b) => a.name.localeCompare(b.name));
   }, []);

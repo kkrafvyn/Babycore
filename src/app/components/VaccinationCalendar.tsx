@@ -15,7 +15,10 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAppContext } from '../AppContext';
 import { addVaccinationRecord, deleteVaccinationRecord, updateVaccinationRecord } from '../../lib/supabase-storage';
+import { COUNTRIES } from '../../lib/countries';
+import { resolveVaccinationSchedule } from '../../lib/vaccination-schedule-resolver';
 import type { VaccinationRecord } from '../../types';
+import type { VaccineSchedule } from '../../lib/vaccination-data';
 
 interface VaccinationCalendarProps {
   babyId?: string;
@@ -28,6 +31,8 @@ interface VaccineTemplate {
   name: string;
   dueOffsetDays: number;
   note: string;
+  aliases: string[];
+  scheduleTag: string;
 }
 
 type ResolvedVaccineStatus = 'scheduled' | 'given' | 'overdue' | 'skipped';
@@ -35,30 +40,28 @@ type VaccineRecordWithMeta = VaccinationRecord & {
   isVirtual: boolean;
   source: 'template' | 'custom';
   templateNote?: string;
+  scheduleTag?: string;
 };
 
 const MotionDiv = motion.div as any;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const TEMPLATE_TAG_PREFIX = '[schedule-template:';
 
-const GLOBAL_VACCINE_TEMPLATES: VaccineTemplate[] = [
-  { id: 'birth-bcg', name: 'BCG', dueOffsetDays: 0, note: 'Birth dose' },
-  { id: 'birth-hepb', name: 'Hepatitis B (Dose 1)', dueOffsetDays: 0, note: 'Birth dose' },
-  { id: 'w6-dtap', name: 'DTaP (Dose 1)', dueOffsetDays: 42, note: 'Around 6 weeks' },
-  { id: 'w6-polio', name: 'Polio (Dose 1)', dueOffsetDays: 42, note: 'Around 6 weeks' },
-  { id: 'w10-dtap', name: 'DTaP (Dose 2)', dueOffsetDays: 70, note: 'Around 10 weeks' },
-  { id: 'w10-polio', name: 'Polio (Dose 2)', dueOffsetDays: 70, note: 'Around 10 weeks' },
-  { id: 'w14-dtap', name: 'DTaP (Dose 3)', dueOffsetDays: 98, note: 'Around 14 weeks' },
-  { id: 'w14-polio', name: 'Polio (Dose 3)', dueOffsetDays: 98, note: 'Around 14 weeks' },
-  { id: 'm6-flu', name: 'Influenza', dueOffsetDays: 180, note: 'Starting at 6 months' },
-  { id: 'm9-measles', name: 'Measles', dueOffsetDays: 270, note: 'Around 9 months' },
-  { id: 'm12-mmr', name: 'MMR', dueOffsetDays: 365, note: 'Around 12 months' },
-  { id: 'm12-pcv', name: 'Pneumococcal Booster', dueOffsetDays: 365, note: 'Around 12 months' },
-  { id: 'm15-varicella', name: 'Varicella', dueOffsetDays: 450, note: 'Around 15 months' },
-  { id: 'm18-dtapb', name: 'DTaP Booster', dueOffsetDays: 540, note: 'Around 18 months' },
-];
+function decodeLegacyUtf8(value: string): string {
+  if (!/[\u00C3\u00E2]/.test(value)) {
+    return value;
+  }
+
+  try {
+    const bytes = Uint8Array.from(value, (char) => char.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return value;
+  }
+}
 
 function normalizeVaccineName(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+  return value.trim().toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
 }
 
 function toDateInputValue(date: Date): string {
@@ -91,6 +94,60 @@ function statusBadgeClass(status: ResolvedVaccineStatus): string {
   return 'bg-amber-50 text-amber-600 dark:bg-amber-900/20';
 }
 
+function extractScheduleTag(notes?: string): string | undefined {
+  if (!notes) return undefined;
+  const start = notes.indexOf(TEMPLATE_TAG_PREFIX);
+  if (start < 0) return undefined;
+  const end = notes.indexOf(']', start);
+  if (end < 0) return undefined;
+  return notes.slice(start + TEMPLATE_TAG_PREFIX.length, end);
+}
+
+function withScheduleTag(notes: string | undefined, scheduleTag: string): string {
+  const clean = (notes || '').trim();
+  const tag = `${TEMPLATE_TAG_PREFIX}${scheduleTag}]`;
+  if (clean.includes(tag)) return clean;
+  return clean ? `${clean} ${tag}` : tag;
+}
+
+function scheduleDoseToOffsetDays(dose: VaccineSchedule['schedule'][number]): number {
+  if (dose.ageYears && dose.ageYears > 0) return dose.ageYears * 365;
+  if (dose.ageMonths && dose.ageMonths > 0) return dose.ageMonths * 30;
+  if (dose.ageWeeks && dose.ageWeeks > 0) return dose.ageWeeks * 7;
+  return 0;
+}
+
+function buildTemplates(schedules: VaccineSchedule[], scheduleCode: string): VaccineTemplate[] {
+  return schedules.flatMap((vaccine) =>
+    vaccine.schedule.map((dose) => {
+      const hasMultiple = dose.doses > 1;
+      const baseName = vaccine.name;
+      const label = hasMultiple ? `${baseName} - Dose ${dose.doseNumber}` : baseName;
+      const shortLabel = hasMultiple
+        ? `${vaccine.shortName} Dose ${dose.doseNumber}`
+        : vaccine.shortName;
+      const scheduleTag = `${scheduleCode}:${vaccine.id}:dose-${dose.doseNumber}`;
+
+      return {
+        id: `${vaccine.id}-dose-${dose.doseNumber}`,
+        name: label,
+        dueOffsetDays: scheduleDoseToOffsetDays(dose),
+        note: vaccine.descriptions.en,
+        aliases: [label, shortLabel, `${baseName} Dose ${dose.doseNumber}`],
+        scheduleTag,
+      };
+    }),
+  );
+}
+
+function getCountryName(countryCode?: string): string {
+  if (!countryCode) return 'Unknown';
+  const matched = (COUNTRIES as Array<{ code: string; name: string }>).find(
+    (country) => country.code === countryCode,
+  );
+  return decodeLegacyUtf8(matched?.name || countryCode);
+}
+
 export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack }) => {
   const { currentBaby, vaccinationRecords, refreshAllLogs } = useAppContext();
   const [showEditor, setShowEditor] = useState(false);
@@ -101,23 +158,46 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
   const [status, setStatus] = useState<'scheduled' | 'given' | 'skipped'>('scheduled');
   const [givenDate, setGivenDate] = useState(toDateInputValue(new Date()));
   const [notes, setNotes] = useState('');
+  const [selectedTemplateTag, setSelectedTemplateTag] = useState<string | undefined>(undefined);
+
+  const scheduleContext = useMemo(
+    () => resolveVaccinationSchedule(currentBaby?.country),
+    [currentBaby?.country],
+  );
+
+  const vaccineTemplates = useMemo(
+    () => buildTemplates(scheduleContext.schedules, scheduleContext.scheduleCode),
+    [scheduleContext.schedules, scheduleContext.scheduleCode],
+  );
 
   const recordsWithMeta = useMemo<VaccineRecordWithMeta[]>(() => {
     if (!currentBaby) return [];
 
-    const byName = new Map<string, VaccinationRecord>();
+    const recordsByTag = new Map<string, VaccinationRecord>();
+    const recordsByName = new Map<string, VaccinationRecord>();
+
     vaccinationRecords.forEach((record) => {
-      byName.set(normalizeVaccineName(record.name), record);
+      const tag = extractScheduleTag(record.notes);
+      if (tag) {
+        recordsByTag.set(tag, record);
+      }
+      recordsByName.set(normalizeVaccineName(record.name), record);
     });
 
-    const templateRecords: VaccineRecordWithMeta[] = GLOBAL_VACCINE_TEMPLATES.map((template) => {
-      const existing = byName.get(normalizeVaccineName(template.name));
+    const templateRecords: VaccineRecordWithMeta[] = vaccineTemplates.map((template) => {
+      const taggedMatch = recordsByTag.get(template.scheduleTag);
+      const aliasMatch = template.aliases
+        .map((alias) => recordsByName.get(normalizeVaccineName(alias)))
+        .find(Boolean);
+      const existing = taggedMatch || aliasMatch;
+
       if (existing) {
         return {
           ...existing,
           isVirtual: false,
           source: 'template',
           templateNote: template.note,
+          scheduleTag: template.scheduleTag,
         };
       }
 
@@ -131,14 +211,21 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
         isVirtual: true,
         source: 'template',
         templateNote: template.note,
+        scheduleTag: template.scheduleTag,
       };
     });
 
+    const templateTags = new Set(vaccineTemplates.map((template) => template.scheduleTag));
     const templateNameSet = new Set(
-      GLOBAL_VACCINE_TEMPLATES.map((template) => normalizeVaccineName(template.name)),
+      vaccineTemplates.flatMap((template) => template.aliases.map((alias) => normalizeVaccineName(alias))),
     );
+
     const customRecords = vaccinationRecords
-      .filter((record) => !templateNameSet.has(normalizeVaccineName(record.name)))
+      .filter((record) => {
+        const tag = extractScheduleTag(record.notes);
+        if (tag && templateTags.has(tag)) return false;
+        return !templateNameSet.has(normalizeVaccineName(record.name));
+      })
       .map((record) => ({
         ...record,
         isVirtual: false,
@@ -148,7 +235,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
     return [...templateRecords, ...customRecords].sort(
       (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
     );
-  }, [vaccinationRecords, currentBaby]);
+  }, [vaccinationRecords, currentBaby, vaccineTemplates]);
 
   const resolved = useMemo(
     () =>
@@ -169,6 +256,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
 
   const openAddModal = () => {
     setEditingRecord(null);
+    setSelectedTemplateTag(undefined);
     setName('');
     setDueDate(toDateInputValue(new Date()));
     setGivenDate(toDateInputValue(new Date()));
@@ -179,6 +267,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
 
   const openEditModal = (record: VaccineRecordWithMeta) => {
     setEditingRecord(record.isVirtual ? null : record);
+    setSelectedTemplateTag(record.scheduleTag);
     setName(record.name);
     setDueDate(toDateInputValue(new Date(record.dueDate)));
     setStatus(record.status === 'given' || record.status === 'skipped' ? record.status : 'scheduled');
@@ -190,6 +279,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
   const closeEditor = () => {
     setShowEditor(false);
     setEditingRecord(null);
+    setSelectedTemplateTag(undefined);
   };
 
   const saveRecord = async () => {
@@ -211,6 +301,8 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
       return;
     }
 
+    const nextNotes = selectedTemplateTag ? withScheduleTag(notes, selectedTemplateTag) : notes.trim();
+
     const payload: VaccinationRecord = {
       id: editingRecord?.id || crypto.randomUUID(),
       babyId: currentBaby.id,
@@ -218,7 +310,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
       dueDate: due.toISOString(),
       status: status === 'given' ? 'given' : status === 'skipped' ? 'skipped' : 'scheduled',
       givenDate: status === 'given' ? given.toISOString() : undefined,
-      notes: notes.trim() || undefined,
+      notes: nextNotes || undefined,
       createdAt: editingRecord?.createdAt || new Date().toISOString(),
     };
 
@@ -242,6 +334,10 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
   const markGiven = async (record: VaccineRecordWithMeta) => {
     if (!currentBaby) return;
 
+    const nextNotes = record.scheduleTag
+      ? withScheduleTag(record.notes, record.scheduleTag)
+      : record.notes;
+
     const payload: VaccinationRecord = {
       id: record.isVirtual ? crypto.randomUUID() : record.id,
       babyId: currentBaby.id,
@@ -249,7 +345,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
       dueDate: record.dueDate,
       status: 'given',
       givenDate: new Date().toISOString(),
-      notes: record.notes,
+      notes: nextNotes,
       createdAt: record.isVirtual ? new Date().toISOString() : record.createdAt,
     };
 
@@ -306,8 +402,21 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
           <div className="bg-surface rounded-[3rem] p-8 border border-border-gray dark:border-zinc-800 shadow-sm">
             <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Immunization Overview</p>
             <h2 className="text-3xl font-headline font-black text-foreground tracking-tight mt-3">
-              {completedCount} completed • {scheduledCount} upcoming
+              {completedCount} completed - {scheduledCount} upcoming
             </h2>
+
+            <div className="mt-4 rounded-2xl border border-border-gray dark:border-zinc-800 bg-surface-gray dark:bg-zinc-900 p-4 space-y-1.5">
+              <p className="text-[9px] font-black text-text-light uppercase tracking-widest">Schedule Context</p>
+              <p className="text-sm font-black text-foreground">
+                {getCountryName(currentBaby?.country)} ({scheduleContext.countryCode})
+              </p>
+              <p className="text-[11px] font-bold text-text-dim">
+                Region: {scheduleContext.regionName} - Schedule: {scheduleContext.scheduleName}
+              </p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                Source: {scheduleContext.source}
+              </p>
+            </div>
 
             <div className="mt-6 grid grid-cols-3 gap-3">
               <div className="bg-surface-gray dark:bg-zinc-900 p-4 rounded-2xl border border-border-gray dark:border-zinc-800 text-center">
@@ -471,7 +580,7 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
                     type="text"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    placeholder="Example: MMR"
+                    placeholder="Example: MMR Dose 1"
                     className="input-onboarding"
                   />
                 </div>

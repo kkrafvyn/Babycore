@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
-import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock } from 'lucide-react';
+import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield } from 'lucide-react';
 import { FeedingTracker } from './FeedingTracker';
 import { SleepTracker } from './SleepTracker';
 import { DiaperLogScreen as DiaperLog } from './DiaperLog';
@@ -45,6 +45,7 @@ import { VoiceLogging } from './VoiceLogging';
 import { DoctorReportGenerator } from './DoctorReportGenerator';
 import { Paywall } from './Paywall';
 import { PaymentScreen } from './PaymentScreen';
+import { AdminPanel } from './AdminPanel';
 import { getSleepLogsByBaby, getFeedLogsByBaby, getDiaperLogsByBaby, getVaccinationRecordsByBaby, addFeedLog } from '../../lib/supabase-storage';
 import { getBabyAge, timeAgo, getDefaultAvatar, formatDuration } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
@@ -52,8 +53,9 @@ import type { SleepLog, FeedLog, DiaperLog as DiaperLogType, VaccinationRecord }
 import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
+import { getCurrentUserRole } from '../../lib/admin-api';
 
-type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'voice-logging' | 'doctor-reports' | 'payment';
+type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'voice-logging' | 'doctor-reports' | 'payment' | 'admin';
 
 const MotionDiv = motion.div as any;
 
@@ -93,6 +95,7 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   const [showTimer, setShowTimer] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
+  const [userRole, setUserRole] = useState<string>('user');
   const hasPremiumAccess = isPremiumSubscriptionActive(settings?.subscriptionStatus);
 
   const sorted = (arr: any[], key: string) => [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
@@ -206,6 +209,17 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     return () => window.removeEventListener('nav_deep_link', handleDeepLink);
   }, [hasPremiumAccess]);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const role = await getCurrentUserRole();
+      if (mounted) setUserRole(role);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
   const handleTimerComplete = async (side: 'left' | 'right' | 'both', duration: number) => {
     if (!currentBaby) return;
     const newLog: FeedLog = {
@@ -227,6 +241,7 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   if (activeView === 'sleep') return <SleepTracker onBack={backToDashboard} />;
   if (activeView === 'diaper') return <DiaperLog onBack={backToDashboard} />;
   if (activeView === 'vaccination') return <VaccinationCalendar onBack={backToDashboard} />;
+  if (activeView === 'admin') return <AdminPanel onBack={backToDashboard} />;
   if (activeView === 'payment') {
     return (
       <PaymentScreen
@@ -365,6 +380,9 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
               { id: 'community', label: 'Community', icon: <Users size={20} />, bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-500' },
               { id: 'content-library', label: 'Content', icon: <BookOpen size={20} />, bg: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600' },
               { id: 'payment', label: 'Premium', icon: <Zap size={20} />, bg: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600' },
+              ...(userRole === 'admin'
+                ? [{ id: 'admin', label: 'Admin', icon: <Shield size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' }]
+                : []),
             ].map((tool) => {
               const view = tool.id as ViewMode;
               const isPremiumTool = Boolean(PREMIUM_FEATURE_BY_VIEW[view]);
@@ -522,7 +540,16 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     switch (activeView) {
       case 'journal': return <JournalScreen />;
       case 'growth': return <GrowthChart onBack={backToDashboard} showBackButton={false} />;
-      case 'settings': return <SettingsScreen onBack={backToDashboard} showBackButton={false} onLogout={onSignOut || (() => window.location.reload())} />;
+      case 'settings':
+        return (
+          <SettingsScreen
+            onBack={backToDashboard}
+            showBackButton={false}
+            onLogout={onSignOut || (() => window.location.reload())}
+            isAdmin={userRole === 'admin'}
+            onOpenAdminPanel={() => setActiveView('admin')}
+          />
+        );
       case 'logs': return <HistoryLogs onBack={backToDashboard} showBackButton={false} />;
       case 'export': return <ExportScreen onBack={backToDashboard} />;
       case 'partner-sync': return <PartnerSyncScreen onBack={backToDashboard} />;
