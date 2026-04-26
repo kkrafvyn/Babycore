@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, Users, UserPlus, Shield, Copy, Check, Info, Trash2, Heart } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateInviteCode } from '../../lib/baby-utils';
+import { generateInviteCode, getUserAvatar } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
 
 interface PartnerSyncScreenProps {
@@ -115,7 +115,7 @@ export const PartnerSyncScreen: React.FC<PartnerSyncScreenProps> = ({ onBack }) 
                 <div className="bg-surface p-5 rounded-[2.5rem] border border-border-gray dark:border-zinc-800 flex items-center justify-between">
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-surface-gray dark:bg-zinc-800 overflow-hidden border border-border-gray dark:border-zinc-700">
-                         <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="" />
+                         <img src={getUserAvatar(user?.email || user?.user_metadata?.name || 'user')} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div>
                          <p className="text-sm font-headline font-black text-foreground">{user?.user_metadata?.name || 'You'}</p>

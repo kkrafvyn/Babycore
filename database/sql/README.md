@@ -51,6 +51,7 @@ This folder contains organized SQL migration files for the BabyLog application.
 | `23-sleep-coaching.sql` | Sleep coaching programs |
 | `24-nutrition-meals.sql` | Nutrition & meals tracking |
 | `25-care-team-patient-assignment.sql` | Doctor/caregiver patient assignment invites + RLS |
+| `26-sharing-link-and-directory-fields.sql` | Public invite links + invite metadata fields |
 
 ## Deployment Instructions
 

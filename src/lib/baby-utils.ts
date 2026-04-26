@@ -120,10 +120,23 @@ export function convertVolume(value: number, from: 'metric' | 'imperial', to: 'm
 
 // Gender-based default avatar
 export function getDefaultAvatar(gender?: string, seed?: string): string {
-  const s = seed || 'baby';
-  if (gender === 'boy') return `https://api.dicebear.com/7.x/avataaars/svg?seed=${s}&style=circle&top=shortHairShortFlat&hairColor=brown`;
-  if (gender === 'girl') return `https://api.dicebear.com/7.x/avataaars/svg?seed=${s}&style=circle&top=longHairStraight&hairColor=brown&accessories=round`;
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${s}`;
+  const normalizedSeed = encodeURIComponent((seed || 'baby').trim());
+  const base = `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedSeed}&size=512&radius=24&scale=110`;
+
+  if (gender === 'boy') {
+    return `${base}&backgroundType=gradientLinear&top=shortHairShortFlat&hairColor=brown`;
+  }
+
+  if (gender === 'girl') {
+    return `${base}&backgroundType=gradientLinear&top=longHairStraight&hairColor=brown&accessories=round`;
+  }
+
+  return `${base}&backgroundType=gradientLinear`;
+}
+
+export function getUserAvatar(seed?: string): string {
+  const normalizedSeed = encodeURIComponent((seed || 'parent').trim());
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedSeed}&size=512&radius=24&scale=110&backgroundType=gradientLinear`;
 }
 
 // WHO Growth Standards (simplified percentile data for boys and girls 0-24 months)

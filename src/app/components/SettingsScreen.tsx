@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield, Scale } from 'lucide-react';
+import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield, Scale, Stethoscope, Search, Link2, Copy, UserPlus2 } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { addBaby, deleteBaby, updateBaby } from '../../lib/supabase-storage';
-import { getDefaultAvatar, getBabyAge } from '../../lib/baby-utils';
+import { getDefaultAvatar, getBabyAge, getUserAvatar } from '../../lib/baby-utils';
 import { i18nT, i18nInstance, SupportedLanguage } from '../../lib/i18n';
 import { NotificationsManager } from '../../lib/notifications';
 import { toast } from 'sonner';
 import { COUNTRIES } from '../../lib/countries';
+import {
+  createPublicFamilyInviteLink,
+  searchCareTeamCandidates,
+  sendFamilySharingInvite,
+  type CareTeamSearchCandidate,
+  type FamilySharingRole,
+} from '../../lib/family-sharing-service';
 
 const MotionDiv = motion.div as any;
 
@@ -46,7 +53,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   isAdmin = false,
   onOpenAdminPanel,
 }) => {
-  const { babies, settings, updateSettings, user, refreshBabies } = useAppContext();
+  const { babies, currentBaby, settings, updateSettings, user, refreshBabies } = useAppContext();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showEditBaby, setShowEditBaby] = useState(false);
   const [editBabyName, setEditBabyName] = useState('');
@@ -57,6 +64,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showLangSettings, setShowLangSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [showCareTeamModal, setShowCareTeamModal] = useState(false);
+  const [careRole, setCareRole] = useState<Extract<FamilySharingRole, 'caregiver' | 'doctor'>>('caregiver');
+  const [careQuery, setCareQuery] = useState('');
+  const [careCandidates, setCareCandidates] = useState<CareTeamSearchCandidate[]>([]);
+  const [searchingCareCandidates, setSearchingCareCandidates] = useState(false);
+  const [careInviteName, setCareInviteName] = useState('');
+  const [careInviteEmail, setCareInviteEmail] = useState('');
+  const [sendingCareInvite, setSendingCareInvite] = useState(false);
+  const [creatingCareLink, setCreatingCareLink] = useState(false);
+  const [careInviteLink, setCareInviteLink] = useState('');
 
   const handleUnitChange = async (unit: 'metric' | 'imperial') => {
     await updateSettings({ units: unit });
@@ -185,6 +202,113 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     name: decodeLegacyUtf8(country.name),
   }));
 
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(async () => {
+      const query = careQuery.trim();
+      if (query.length < 2 || !showCareTeamModal) {
+        setCareCandidates([]);
+        return;
+      }
+
+      setSearchingCareCandidates(true);
+      const matches = await searchCareTeamCandidates(query);
+      setCareCandidates(matches);
+      setSearchingCareCandidates(false);
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [careQuery, showCareTeamModal]);
+
+  const openCareTeamModal = (role: Extract<FamilySharingRole, 'caregiver' | 'doctor'>) => {
+    setCareRole(role);
+    setCareQuery('');
+    setCareCandidates([]);
+    setCareInviteName('');
+    setCareInviteEmail('');
+    setCareInviteLink('');
+    setShowCareTeamModal(true);
+  };
+
+  const handleSendCareInvite = async () => {
+    if (!user?.id) {
+      toast.error('Please login again to send invite.');
+      return;
+    }
+
+    const targetBaby = currentBaby || babies[0];
+    if (!targetBaby) {
+      toast.error('Add a baby profile first before inviting care team members.');
+      return;
+    }
+
+    if (!careInviteEmail.trim()) {
+      toast.error('Enter an email address first.');
+      return;
+    }
+
+    setSendingCareInvite(true);
+    const invite = await sendFamilySharingInvite(
+      targetBaby.id,
+      careInviteEmail.trim().toLowerCase(),
+      careRole,
+      user.id,
+      {
+        invitedName: careInviteName.trim() || undefined,
+        babyNameSnapshot: targetBaby.name,
+        babyPhotoUrlSnapshot: targetBaby.photoUrl,
+      },
+    );
+    setSendingCareInvite(false);
+
+    if (!invite) {
+      toast.error('Could not send invite. Please try again.');
+      return;
+    }
+
+    toast.success(`${careRole === 'doctor' ? 'Doctor' : 'Caregiver'} invite sent.`);
+    setCareInviteName('');
+    setCareInviteEmail('');
+    setCareQuery('');
+    setCareCandidates([]);
+  };
+
+  const handleCreateCareInviteLink = async () => {
+    if (!user?.id) {
+      toast.error('Please login again to create link.');
+      return;
+    }
+
+    const targetBaby = currentBaby || babies[0];
+    if (!targetBaby) {
+      toast.error('Add a baby profile first before creating invite links.');
+      return;
+    }
+
+    setCreatingCareLink(true);
+    const payload = await createPublicFamilyInviteLink(targetBaby.id, careRole, user.id, {
+      invitedName: careInviteName.trim() || undefined,
+      babyNameSnapshot: targetBaby.name,
+      babyPhotoUrlSnapshot: targetBaby.photoUrl,
+      view: 'patients',
+    });
+    setCreatingCareLink(false);
+
+    if (!payload?.inviteLink) {
+      toast.error('Could not create invite link. Run latest database migrations and try again.');
+      return;
+    }
+
+    setCareInviteLink(payload.inviteLink);
+    await navigator.clipboard.writeText(payload.inviteLink);
+    toast.success('Invite link copied to clipboard.');
+  };
+
+  const handleCopyCareInviteLink = async () => {
+    if (!careInviteLink) return;
+    await navigator.clipboard.writeText(careInviteLink);
+    toast.success('Invite link copied.');
+  };
+
   return (
     <div className="fit-screen bg-background">
       <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl h-16 sm:h-20 px-3 sm:px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
@@ -205,7 +329,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
            
            <div className="card-onboarding text-center p-6 sm:p-12 bg-surface">
               <div className="w-20 h-20 sm:w-28 sm:h-28 mx-auto rounded-[2rem] sm:rounded-[2.5rem] bg-surface-gray dark:bg-zinc-800 flex items-center justify-center overflow-hidden mb-5 sm:mb-8 border-4 border-white dark:border-zinc-900 shadow-2xl">
-                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`} alt="User" />
+                 <img src={getUserAvatar(user?.email || user?.user_metadata?.name || 'parent')} alt="User" className="w-full h-full object-cover" />
               </div>
               <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter mb-2">{user?.user_metadata?.name || 'Parent'}</h2>
               <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-2 sm:mb-4 break-all">{user?.email}</p>
@@ -241,6 +365,64 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        </div>
                     </div>
                  ))}
+              </div>
+           </div>
+
+           <div className="space-y-4 sm:space-y-6">
+              <div className="flex items-center gap-4 px-2">
+                 <span className="text-[10px] font-black text-text-light uppercase tracking-widest">Care Team</span>
+                 <div className="h-px w-full bg-border-gray dark:bg-zinc-800 opacity-50" />
+              </div>
+              <div className="bg-surface rounded-[3rem] shadow-sm border border-border-gray dark:border-zinc-800 overflow-hidden divide-y divide-border-gray dark:divide-zinc-800">
+                 <button
+                   onClick={() => openCareTeamModal('caregiver')}
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                       <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-2xl flex items-center justify-center shrink-0">
+                         <Users size={22} className="sm:h-6 sm:w-6" />
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Add Caregiver</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Invite by name, email, or link</p>
+                       </div>
+                    </div>
+                    <ChevronRight size={18} className="text-text-light shrink-0" />
+                 </button>
+
+                 <button
+                   onClick={() => openCareTeamModal('doctor')}
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                       <div className="w-12 h-12 sm:w-14 sm:h-14 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 rounded-2xl flex items-center justify-center shrink-0">
+                         <Stethoscope size={22} className="sm:h-6 sm:w-6" />
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Add Doctor</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Assign baby profile to doctor</p>
+                       </div>
+                    </div>
+                    <ChevronRight size={18} className="text-text-light shrink-0" />
+                 </button>
+
+                 <button
+                   onClick={() =>
+                     window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: 'patients' } }))
+                   }
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                       <div className="w-12 h-12 sm:w-14 sm:h-14 bg-secondary/10 dark:bg-blue-900/20 text-secondary rounded-2xl flex items-center justify-center shrink-0">
+                         <UserPlus2 size={22} className="sm:h-6 sm:w-6" />
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">My Care Team List</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Review accepted and pending assignments</p>
+                       </div>
+                    </div>
+                    <ChevronRight size={18} className="text-text-light shrink-0" />
+                 </button>
               </div>
            </div>
 
@@ -425,6 +607,136 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
            </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {showCareTeamModal && (
+          <MotionDiv
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          >
+            <MotionDiv
+              initial={{ y: 80, opacity: 0.8 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="w-full max-w-xl bg-surface rounded-[2.5rem] p-6 sm:p-8 space-y-5 shadow-2xl border border-border-gray dark:border-zinc-800"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-2xl font-headline font-black text-foreground">
+                    Invite {careRole === 'doctor' ? 'Doctor' : 'Caregiver'}
+                  </h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-text-light mt-1">
+                    {currentBaby ? `For ${currentBaby.name}` : babies[0] ? `For ${babies[0].name}` : 'Add a baby first'}
+                  </p>
+                </div>
+                <button onClick={() => setShowCareTeamModal(false)} className="text-text-light hover:text-foreground transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-surface-gray dark:bg-zinc-900 p-1">
+                {(['caregiver', 'doctor'] as const).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => setCareRole(role)}
+                    className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                      careRole === role ? 'bg-secondary text-white shadow' : 'text-text-light hover:text-foreground'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-light h-4 w-4 pointer-events-none" />
+                  <input
+                    value={careQuery}
+                    onChange={(event) => setCareQuery(event.target.value)}
+                    placeholder="Search by name"
+                    className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 py-2 pl-9 pr-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                  />
+                </div>
+
+                {searchingCareCandidates && (
+                  <p className="text-xs font-semibold text-text-light">Searching…</p>
+                )}
+
+                {!searchingCareCandidates && careCandidates.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 p-2 space-y-1">
+                    {careCandidates.map((candidate) => (
+                      <button
+                        key={`${candidate.source}-${candidate.email}`}
+                        onClick={() => {
+                          setCareInviteName(candidate.name);
+                          setCareInviteEmail(candidate.email);
+                          if (candidate.roleHint === 'doctor' || candidate.roleHint === 'caregiver') {
+                            setCareRole(candidate.roleHint);
+                          }
+                        }}
+                        className="w-full rounded-lg px-2 py-2 text-left hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all"
+                      >
+                        <p className="text-xs font-black text-foreground">{candidate.name}</p>
+                        <p className="text-[10px] font-semibold text-text-light">{candidate.email}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <input
+                  value={careInviteName}
+                  onChange={(event) => setCareInviteName(event.target.value)}
+                  placeholder="Name (optional)"
+                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                />
+                <input
+                  type="email"
+                  value={careInviteEmail}
+                  onChange={(event) => setCareInviteEmail(event.target.value)}
+                  placeholder="Email address"
+                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleSendCareInvite}
+                    disabled={sendingCareInvite}
+                    className="py-3 rounded-xl bg-secondary text-white text-[10px] font-black uppercase tracking-widest shadow active:scale-[0.99] transition-all disabled:opacity-60"
+                  >
+                    {sendingCareInvite ? 'Sending…' : 'Send Invite'}
+                  </button>
+                  <button
+                    onClick={handleCreateCareInviteLink}
+                    disabled={creatingCareLink}
+                    className="py-3 rounded-xl bg-surface-gray dark:bg-zinc-800 text-foreground text-[10px] font-black uppercase tracking-widest border border-border-gray dark:border-zinc-700 active:scale-[0.99] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    <Link2 size={14} />
+                    {creatingCareLink ? 'Creating…' : 'Create Link'}
+                  </button>
+                </div>
+
+                {careInviteLink && (
+                  <div className="flex items-center gap-2 rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 p-2">
+                    <input
+                      readOnly
+                      value={careInviteLink}
+                      className="flex-1 bg-transparent px-2 text-xs font-semibold text-foreground outline-none"
+                    />
+                    <button
+                      onClick={handleCopyCareInviteLink}
+                      className="w-9 h-9 rounded-lg bg-surface-gray dark:bg-zinc-800 border border-border-gray dark:border-zinc-700 flex items-center justify-center text-text-dim hover:text-foreground transition-colors"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </MotionDiv>
+          </MotionDiv>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showLangSettings && (

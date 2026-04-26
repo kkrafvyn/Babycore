@@ -1,6 +1,6 @@
 import React from 'react';
 import { ThemeProvider } from 'next-themes';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { AppContextProvider, useAppContext } from './app/AppContext';
 import { AuthScreen } from './app/components/AuthScreen';
 import { EnhancedDashboard } from './app/components/EnhancedDashboard';
@@ -17,6 +17,7 @@ import {
   saveProfileToOnboarding,
   saveSettingsToOnboarding,
 } from './lib/onboarding-storage';
+import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { signOut } from './lib/supabase';
 
 type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies';
@@ -79,6 +80,7 @@ const FullScreenLoader = ({ label }: { label: string }) => (
 
 function AppShell() {
   const { user, babies, isLoading, refreshBabies } = useAppContext();
+  const handledInviteTokenRef = React.useRef<string | null>(null);
   const [guestSession, setGuestSession] = React.useState(
     () => localStorage.getItem(GUEST_SESSION_KEY) === 'true',
   );
@@ -140,6 +142,43 @@ function AppShell() {
 
     return () => window.clearTimeout(timeoutId);
   }, [hasSession, user, guestSession]);
+
+  React.useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get('invite');
+
+    if (!inviteToken || handledInviteTokenRef.current === inviteToken) {
+      return;
+    }
+
+    handledInviteTokenRef.current = inviteToken;
+
+    const completeInviteAcceptance = async () => {
+      const invite = await acceptFamilySharingInvite(inviteToken, user.id);
+
+      if (invite) {
+        toast.success('Invite accepted. Baby profile added to your list.');
+
+        const nextView = params.get('view') || 'patients';
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: nextView } }));
+        }, 140);
+      } else {
+        toast.error('This invite link is invalid, expired, or already used.');
+      }
+
+      params.delete('invite');
+      const nextQuery = params.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || '#app'}`;
+      window.history.replaceState(null, '', nextUrl);
+    };
+
+    completeInviteAcceptance();
+  }, [user?.id]);
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');

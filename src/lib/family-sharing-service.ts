@@ -6,15 +6,31 @@ export interface FamilySharingInvite {
   id: string;
   baby_id: string;
   invited_email: string;
+  invited_name?: string;
   role: FamilySharingRole;
   invite_token: string;
   expires_at?: string;
   accepted_at?: string;
+  accepted_by?: string;
   created_by: string;
   created_at: string;
+  is_public_link?: boolean;
   baby_name_snapshot?: string;
   baby_photo_url_snapshot?: string;
   status?: 'accepted' | 'pending';
+}
+
+export interface CareTeamSearchCandidate {
+  name: string;
+  email: string;
+  roleHint: 'doctor' | 'caregiver' | 'viewer';
+  source: 'doctor_directory' | 'recent_invites';
+  metadata?: string;
+}
+
+export interface PublicInviteLink {
+  invite: FamilySharingInvite;
+  inviteLink: string;
 }
 
 export interface CaregiverSession {
@@ -47,6 +63,8 @@ export async function sendFamilySharingInvite(
   role: FamilySharingRole,
   createdBy: string,
   options?: {
+    invitedName?: string;
+    isPublicLink?: boolean;
     babyNameSnapshot?: string;
     babyPhotoUrlSnapshot?: string;
   },
@@ -58,25 +76,49 @@ export async function sendFamilySharingInvite(
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 14);
 
-    const { data, error } = await supabase
+    const basePayload = {
+      baby_id: babyId,
+      invited_email: invitedEmail,
+      role,
+      invite_token: inviteToken,
+      expires_at: expiresAt.toISOString(),
+      created_by: createdBy,
+      baby_name_snapshot: options?.babyNameSnapshot,
+      baby_photo_url_snapshot: options?.babyPhotoUrlSnapshot,
+    };
+
+    const extendedPayload = {
+      ...basePayload,
+      invited_name: options?.invitedName,
+      is_public_link: options?.isPublicLink || false,
+    };
+
+    let { data, error } = await supabase
       .from('family_sharing_invites')
-      .insert({
-        baby_id: babyId,
-        invited_email: invitedEmail,
-        role,
-        invite_token: inviteToken,
-        expires_at: expiresAt.toISOString(),
-        created_by: createdBy,
-        baby_name_snapshot: options?.babyNameSnapshot,
-        baby_photo_url_snapshot: options?.babyPhotoUrlSnapshot,
-      })
+      .insert(extendedPayload)
       .select()
       .single();
+
+    // Backward-compat fallback for databases that don't yet have invited_name/is_public_link columns.
+    if (
+      error &&
+      /(invited_name|is_public_link)/i.test(String(error.message || error.details || error.hint || ''))
+    ) {
+      const retry = await supabase
+        .from('family_sharing_invites')
+        .insert(basePayload)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 
     // Send email invitation (backend service)
-    await sendInviteEmail(invitedEmail, babyId, role, inviteToken);
+    if (!options?.isPublicLink) {
+      await sendInviteEmail(invitedEmail, babyId, role, inviteToken);
+    }
 
     return data;
   } catch (err) {
@@ -135,22 +177,46 @@ export async function acceptFamilySharingInvite(
       return null;
     }
 
-    const { data, error } = await supabase
+    const acceptancePayload = {
+      accepted_at: new Date().toISOString(),
+      accepted_by: userId,
+    };
+
+    let { data, error } = await supabase
       .from('family_sharing_invites')
-      .update({
-        accepted_at: new Date().toISOString(),
-      })
+      .update(acceptancePayload)
       .eq('id', invite.id)
       .is('accepted_at', null)
       .select()
       .single();
+
+    // Backward-compat fallback for databases without accepted_by.
+    if (
+      error &&
+      /accepted_by/i.test(String(error.message || error.details || error.hint || ''))
+    ) {
+      const retry = await supabase
+        .from('family_sharing_invites')
+        .update({
+          accepted_at: new Date().toISOString(),
+        })
+        .eq('id', invite.id)
+        .is('accepted_at', null)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
 
     // Link user to baby (would need a junction table)
     // This depends on your user-baby relationship model
 
-    return data;
+    return {
+      ...data,
+      status: 'accepted',
+    };
   } catch (err) {
     console.error('Error accepting invite:', err);
     return null;
@@ -285,6 +351,50 @@ export async function getFamilyMembers(babyId: string): Promise<FamilySharingInv
   }
 }
 
+export function buildInviteLink(inviteToken: string, view: 'patients' | 'family-sharing' = 'patients') {
+  if (typeof window === 'undefined') {
+    return `/`;
+  }
+
+  const inviteUrl = new URL(window.location.pathname || '/', window.location.origin);
+  inviteUrl.searchParams.set('invite', inviteToken);
+  inviteUrl.searchParams.set('view', view);
+  inviteUrl.hash = '#login';
+
+  return inviteUrl.toString();
+}
+
+/**
+ * Create a shareable invite link that can be opened by any authenticated user.
+ */
+export async function createPublicFamilyInviteLink(
+  babyId: string,
+  role: Extract<FamilySharingRole, 'caregiver' | 'doctor' | 'viewer' | 'editor'>,
+  createdBy: string,
+  options?: {
+    invitedName?: string;
+    babyNameSnapshot?: string;
+    babyPhotoUrlSnapshot?: string;
+    view?: 'patients' | 'family-sharing';
+  },
+): Promise<PublicInviteLink | null> {
+  const placeholderEmail = `public-link+${Date.now()}@babycore.local`;
+
+  const invite = await sendFamilySharingInvite(babyId, placeholderEmail, role, createdBy, {
+    invitedName: options?.invitedName,
+    isPublicLink: true,
+    babyNameSnapshot: options?.babyNameSnapshot,
+    babyPhotoUrlSnapshot: options?.babyPhotoUrlSnapshot,
+  });
+
+  if (!invite) return null;
+
+  return {
+    invite,
+    inviteLink: buildInviteLink(invite.invite_token, options?.view || 'patients'),
+  };
+}
+
 /**
  * Revoke family member access
  */
@@ -338,6 +448,93 @@ const getCurrentUserEmail = async (): Promise<string | null> => {
   }
 };
 
+const getCurrentUserId = async (): Promise<string | null> => {
+  try {
+    const auth = supabase.auth as any;
+    const { data, error } = await auth.getUser();
+    if (error) throw error;
+    return data.user?.id || null;
+  } catch (err) {
+    console.error('Error getting current user id:', err);
+    return null;
+  }
+};
+
+/**
+ * Search care-team candidates by name (or email fallback).
+ * Sources:
+ * 1) doctor_profiles directory
+ * 2) recent family_sharing_invites created by current user
+ */
+export async function searchCareTeamCandidates(query: string): Promise<CareTeamSearchCandidate[]> {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length < 2) return [];
+
+  const escaped = normalized.replace(/[%_]/g, '');
+  const likeQuery = `%${escaped}%`;
+
+  const [ownerUserId, doctorResult] = await Promise.all([
+    getCurrentUserId(),
+    supabase
+      .from('doctor_profiles')
+      .select('full_name, clinic_email, specialization')
+      .ilike('full_name', likeQuery)
+      .limit(12),
+  ]);
+
+  const doctorCandidates: CareTeamSearchCandidate[] = (doctorResult.data || [])
+    .filter((entry: any) => Boolean(entry.clinic_email))
+    .map((entry: any) => ({
+      name: entry.full_name,
+      email: String(entry.clinic_email).toLowerCase(),
+      roleHint: 'doctor',
+      source: 'doctor_directory' as const,
+      metadata: entry.specialization || 'Doctor',
+    }));
+
+  let inviteCandidates: CareTeamSearchCandidate[] = [];
+  if (ownerUserId) {
+    const inviteResult = await supabase
+      .from('family_sharing_invites')
+      .select('*')
+      .eq('created_by', ownerUserId)
+      .order('created_at', { ascending: false })
+      .limit(120);
+
+    inviteCandidates = (inviteResult.data || [])
+      .map((invite: any) => {
+        const email = String(invite.invited_email || '').toLowerCase();
+        const fallbackName = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
+        const name = String(invite.invited_name || fallbackName || email).trim();
+
+        return {
+          name,
+          email,
+          roleHint: invite.role === 'doctor' ? 'doctor' : 'caregiver',
+          source: 'recent_invites' as const,
+          metadata: invite.role || 'Care team',
+        };
+      })
+      .filter((candidate) => candidate.email)
+      .filter((candidate) => {
+        const nameMatch = candidate.name.toLowerCase().includes(normalized);
+        const emailMatch = candidate.email.toLowerCase().includes(normalized);
+        return nameMatch || emailMatch;
+      });
+  }
+
+  const combined = [...doctorCandidates, ...inviteCandidates];
+  const dedupedByEmail = new Map<string, CareTeamSearchCandidate>();
+
+  for (const candidate of combined) {
+    if (!dedupedByEmail.has(candidate.email)) {
+      dedupedByEmail.set(candidate.email, candidate);
+    }
+  }
+
+  return Array.from(dedupedByEmail.values()).slice(0, 12);
+}
+
 /**
  * Get incoming sharing invites for logged in user by email.
  * This is used by doctor/caregiver accounts to add shared babies to "My Patients".
@@ -381,17 +578,38 @@ export async function getIncomingSharingInvites(
  */
 export async function acceptIncomingSharingInvite(inviteId: string): Promise<FamilySharingInvite | null> {
   try {
+    const userId = await getCurrentUserId();
+
     const { data, error } = await supabase
       .from('family_sharing_invites')
       .update({
         accepted_at: new Date().toISOString(),
+        accepted_by: userId || undefined,
       })
       .eq('id', inviteId)
       .is('accepted_at', null)
       .select()
       .single();
 
+    if (error && /accepted_by/i.test(String(error.message || error.details || error.hint || ''))) {
+      const retry = await supabase
+        .from('family_sharing_invites')
+        .update({
+          accepted_at: new Date().toISOString(),
+        })
+        .eq('id', inviteId)
+        .is('accepted_at', null)
+        .select()
+        .single();
+      if (retry.error) throw retry.error;
+      return {
+        ...retry.data,
+        status: 'accepted',
+      };
+    }
+
     if (error) throw error;
+
     return {
       ...data,
       status: 'accepted',

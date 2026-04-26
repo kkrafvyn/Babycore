@@ -3,7 +3,7 @@ import { ChevronLeft, Download, FileText, Calendar, TrendingUp, Syringe, Share2,
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
 import { i18nT } from '../../lib/i18n';
-import { getBabyAge } from '../../lib/baby-utils';
+import { getBabyAge, getDefaultAvatar } from '../../lib/baby-utils';
 
 const MotionDiv = motion.div as any;
 
@@ -53,7 +53,7 @@ export const ExportScreen: React.FC<ExportScreenProps> = ({ onBack }) => {
           {/* Baby Header */}
           <div className="bg-surface p-8 rounded-[3rem] border border-border-gray dark:border-zinc-800 flex items-center gap-6">
             <div className="w-16 h-16 rounded-2xl bg-surface-gray dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
-               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentBaby?.name}`} alt="" />
+               <img src={getDefaultAvatar(currentBaby?.gender, currentBaby?.name || 'baby')} alt="" className="w-full h-full object-cover" />
             </div>
             <div>
                <h2 className="text-2xl font-headline font-black text-foreground">{currentBaby?.name}</h2>

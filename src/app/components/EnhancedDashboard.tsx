@@ -48,7 +48,7 @@ import { Paywall } from './Paywall';
 import { PaymentScreen } from './PaymentScreen';
 import { AdminPanel } from './AdminPanel';
 import { getSleepLogsByBaby, getFeedLogsByBaby, getDiaperLogsByBaby, getVaccinationRecordsByBaby, addFeedLog } from '../../lib/supabase-storage';
-import { getBabyAge, timeAgo, getDefaultAvatar, formatDuration } from '../../lib/baby-utils';
+import { getBabyAge, timeAgo, getDefaultAvatar, getUserAvatar, formatDuration } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
 import type { SleepLog, FeedLog, DiaperLog as DiaperLogType, VaccinationRecord } from '../../types';
 import { syncNotifications } from '../../lib/notifications';
@@ -327,7 +327,7 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
          </div>
          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-border-gray dark:border-zinc-800 p-1 shrink-0">
             <div className="w-full h-full rounded-full overflow-hidden shadow-lg border border-border-gray dark:border-zinc-700">
-               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`} alt="Profile" className="w-full h-full object-cover" />
+               <img src={getUserAvatar(displayName)} alt="Profile" className="w-full h-full object-cover" />
             </div>
          </div>
       </div>

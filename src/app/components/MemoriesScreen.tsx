@@ -3,6 +3,7 @@ import { ChevronLeft, Plus, Image as ImageIcon, Heart, Camera, Share2, MoreHoriz
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
 import { i18nT } from '../../lib/i18n';
+import { getUserAvatar } from '../../lib/baby-utils';
 
 interface MemoriesScreenProps {
   onBack: () => void;
@@ -52,10 +53,10 @@ export const MemoriesScreen: React.FC<MemoriesScreenProps> = ({ onBack }) => {
                    initial={{ opacity: 0, y: 20 }}
                    animate={{ opacity: 1, y: 0 }}
                    transition={{ delay: idx * 0.1 }}
-                   className="break-inside-avoid bg-surface rounded-[2.5rem] p-3 border border-border-gray dark:border-zinc-800 space-y-3 shadow-sm group hover:shadow-xl hover:border-secondary transition-all"
+                    className="break-inside-avoid bg-surface rounded-[2.5rem] p-3 border border-border-gray dark:border-zinc-800 space-y-3 shadow-sm group hover:shadow-xl hover:border-secondary transition-all"
                  >
                     <div className="aspect-[4/5] rounded-[2rem] bg-surface-gray dark:bg-zinc-800 overflow-hidden relative">
-                       <img src={memory.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${memory.id}`} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                       <img src={memory.photoUrl || getUserAvatar(memory.id)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                     <div className="px-2 pb-2">

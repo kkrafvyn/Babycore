@@ -6,7 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { COUNTRIES } from '../../lib/countries';
-import { getDefaultAvatar } from '../../lib/baby-utils';
+import { getDefaultAvatar, getUserAvatar } from '../../lib/baby-utils';
 import { getVaccinationRegionForCountry } from '../../lib/vaccination-schedule-resolver';
 
 type OnboardingStep = 'welcome' | 'country' | 'baby' | 'units' | 'notifications' | 'complete';
@@ -108,13 +108,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   const selectedCountry = countryOptions.find((country) => country.code === formData.country);
   const avatarPreview =
     formData.profileType === 'doctor'
-      ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-          formData.doctorName.trim() || 'doctor',
-        )}`
+      ? getUserAvatar(formData.doctorName.trim() || 'doctor')
       : formData.profileType === 'caregiver'
-        ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-            formData.caregiverName.trim() || 'caregiver',
-          )}`
+        ? getUserAvatar(formData.caregiverName.trim() || 'caregiver')
         : formData.babyPhotoUrl || getDefaultAvatar(formData.babyGender, formData.babyName || 'baby');
 
   const canProceed = (() => {

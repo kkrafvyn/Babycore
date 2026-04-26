@@ -1,0 +1,61 @@
+-- ============================================================================
+-- SHARING LINK + DIRECTORY FIELDS
+-- ============================================================================
+-- Adds metadata needed for:
+-- 1) invite by link flow
+-- 2) search candidates by saved invite name
+-- 3) tracking who accepted an invite
+
+ALTER TABLE family_sharing_invites
+  ADD COLUMN IF NOT EXISTS invited_name TEXT,
+  ADD COLUMN IF NOT EXISTS is_public_link BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS accepted_by UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_family_sharing_public_link ON family_sharing_invites(is_public_link);
+CREATE INDEX IF NOT EXISTS idx_family_sharing_invited_name ON family_sharing_invites(invited_name);
+
+ALTER TABLE family_sharing_invites ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can select invites they created or received" ON family_sharing_invites;
+DROP POLICY IF EXISTS "Invite creators can insert invites" ON family_sharing_invites;
+DROP POLICY IF EXISTS "Invite creators can update invites" ON family_sharing_invites;
+DROP POLICY IF EXISTS "Invite recipients can accept invites" ON family_sharing_invites;
+DROP POLICY IF EXISTS "Invite creators can delete invites" ON family_sharing_invites;
+
+CREATE POLICY "Users can select invites they created or received"
+ON family_sharing_invites
+FOR SELECT
+USING (
+  created_by = auth.uid()
+  OR lower(invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  OR is_public_link = true
+);
+
+CREATE POLICY "Invite creators can insert invites"
+ON family_sharing_invites
+FOR INSERT
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Invite creators can update invites"
+ON family_sharing_invites
+FOR UPDATE
+USING (created_by = auth.uid())
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Invite recipients can accept invites"
+ON family_sharing_invites
+FOR UPDATE
+USING (
+  lower(invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  OR is_public_link = true
+)
+WITH CHECK (
+  lower(invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  OR is_public_link = true
+);
+
+CREATE POLICY "Invite creators can delete invites"
+ON family_sharing_invites
+FOR DELETE
+USING (created_by = auth.uid());
+
