@@ -29,18 +29,58 @@ const postMl = async (path: string, payload: Record<string, unknown>) =>
     body: JSON.stringify(payload),
   });
 
+const normalizeConfidence = (value: unknown, fallback = 0.5): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.min(1, parsed));
+};
+
 /**
  * Analyze sleep patterns using ML
  */
 export async function analyzeSleepPatterns(babyId: string, days: number = 30): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/analyze-sleep', {
-      baby_id: babyId,
-      days,
+    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+      babyId,
+      daysBack: days,
     });
 
     if (!response.ok) throw new Error('Failed to analyze sleep');
-    const { insights } = await response.json();
+    const payload = await response.json();
+    const analysis = payload?.analysis || {};
+    const insights: AIInsight[] = [];
+
+    if (analysis?.trends) {
+      insights.push({
+        type: 'trend',
+        title: 'Sleep trend',
+        description: `Sleep trend is currently ${analysis.trends}.`,
+        confidence: 0.78,
+        actionable: true,
+      });
+    }
+
+    for (const anomaly of analysis?.anomalies || []) {
+      insights.push({
+        type: 'anomaly',
+        title: 'Sleep anomaly detected',
+        description: `Unusual sleep value recorded on ${new Date(anomaly.date).toLocaleDateString()}.`,
+        confidence: 0.72,
+        actionable: true,
+        data: anomaly,
+      });
+    }
+
+    for (const recommendation of analysis?.recommendations || []) {
+      insights.push({
+        type: 'recommendation',
+        title: 'Sleep recommendation',
+        description: String(recommendation),
+        confidence: 0.68,
+        actionable: true,
+      });
+    }
+
     return insights;
   } catch (err) {
     console.error('Error analyzing sleep patterns:', err);
@@ -57,11 +97,23 @@ export async function predictNextFeedingTime(babyId: string): Promise<{
   reason: string;
 } | null> {
   try {
-    const response = await postMl('/api/ml/predict-feeding', { baby_id: babyId });
+    const sleepPrediction = await predictNextSleepTime(babyId);
+    if (sleepPrediction?.predictedTime) {
+      const date = new Date(sleepPrediction.predictedTime);
+      date.setMinutes(date.getMinutes() - 90);
+      return {
+        predictedTime: date.toISOString(),
+        confidence: Math.max(0.45, sleepPrediction.confidence - 0.1),
+        reason: 'Estimated from recent sleep interval patterns',
+      };
+    }
 
-    if (!response.ok) throw new Error('Failed to predict feeding time');
-    const prediction = await response.json();
-    return prediction;
+    const fallback = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    return {
+      predictedTime: fallback.toISOString(),
+      confidence: 0.4,
+      reason: 'Fallback estimate due to limited data',
+    };
   } catch (err) {
     console.error('Error predicting feeding time:', err);
     return null;
@@ -77,11 +129,18 @@ export async function predictNextSleepTime(babyId: string): Promise<{
   reason: string;
 } | null> {
   try {
-    const response = await postMl('/api/ml/predict-sleep', { baby_id: babyId });
+    const response = await postMl('/api/ml/predict-next-sleep', { babyId });
 
     if (!response.ok) throw new Error('Failed to predict sleep time');
-    const prediction = await response.json();
-    return prediction;
+    const payload = await response.json();
+    const prediction = payload?.prediction;
+    if (!prediction?.predictedTime) return null;
+
+    return {
+      predictedTime: prediction.predictedTime,
+      confidence: normalizeConfidence(prediction.confidence, 0.5),
+      reason: 'Based on recent sleep intervals',
+    };
   } catch (err) {
     console.error('Error predicting sleep time:', err);
     return null;
@@ -93,11 +152,22 @@ export async function predictNextSleepTime(babyId: string): Promise<{
  */
 export async function detectAnomalies(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/detect-anomalies', { baby_id: babyId });
-
+    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+      babyId,
+      daysBack: 30,
+    });
     if (!response.ok) throw new Error('Failed to detect anomalies');
-    const { anomalies } = await response.json();
-    return anomalies;
+
+    const payload = await response.json();
+    const anomalies = payload?.analysis?.anomalies || [];
+    return anomalies.map((anomaly: any) => ({
+      type: 'anomaly',
+      title: 'Anomaly detected',
+      description: `Unexpected sleep value detected on ${new Date(anomaly.date).toLocaleDateString()}.`,
+      confidence: 0.72,
+      actionable: true,
+      data: anomaly,
+    }));
   } catch (err) {
     console.error('Error detecting anomalies:', err);
     return [];
@@ -109,11 +179,28 @@ export async function detectAnomalies(babyId: string): Promise<AIInsight[]> {
  */
 export async function getFeedingRecommendations(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/feeding-recommendations', { baby_id: babyId });
+    const growth = await analyzeGrowthTrajectory(babyId);
+    const tips: AIInsight[] = [
+      {
+        type: 'recommendation',
+        title: 'Hydration check',
+        description: 'Track feeds consistently to detect appetite changes early.',
+        confidence: 0.62,
+        actionable: true,
+      },
+    ];
 
-    if (!response.ok) throw new Error('Failed to get recommendations');
-    const { recommendations } = await response.json();
-    return recommendations;
+    if (growth?.healthAlert) {
+      tips.push({
+        type: 'recommendation',
+        title: 'Growth follow-up',
+        description: growth.healthAlert,
+        confidence: 0.78,
+        actionable: true,
+      });
+    }
+
+    return tips;
   } catch (err) {
     console.error('Error getting feeding recommendations:', err);
     return [];
@@ -125,11 +212,21 @@ export async function getFeedingRecommendations(babyId: string): Promise<AIInsig
  */
 export async function getSleepRecommendations(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/sleep-recommendations', { baby_id: babyId });
+    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+      babyId,
+      daysBack: 21,
+    });
 
     if (!response.ok) throw new Error('Failed to get recommendations');
-    const { recommendations } = await response.json();
-    return recommendations;
+    const payload = await response.json();
+    const recommendations = payload?.analysis?.recommendations || [];
+    return recommendations.map((item: string) => ({
+      type: 'recommendation',
+      title: 'Sleep guidance',
+      description: item,
+      confidence: 0.7,
+      actionable: true,
+    }));
   } catch (err) {
     console.error('Error getting sleep recommendations:', err);
     return [];
@@ -145,11 +242,24 @@ export async function analyzeGrowthTrajectory(babyId: string): Promise<{
   healthAlert?: string;
 } | null> {
   try {
-    const response = await postMl('/api/ml/analyze-growth', { baby_id: babyId });
+    const response = await postMl('/api/ml/growth-analysis', { babyId });
 
     if (!response.ok) throw new Error('Failed to analyze growth');
-    const analysis = await response.json();
-    return analysis;
+    const payload = await response.json();
+    const analysis = payload?.analysis || {};
+    const trendRaw = String(analysis?.trend || 'stable');
+    const trend = (trendRaw === 'increasing' || trendRaw === 'decreasing' ? trendRaw : 'stable') as
+      | 'increasing'
+      | 'stable'
+      | 'decreasing';
+    const percentile = Number(analysis?.currentPercentile?.weight || 50);
+    const concerns = Array.isArray(analysis?.concerns) ? analysis.concerns : [];
+
+    return {
+      percentile: Number.isFinite(percentile) ? percentile : 50,
+      trend,
+      healthAlert: concerns[0],
+    };
   } catch (err) {
     console.error('Error analyzing growth:', err);
     return null;
@@ -161,11 +271,20 @@ export async function analyzeGrowthTrajectory(babyId: string): Promise<{
  */
 export async function getPersonalizedTips(babyId: string): Promise<string[]> {
   try {
-    const response = await postMl('/api/ml/personalized-tips', { baby_id: babyId });
+    const [sleepInsights, growth] = await Promise.all([
+      analyzeSleepPatterns(babyId, 14),
+      analyzeGrowthTrajectory(babyId),
+    ]);
 
-    if (!response.ok) throw new Error('Failed to get tips');
-    const { tips } = await response.json();
-    return tips;
+    const tips = sleepInsights
+      .filter((item) => item.type === 'recommendation')
+      .map((item) => item.description);
+
+    if (growth?.healthAlert) {
+      tips.push(growth.healthAlert);
+    }
+
+    return Array.from(new Set(tips)).slice(0, 6);
   } catch (err) {
     console.error('Error getting tips:', err);
     return [];
@@ -185,11 +304,28 @@ export async function predictMilestonesTiming(
   }>
 > {
   try {
-    const response = await postMl('/api/ml/predict-milestones', { baby_id: babyId });
+    const milestones = ['rolling', 'sitting', 'crawling', 'walking', 'talking'];
+    const results = await Promise.all(
+      milestones.map(async (milestone) => {
+        const response = await postMl('/api/ml/predict-milestone', { babyId, milestone });
+        if (!response.ok) return null;
+        const payload = await response.json();
+        const prediction = payload?.prediction;
+        if (!prediction) return null;
 
-    if (!response.ok) throw new Error('Failed to predict milestones');
-    const { milestones } = await response.json();
-    return milestones;
+        return {
+          milestone,
+          estimatedWeek: Math.max(0, Math.round(Number(prediction.monthsUntil || 0) * 4)),
+          confidence: normalizeConfidence(prediction.confidence, 0.6),
+        };
+      }),
+    );
+
+    return results.filter(Boolean) as Array<{
+      milestone: string;
+      estimatedWeek: number;
+      confidence: number;
+    }>;
   } catch (err) {
     console.error('Error predicting milestones:', err);
     return [];
@@ -205,11 +341,29 @@ export async function calculateAdvancedSleepScore(babyId: string): Promise<{
   suggestions: string[];
 } | null> {
   try {
-    const response = await postMl('/api/ml/sleep-score', { baby_id: babyId });
+    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+      babyId,
+      daysBack: 14,
+    });
 
     if (!response.ok) throw new Error('Failed to calculate sleep score');
-    const score = await response.json();
-    return score;
+    const payload = await response.json();
+    const analysis = payload?.analysis || {};
+    const avgSleepMinutes = Number(analysis?.averageSleepPerDay || 0);
+    const quality = Number(analysis?.sleepQuality || 0);
+    const score = Math.max(
+      0,
+      Math.min(100, Math.round((avgSleepMinutes / 720) * 60 + (quality / 10) * 40)),
+    );
+
+    return {
+      score,
+      factors: [
+        `Average sleep: ${Math.round(avgSleepMinutes)} minutes/day`,
+        `Sleep quality index: ${quality.toFixed(1)}`,
+      ],
+      suggestions: analysis?.recommendations || [],
+    };
   } catch (err) {
     console.error('Error calculating sleep score:', err);
     return null;

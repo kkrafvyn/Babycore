@@ -136,7 +136,7 @@ export async function analyzeCryPattern(voiceLogId: string): Promise<VoiceRecogn
       method: 'POST',
       headers: await getJsonHeaders(),
       body: JSON.stringify({
-        audio_url: voiceLog.audio_url,
+        voiceLogId,
       }),
     });
 
