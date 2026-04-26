@@ -18,6 +18,14 @@ export function getSyncStatus(): SyncStatus {
   return { ...syncStatus };
 }
 
+const getAuthenticatedUser = async (): Promise<{ id: string } | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { user },
+  } = await auth.getUser();
+  return user || null;
+};
+
 const genericSync = async (table: string, data: any[]) => {
   if (!data.length) return true;
   try {
@@ -51,7 +59,7 @@ export async function performFullSync(localData: {
   memories: any[];
   userSettings: any;
 }): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) {
     syncStatus.syncError = 'User not authenticated';
     return false;
@@ -161,7 +169,7 @@ export async function performFullSync(localData: {
 
 export async function pullFromCloud(): Promise<any> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser();
     if (!user) throw new Error('User not authenticated');
 
     const fetchTable = (table: string, filter?: any) => {
@@ -272,7 +280,7 @@ export async function pullFromCloud(): Promise<any> {
  */
 export function setupRealtimeSync(callback: (change: any) => void) {
   try {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getAuthenticatedUser().then((user) => {
       if (!user) return;
 
       // Listen to babies changes

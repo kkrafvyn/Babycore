@@ -93,7 +93,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
       // Subscribe to push notifications
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: toUint8Array(vapidPublicKey),
+        applicationServerKey: toUint8Array(vapidPublicKey) as unknown as BufferSource,
       });
 
       // Send subscription to backend

@@ -289,7 +289,7 @@ export async function revokeReportShare(reportId: string, email: string): Promis
 
     if (!report) return false;
 
-    const updatedList = (report.shared_with || []).filter((e) => e !== email);
+    const updatedList = (report.shared_with || []).filter((entry: string) => entry !== email);
 
     const { error } = await supabase
       .from('doctor_reports')

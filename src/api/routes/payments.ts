@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabase.js';
 import axios from 'axios';
 import crypto from 'crypto';
+import { sendTransactionalEmail } from '../utils/email.js';
 
 const router = Router();
 
@@ -307,6 +308,18 @@ export async function finalizePremiumPayment(req: Request, res: Response) {
       endDate: endDate.toISOString(),
       currency: payload.currency || 'USD',
     });
+
+    await sendPaymentConfirmationEmail(
+      userId,
+      {
+        name: payload.planName || 'Premium Access',
+        currency: payload.currency || 'USD',
+      },
+      {
+        amount_paid: paidAmount,
+        renewal_date: endDate.toISOString(),
+      },
+    );
 
     return res.json({
       success: true,
@@ -613,8 +626,49 @@ async function sendPaymentConfirmationEmail(
   addon: any,
   subscription: any
 ): Promise<void> {
-  // Send confirmation email via SendGrid, Resend, etc.
-  // Implementation depends on email service setup
+  const authAdmin = (supabase.auth as any).admin;
+  const { data: authData, error: authError } = await authAdmin.getUserById(userId);
+  if (authError) {
+    throw authError;
+  }
+
+  const recipientEmail = authData?.user?.email;
+  if (!recipientEmail) {
+    throw new Error('User email not found for payment confirmation');
+  }
+
+  const amount = Number(subscription?.amount_paid ?? addon?.price ?? 0);
+  const currency = String(addon?.currency || 'USD');
+  const addonName = String(addon?.name || addon?.addon_name || 'Premium Access');
+  const renewalDate = subscription?.renewal_date
+    ? new Date(subscription.renewal_date).toLocaleDateString()
+    : 'N/A';
+
+  const html = `
+    <h2>Payment Confirmed</h2>
+    <p>Your BabyCore premium subscription is active.</p>
+    <p><strong>Plan:</strong> ${addonName}</p>
+    <p><strong>Amount:</strong> ${amount} ${currency}</p>
+    <p><strong>Status:</strong> Active</p>
+    <p><strong>Next renewal:</strong> ${renewalDate}</p>
+    <p>Thank you for trusting BabyCore with your family care workflow.</p>
+  `;
+
+  const text = [
+    'Payment Confirmed',
+    `Plan: ${addonName}`,
+    `Amount: ${amount} ${currency}`,
+    `Status: Active`,
+    `Next renewal: ${renewalDate}`,
+    'Thank you for using BabyCore.',
+  ].join('\n');
+
+  await sendTransactionalEmail({
+    to: recipientEmail,
+    subject: 'BabyCore Premium Payment Confirmation',
+    html,
+    text,
+  });
 }
 
 function verifyPaystackSignature(req: Request): boolean {

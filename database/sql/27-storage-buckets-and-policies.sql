@@ -1,0 +1,59 @@
+-- ============================================================================
+-- SUPABASE STORAGE BUCKETS + ACCESS POLICIES
+-- ============================================================================
+-- Idempotent setup for media buckets used by the app.
+
+-- Ensure required buckets exist.
+INSERT INTO storage.buckets (id, name, public)
+VALUES
+  ('baby-photos', 'baby-photos', true),
+  ('doctor-reports', 'doctor-reports', true),
+  ('health-records', 'health-records', true),
+  ('allergy-photos', 'allergy-photos', true),
+  ('voice-logs', 'voice-logs', true)
+ON CONFLICT (id) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
+
+-- Recreate policies for deterministic reruns.
+DROP POLICY IF EXISTS "Authenticated can view app media buckets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated can upload app media buckets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated can update app media buckets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated can delete app media buckets" ON storage.objects;
+
+CREATE POLICY "Authenticated can view app media buckets"
+ON storage.objects
+FOR SELECT
+USING (
+  auth.role() = 'authenticated'
+  AND bucket_id IN ('baby-photos', 'doctor-reports', 'health-records', 'allergy-photos', 'voice-logs')
+);
+
+CREATE POLICY "Authenticated can upload app media buckets"
+ON storage.objects
+FOR INSERT
+WITH CHECK (
+  auth.role() = 'authenticated'
+  AND bucket_id IN ('baby-photos', 'doctor-reports', 'health-records', 'allergy-photos', 'voice-logs')
+);
+
+CREATE POLICY "Authenticated can update app media buckets"
+ON storage.objects
+FOR UPDATE
+USING (
+  auth.role() = 'authenticated'
+  AND bucket_id IN ('baby-photos', 'doctor-reports', 'health-records', 'allergy-photos', 'voice-logs')
+)
+WITH CHECK (
+  auth.role() = 'authenticated'
+  AND bucket_id IN ('baby-photos', 'doctor-reports', 'health-records', 'allergy-photos', 'voice-logs')
+);
+
+CREATE POLICY "Authenticated can delete app media buckets"
+ON storage.objects
+FOR DELETE
+USING (
+  auth.role() = 'authenticated'
+  AND bucket_id IN ('baby-photos', 'doctor-reports', 'health-records', 'allergy-photos', 'voice-logs')
+);

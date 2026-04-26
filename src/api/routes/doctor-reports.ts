@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase.js';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { v4 as uuid } from 'uuid';
+import { sendTransactionalEmail } from '../utils/email.js';
 
 const router = Router();
 
@@ -85,7 +86,7 @@ export async function generateDoctorReport(req: Request, res: Response) {
     // Baby info
     doc.fontSize(14).text('Baby Information', { underline: true });
     doc.fontSize(11).text(`Name: ${baby.name}`);
-    doc.fontSize(11).text(`Date of Birth: ${baby.dateOfBirth}`);
+    doc.fontSize(11).text(`Date of Birth: ${baby.date_of_birth || baby.dateOfBirth || 'N/A'}`);
     doc.fontSize(11).text(`Age: ${baby.age_months} months`);
     doc.moveDown();
 
@@ -206,16 +207,39 @@ export async function emailReportToDoctor(req: Request, res: Response) {
 
     if (reportError) throw reportError;
 
-    // Send email via SendGrid, Resend, etc.
-    const emailService = process.env.EMAIL_SERVICE || 'sendgrid';
-
-    if (emailService === 'sendgrid') {
-      // Implement SendGrid integration
-      // await sgMail.send({...})
-    } else if (emailService === 'resend') {
-      // Implement Resend integration
-      // await resend.emails.send({...})
+    const reportUrl = report?.file_url;
+    if (!reportUrl) {
+      return res.status(400).json({ error: 'Report URL is missing' });
     }
+
+    const { data: baby } = await supabase
+      .from('babies')
+      .select('name')
+      .eq('id', report.baby_id)
+      .maybeSingle();
+
+    const babyName = baby?.name || 'Baby';
+    const subject = `Medical Report for ${babyName}`;
+    const html = `
+      <h2>${subject}</h2>
+      <p>A parent shared a BabyCore medical report with you.</p>
+      <p><strong>Report type:</strong> ${report.report_type || 'General'}</p>
+      <p><a href="${reportUrl}">Open report</a></p>
+      <p>This link follows the report token expiration policy configured by the parent.</p>
+    `;
+
+    const text = [
+      subject,
+      `Report type: ${report.report_type || 'General'}`,
+      `Open report: ${reportUrl}`,
+    ].join('\n');
+
+    await sendTransactionalEmail({
+      to: doctorEmail,
+      subject,
+      html,
+      text,
+    });
 
     return res.json({ success: true, message: 'Report emailed to doctor' });
   } catch (error: any) {
@@ -226,7 +250,9 @@ export async function emailReportToDoctor(req: Request, res: Response) {
 const getPdfBuffer = (doc: any): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    doc.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    doc.on('data', (chunk: Buffer | Uint8Array) =>
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
+    );
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });

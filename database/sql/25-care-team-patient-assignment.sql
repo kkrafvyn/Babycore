@@ -27,6 +27,9 @@ BEGIN
 END $$;
 
 ALTER TABLE family_sharing_invites
+  DROP CONSTRAINT IF EXISTS family_sharing_invites_role_check;
+
+ALTER TABLE family_sharing_invites
   ADD CONSTRAINT family_sharing_invites_role_check
   CHECK (role IN ('owner', 'editor', 'viewer', 'caregiver', 'doctor'));
 
@@ -68,4 +71,3 @@ CREATE POLICY "Invite creators can delete invites"
 ON family_sharing_invites
 FOR DELETE
 USING (created_by = auth.uid());
-

@@ -20,6 +20,22 @@ type CryAnalysis = {
   recommendations: string[];
 };
 
+const extractVoiceStoragePath = (storageUrl: string): string | null => {
+  if (!storageUrl) return null;
+  const marker = '/voice-logs/';
+  const legacyMarker = '/voice_logs/';
+
+  if (storageUrl.includes(marker)) {
+    return storageUrl.split(marker)[1] || null;
+  }
+
+  if (storageUrl.includes(legacyMarker)) {
+    return storageUrl.split(legacyMarker)[1] || null;
+  }
+
+  return null;
+};
+
 /**
  * POST /api/voice/upload
  * Upload and transcribe voice memo
@@ -36,7 +52,7 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
     // Upload to Supabase Storage
     const fileName = `${babyId}/${Date.now()}-${uuidv4()}.wav`;
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('voice_logs')
+      .from('voice-logs')
       .upload(fileName, req.file.buffer, {
         contentType: 'audio/wav',
         metadata: {
@@ -50,7 +66,7 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
 
     // Get public URL
     const { data: publicUrl } = supabase.storage
-      .from('voice_logs')
+      .from('voice-logs')
       .getPublicUrl(fileName);
 
     // Transcribe audio
@@ -158,9 +174,14 @@ export async function analyzeCry(req: Request, res: Response) {
     }
 
     // Download audio file
+    const storagePath = extractVoiceStoragePath(voiceLog.storage_url);
+    if (!storagePath) {
+      return res.status(400).json({ error: 'Voice file path is invalid' });
+    }
+
     const { data: audioData, error: downloadError } = await supabase.storage
-      .from('voice_logs')
-      .download(voiceLog.storage_url.split('/voice_logs/')[1]);
+      .from('voice-logs')
+      .download(storagePath);
 
     if (downloadError) throw downloadError;
 
@@ -320,8 +341,10 @@ export async function deleteVoiceLog(req: Request, res: Response) {
     }
 
     // Delete from storage
-    const fileName = log.storage_url.split('/voice_logs/')[1];
-    await supabase.storage.from('voice_logs').remove([fileName]);
+    const fileName = extractVoiceStoragePath(log.storage_url);
+    if (fileName) {
+      await supabase.storage.from('voice-logs').remove([fileName]);
+    }
 
     // Delete from database
     const { error: deleteError } = await supabase

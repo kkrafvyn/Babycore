@@ -4,6 +4,23 @@
 -- Run BEFORE other doctor-related migrations
 -- ============================================================================
 
+-- Bootstrap dependencies (safe on re-run)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Ensure babies table exists for FK references used below.
+-- This keeps the migration runnable even on a fresh DB.
+CREATE TABLE IF NOT EXISTS public.babies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  date_of_birth DATE NOT NULL,
+  gender TEXT CHECK (gender IN ('boy', 'girl', 'other')),
+  photo_url TEXT,
+  country TEXT NOT NULL DEFAULT 'Unknown',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 1. DOCTOR PROFILES TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS doctor_profiles (
@@ -198,6 +215,135 @@ CREATE TABLE IF NOT EXISTS doctor_growth_assessment (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ============================================================================
+-- BACKWARD COMPATIBILITY (safe re-run on existing schemas)
+-- ============================================================================
+DO $$
+DECLARE
+  tbl_name TEXT;
+  legacy_column TEXT;
+  default_status TEXT;
+BEGIN
+  FOREACH tbl_name IN ARRAY ARRAY[
+    'doctor_baby_assignments',
+    'diagnoses',
+    'medications',
+    'appointment_reminders',
+    'medical_reports',
+    'consultation_notes',
+    'doctor_growth_assessment'
+  ]
+  LOOP
+    IF to_regclass(format('public.%I', tbl_name)) IS NULL THEN
+      CONTINUE;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = tbl_name
+        AND column_name = 'doctor_id'
+    ) THEN
+      legacy_column := NULL;
+
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = tbl_name
+          AND column_name = 'doctor_user_id'
+      ) THEN
+        legacy_column := 'doctor_user_id';
+      ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = tbl_name
+          AND column_name = 'assigned_doctor_id'
+      ) THEN
+        legacy_column := 'assigned_doctor_id';
+      ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = tbl_name
+          AND column_name = 'physician_id'
+      ) THEN
+        legacy_column := 'physician_id';
+      END IF;
+
+      IF legacy_column IS NOT NULL THEN
+        EXECUTE format(
+          'ALTER TABLE public.%I RENAME COLUMN %I TO doctor_id',
+          tbl_name,
+          legacy_column
+        );
+      ELSE
+        EXECUTE format(
+          'ALTER TABLE public.%I ADD COLUMN doctor_id UUID',
+          tbl_name
+        );
+      END IF;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = tbl_name
+        AND column_name = 'doctor_id'
+    ) THEN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN LATERAL unnest(c.conkey) AS key_attnum(attnum) ON TRUE
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = key_attnum.attnum
+        WHERE n.nspname = 'public'
+          AND t.relname = tbl_name
+          AND c.contype = 'f'
+          AND a.attname = 'doctor_id'
+      ) THEN
+        EXECUTE format(
+          'ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY (doctor_id) REFERENCES public.doctor_profiles(user_id) ON DELETE CASCADE NOT VALID',
+          tbl_name,
+          'fk_' || tbl_name || '_doctor_id'
+        );
+      END IF;
+    END IF;
+
+    -- Ensure legacy tables have status column before status indexes are created.
+    IF tbl_name IN ('doctor_baby_assignments', 'diagnoses', 'medications', 'appointment_reminders') THEN
+      default_status := CASE
+        WHEN tbl_name = 'appointment_reminders' THEN 'pending'
+        ELSE 'active'
+      END;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = tbl_name
+          AND column_name = 'status'
+      ) THEN
+        EXECUTE format(
+          'ALTER TABLE public.%I ADD COLUMN status TEXT DEFAULT %L',
+          tbl_name,
+          default_status
+        );
+      END IF;
+
+      EXECUTE format(
+        'UPDATE public.%I SET status = COALESCE(status, %L)',
+        tbl_name,
+        default_status
+      );
+    END IF;
+  END LOOP;
+END $$;
 
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE

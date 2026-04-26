@@ -34,12 +34,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply audit triggers to sensitive tables
-CREATE TRIGGER IF NOT EXISTS audit_baby_photos AFTER INSERT OR UPDATE OR DELETE ON baby_photos
-  FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+-- Apply audit triggers to sensitive tables.
+-- PostgreSQL does not support "CREATE TRIGGER IF NOT EXISTS", so use
+-- DROP TRIGGER IF EXISTS + CREATE TRIGGER guarded by table existence.
+DO $$
+BEGIN
+  IF to_regclass('public.baby_photos') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS audit_baby_photos ON public.baby_photos;
+    CREATE TRIGGER audit_baby_photos
+      AFTER INSERT OR UPDATE OR DELETE ON public.baby_photos
+      FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+  END IF;
 
-CREATE TRIGGER IF NOT EXISTS audit_doctor_reports AFTER INSERT OR UPDATE OR DELETE ON doctor_reports
-  FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+  IF to_regclass('public.doctor_reports') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS audit_doctor_reports ON public.doctor_reports;
+    CREATE TRIGGER audit_doctor_reports
+      AFTER INSERT OR UPDATE OR DELETE ON public.doctor_reports
+      FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+  END IF;
 
-CREATE TRIGGER IF NOT EXISTS audit_health_records AFTER INSERT OR UPDATE OR DELETE ON health_records
-  FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+  IF to_regclass('public.health_records') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS audit_health_records ON public.health_records;
+    CREATE TRIGGER audit_health_records
+      AFTER INSERT OR UPDATE OR DELETE ON public.health_records
+      FOR EACH ROW EXECUTE FUNCTION audit_table_changes();
+  END IF;
+END $$;

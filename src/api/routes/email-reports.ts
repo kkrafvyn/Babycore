@@ -142,7 +142,7 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
       message: 'Weekly digest sent successfully',
       stats: emailContent.stats,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Weekly digest error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -204,7 +204,7 @@ export async function sendMilestoneAnnouncement(req: Request, res: Response) {
       success: true,
       message: 'Milestone announcement sent',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Milestone announcement error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -243,7 +243,7 @@ export async function scheduleNewsletter(req: Request, res: Response) {
       schedule,
       message: `Newsletter ${enabled ? 'enabled' : 'disabled'}`,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -308,7 +308,7 @@ export async function getReportPreview(req: Request, res: Response) {
       preview: content.html,
       stats: content.stats,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }

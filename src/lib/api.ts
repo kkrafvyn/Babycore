@@ -5,6 +5,14 @@
 
 import { supabase } from './supabase';
 
+const getAuthenticatedUser = async (): Promise<{ id: string } | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { user },
+  } = await auth.getUser();
+  return user || null;
+};
+
 /**
  * API Routes for backend services
  */
@@ -79,9 +87,7 @@ export const API = {
    */
   subscription: {
     get: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
 
       if (!user) throw new Error('Not authenticated');
 
@@ -98,9 +104,7 @@ export const API = {
     },
 
     create: async (planId: string, provider: 'paystack' | 'flutterwave') => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
 
       if (!user) throw new Error('Not authenticated');
 
@@ -125,9 +129,7 @@ export const API = {
     },
 
     cancel: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
 
       if (!user) throw new Error('Not authenticated');
 
@@ -154,9 +156,7 @@ export const API = {
     },
 
     pullCloud: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
 
       if (!user) throw new Error('Not authenticated');
 
@@ -186,9 +186,7 @@ export const API = {
    */
   analytics: {
     logEvent: async (eventType: string, eventData: any = null) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
 
       if (!user) return;
 

@@ -37,9 +37,9 @@ router.get('/dashboard', requireRole('manager'), async (req: AuthRequest, res: R
     };
 
     roleStats?.forEach((record: any) => {
-      const role = record.role;
+      const role = String(record.role) as keyof typeof stats;
       if (role in stats) {
-        stats[role]++;
+        stats[role] += 1;
       }
     });
 

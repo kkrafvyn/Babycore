@@ -27,7 +27,10 @@ import emailReportsRoutes from './routes/email-reports.js';
 import communityRoutes from './routes/community.js';
 import wearableRoutes from './routes/wearable.js';
 import voiceRoutes from './routes/voice-transcription.js';
-import paymentsRoutes from './routes/payments.js';
+import paymentsRoutes, {
+  handleFlutterwaveWebhook,
+  handlePaystackWebhook,
+} from './routes/payments.js';
 import adminRoutes from './routes/admin.js';
 import managerRoutes from './routes/manager.js';
 import doctorRoutes from './routes/doctor.js';
@@ -176,23 +179,8 @@ app.use('/api', apiRouter);
 // ==================== WEBHOOK ROUTES (NO AUTH) ====================
 
 // Payment webhooks - bypass authentication
-app.post('/webhooks/paystack', (req: Request, res: Response, next: NextFunction) => {
-  const paymentsModule = paymentsRoutes as any;
-  if (paymentsModule.handlePaystackWebhook) {
-    paymentsModule.handlePaystackWebhook(req, res, next);
-  } else {
-    res.status(501).json({ error: 'Not implemented' });
-  }
-});
-
-app.post('/webhooks/flutterwave', (req: Request, res: Response, next: NextFunction) => {
-  const paymentsModule = paymentsRoutes as any;
-  if (paymentsModule.handleFlutterwaveWebhook) {
-    paymentsModule.handleFlutterwaveWebhook(req, res, next);
-  } else {
-    res.status(501).json({ error: 'Not implemented' });
-  }
-});
+app.post('/webhooks/paystack', handlePaystackWebhook);
+app.post('/webhooks/flutterwave', handleFlutterwaveWebhook);
 
 // ==================== ERROR HANDLING ====================
 
