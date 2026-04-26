@@ -47,6 +47,7 @@ Run in this exact order:
 26. `25-care-team-patient-assignment.sql`
 27. `26-sharing-link-and-directory-fields.sql`
 28. `27-storage-buckets-and-policies.sql`
+29. `28-notifications-infrastructure.sql`
 
 ## Common Errors
 

@@ -8,14 +8,19 @@ type SendEmailInput = {
 
 type SendEmailResult = {
   success: boolean;
-  provider: 'resend' | 'sendgrid' | 'dry-run';
+  provider: 'resend' | 'sendgrid' | 'smtp' | 'dry-run';
   id?: string;
   message?: string;
 };
 
+const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
+  modulePath: string,
+) => Promise<any>;
+
 const getFromAddress = (override?: string): string =>
   (
     override ||
+    process.env.SMTP_FROM ||
     process.env.RESEND_FROM_EMAIL ||
     process.env.SENDGRID_FROM_EMAIL ||
     process.env.EMAIL_FROM ||
@@ -29,6 +34,35 @@ const toPlainText = (html: string): string =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const resolveSmtpConfig = (): {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+} | null => {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = (process.env.SMTP_USER || process.env.SMTP_USERNAME || '').trim();
+  const pass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').trim();
+  const portValue = Number(process.env.SMTP_PORT || 587);
+
+  if (!host || !user || !pass || !Number.isFinite(portValue)) {
+    return null;
+  }
+
+  const secureFlag = (process.env.SMTP_SECURE || '').toLowerCase();
+  const secure =
+    secureFlag.length > 0 ? ['1', 'true', 'yes'].includes(secureFlag) : portValue === 465;
+
+  return {
+    host,
+    port: portValue,
+    secure,
+    user,
+    pass,
+  };
+};
 
 export const sendTransactionalEmail = async (
   input: SendEmailInput,
@@ -88,6 +122,40 @@ export const sendTransactionalEmail = async (
     return {
       success: true,
       provider: 'sendgrid',
+    };
+  }
+
+  const smtpConfig = resolveSmtpConfig();
+  if (smtpConfig) {
+    const nodemailerModule = await dynamicImport('nodemailer').catch(() => null);
+    const nodemailer = nodemailerModule?.default || nodemailerModule;
+
+    if (!nodemailer?.createTransport) {
+      throw new Error('SMTP configured but nodemailer is not installed');
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    });
+
+    const info = await transporter.sendMail({
+      from: payload.from,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text,
+    });
+
+    return {
+      success: true,
+      provider: 'smtp',
+      id: info?.messageId,
     };
   }
 

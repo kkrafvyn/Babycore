@@ -13,6 +13,104 @@ export interface AdminOverviewResponse {
   error?: string;
 }
 
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  phone?: string;
+  name: string;
+  role: 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer' | string;
+  assignedAt?: string | null;
+  assignedBy?: string | null;
+  createdAt?: string | null;
+  lastSignInAt?: string | null;
+  profileType?: string;
+  babiesCount?: number;
+}
+
+export interface AdminUsersResponse {
+  success: boolean;
+  data?: {
+    users: AdminUserRecord[];
+    total: number;
+    limit: number;
+    offset: number;
+    page?: number;
+    hasMore?: boolean;
+  };
+  error?: string;
+}
+
+export interface AdminLogsResponse {
+  success: boolean;
+  data?: {
+    logs: Array<Record<string, any>>;
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  error?: string;
+}
+
+export interface AdminMutationResponse {
+  success: boolean;
+  message?: string;
+  data?: Record<string, any>;
+  error?: string;
+}
+
+const getAdminAuthToken = async (): Promise<string | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+    error: sessionError,
+  } = await auth.getSession();
+
+  if (sessionError || !session?.access_token) {
+    return null;
+  }
+
+  return session.access_token;
+};
+
+const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { success: boolean; error?: string }> => {
+  const accessToken = await getAdminAuthToken();
+  if (!accessToken) {
+    return { success: false, error: 'No valid session token found. Please sign in again.' } as T & {
+      success: boolean;
+      error?: string;
+    };
+  }
+
+  const apiBaseUrl = getApiBaseUrl();
+  const endpoint = `${apiBaseUrl}${path}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(init?.headers || {}),
+      },
+    });
+
+    const data = (await response.json()) as T & { success: boolean; error?: string };
+    if (!response.ok) {
+      return {
+        ...data,
+        success: false,
+        error: data.error || `Admin request failed (${response.status})`,
+      };
+    }
+
+    return data;
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Admin request failed.',
+    } as T & { success: boolean; error?: string };
+  }
+};
+
 export const getCurrentUserRole = async (): Promise<string> => {
   try {
     const auth = supabase.auth as any;
@@ -40,44 +138,100 @@ export const getCurrentUserRole = async (): Promise<string> => {
 };
 
 export const fetchAdminOverview = async (): Promise<AdminOverviewResponse> => {
-  const auth = supabase.auth as any;
-  const {
-    data: { session },
-    error: sessionError,
-  } = await auth.getSession();
+  return adminRequest<AdminOverviewResponse>('/admin/overview', { method: 'GET' });
+};
 
-  if (sessionError || !session?.access_token) {
-    return {
-      success: false,
-      error: 'No valid session token found. Please sign in again.',
-    };
-  }
+export const fetchAdminUsers = async (input?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<AdminUsersResponse> => {
+  const query = new URLSearchParams();
+  if (typeof input?.limit === 'number') query.set('limit', String(input.limit));
+  if (typeof input?.offset === 'number') query.set('offset', String(input.offset));
+  if (input?.search?.trim()) query.set('search', input.search.trim());
 
-  const apiBaseUrl = getApiBaseUrl();
-  const endpoint = `${apiBaseUrl}/admin/overview`;
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return adminRequest<AdminUsersResponse>(`/admin/users${suffix}`, {
+    method: 'GET',
+  });
+};
 
-  try {
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
+export const updateAdminUserRole = async (
+  userId: string,
+  role: 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer',
+  reason?: string,
+): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>(`/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      role,
+      ...(reason ? { reason } : {}),
+    }),
+  });
 
-    const data = (await response.json()) as AdminOverviewResponse;
+export const promoteAdminUser = async (
+  userId: string,
+  newRole: 'manager' | 'admin',
+  reason?: string,
+): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>(`/admin/users/${encodeURIComponent(userId)}/promote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      newRole,
+      ...(reason ? { reason } : {}),
+    }),
+  });
 
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error || `Admin request failed (${response.status})`,
-      };
-    }
+export const demoteAdminUser = async (
+  userId: string,
+  reason?: string,
+): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>(`/admin/users/${encodeURIComponent(userId)}/demote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...(reason ? { reason } : {}),
+    }),
+  });
 
-    return data;
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error?.message || 'Failed to fetch admin overview.',
-    };
-  }
+export const deleteAdminUser = async (userId: string): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>(`/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  });
+
+export const fetchAdminLogs = async (input?: {
+  limit?: number;
+  offset?: number;
+}): Promise<AdminLogsResponse> => {
+  const query = new URLSearchParams();
+  if (typeof input?.limit === 'number') query.set('limit', String(input.limit));
+  if (typeof input?.offset === 'number') query.set('offset', String(input.offset));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return adminRequest<AdminLogsResponse>(`/admin/logs${suffix}`, {
+    method: 'GET',
+  });
+};
+
+export const fetchAdminAuditLogs = async (input?: {
+  limit?: number;
+  offset?: number;
+}): Promise<AdminLogsResponse> => {
+  const query = new URLSearchParams();
+  if (typeof input?.limit === 'number') query.set('limit', String(input.limit));
+  if (typeof input?.offset === 'number') query.set('offset', String(input.offset));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return adminRequest<AdminLogsResponse>(`/admin/audit-logs${suffix}`, {
+    method: 'GET',
+  });
 };

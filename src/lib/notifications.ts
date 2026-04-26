@@ -1,6 +1,6 @@
 /**
  * Notifications Module
- * Handles local and push notifications for Web/PWA platforms.
+ * Handles local and push notifications for Web/PWA and native mobile platforms.
  * Consolidates scheduling, permissions, and service worker integration.
  */
 
@@ -15,6 +15,11 @@ const hasSupabaseClientConfig = Boolean(
   import.meta.env.VITE_SUPABASE_URL &&
     (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY),
 );
+const NATIVE_PUSH_ENDPOINT_KEY = 'babylog_native_push_endpoint';
+const NATIVE_PUSH_TOKEN_KEY = 'babylog_native_push_token';
+const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
+  modulePath: string,
+) => Promise<any>;
 
 export type NotificationType = 
   | 'feeding' 
@@ -144,9 +149,65 @@ interface WebPushSubscriptionPayload {
   };
 }
 
+type PushPlatform = 'android' | 'ios' | 'web';
+
+type NativePushTokenPayload = {
+  token: string;
+  platform: Extract<PushPlatform, 'android' | 'ios'>;
+};
+
+type NativePushBridge = {
+  Capacitor: {
+    isNativePlatform: () => boolean;
+  };
+  PushNotifications: {
+    requestPermissions: () => Promise<{ receive: 'granted' | 'denied' | 'prompt' }>;
+    register: () => Promise<void>;
+    addListener: (eventName: string, listener: (event: any) => void) => Promise<any> | any;
+  };
+};
+
 export class NotificationsManager {
+  private static nativeBridgePromise: Promise<NativePushBridge | null> | null = null;
+
   private static isSupported(): boolean {
     return typeof window !== 'undefined' && 'Notification' in window;
+  }
+
+  private static async getNativePushBridge(): Promise<NativePushBridge | null> {
+    if (typeof window === 'undefined') return null;
+
+    if (!this.nativeBridgePromise) {
+      this.nativeBridgePromise = (async () => {
+        try {
+          const [coreModule, pushModule] = await Promise.all([
+            dynamicImport('@capacitor/core'),
+            dynamicImport('@capacitor/push-notifications'),
+          ]);
+
+          const capacitor = coreModule?.Capacitor || coreModule?.default?.Capacitor;
+          const pushNotifications =
+            pushModule?.PushNotifications || pushModule?.default?.PushNotifications;
+
+          if (!capacitor?.isNativePlatform || !pushNotifications) {
+            return null;
+          }
+
+          if (!capacitor.isNativePlatform()) {
+            return null;
+          }
+
+          return {
+            Capacitor: capacitor,
+            PushNotifications: pushNotifications,
+          } as NativePushBridge;
+        } catch {
+          return null;
+        }
+      })();
+    }
+
+    return this.nativeBridgePromise;
   }
 
   private static isIOS(): boolean {
@@ -163,7 +224,7 @@ export class NotificationsManager {
     return window.matchMedia('(display-mode: standalone)').matches || navWithStandalone.standalone === true;
   }
 
-  private static getPushPlatformLabel(): 'android' | 'ios' | 'web' {
+  private static getPushPlatformLabel(): PushPlatform {
     if (typeof navigator === 'undefined') return 'web';
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('android')) return 'android';
@@ -190,11 +251,125 @@ export class NotificationsManager {
     }
   }
 
+  private static getCachedNativeTokenPayload(): NativePushTokenPayload | null {
+    if (typeof window === 'undefined') return null;
+
+    const token = window.localStorage.getItem(NATIVE_PUSH_TOKEN_KEY);
+    if (!token) return null;
+
+    const platform = this.getPushPlatformLabel();
+    const resolvedPlatform: Extract<PushPlatform, 'android' | 'ios'> =
+      platform === 'ios' ? 'ios' : 'android';
+
+    return {
+      token,
+      platform: resolvedPlatform,
+    };
+  }
+
+  private static async registerNativePushToken(): Promise<NativePushTokenPayload | null> {
+    const bridge = await this.getNativePushBridge();
+    if (!bridge) {
+      return null;
+    }
+
+    const cached = this.getCachedNativeTokenPayload();
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const permission = await bridge.PushNotifications.requestPermissions();
+      if (permission.receive !== 'granted') {
+        return null;
+      }
+
+      const token = await new Promise<string>(async (resolve, reject) => {
+        const listeners: Array<{ remove?: () => Promise<void> | void }> = [];
+
+        const cleanupListeners = async () => {
+          await Promise.all(
+            listeners.map(async (listener) => {
+              try {
+                await listener?.remove?.();
+              } catch {
+                // Ignore listener cleanup failures.
+              }
+            }),
+          );
+        };
+
+        const onRegistration = async (event: any) => {
+          const value = String(event?.value || event?.token || '').trim();
+          if (!value) {
+            return;
+          }
+          window.clearTimeout(timeoutId);
+          await cleanupListeners();
+          resolve(value);
+        };
+
+        const onRegistrationError = async (event: any) => {
+          window.clearTimeout(timeoutId);
+          await cleanupListeners();
+          reject(new Error(event?.error || event?.message || 'Native push registration failed'));
+        };
+
+        const timeoutId = window.setTimeout(async () => {
+          await cleanupListeners();
+          reject(new Error('Timed out while waiting for native push token'));
+        }, 15000);
+
+        try {
+          const registrationListener = await Promise.resolve(
+            bridge.PushNotifications.addListener('registration', onRegistration),
+          );
+          const errorListener = await Promise.resolve(
+            bridge.PushNotifications.addListener('registrationError', onRegistrationError),
+          );
+
+          listeners.push(registrationListener, errorListener);
+          await bridge.PushNotifications.register();
+        } catch (error) {
+          window.clearTimeout(timeoutId);
+          await cleanupListeners();
+          reject(error as Error);
+        }
+      });
+
+      const platform = this.getPushPlatformLabel() === 'ios' ? 'ios' : 'android';
+      const payload = { token, platform } as NativePushTokenPayload;
+      window.localStorage.setItem(NATIVE_PUSH_TOKEN_KEY, token);
+      window.localStorage.setItem(NATIVE_PUSH_ENDPOINT_KEY, `native://${platform}/${token}`);
+      return payload;
+    } catch (error) {
+      console.warn('Native push registration failed:', error);
+      return null;
+    }
+  }
+
   /**
    * Request permission from the user to show notifications
    */
   static async requestPermission(): Promise<boolean> {
-    if (!this.isSupported() || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    const nativeBridge = await this.getNativePushBridge();
+    if (nativeBridge) {
+      try {
+        const permission = await nativeBridge.PushNotifications.requestPermissions();
+        return permission.receive === 'granted';
+      } catch (error) {
+        console.warn('Native push permission request failed:', error);
+        return false;
+      }
+    }
+
+    if (
+      typeof navigator === 'undefined' ||
+      typeof window === 'undefined' ||
+      !this.isSupported() ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    ) {
       return false;
     }
 
@@ -214,6 +389,9 @@ export class NotificationsManager {
    * Get current permission status
    */
   static getPermissionStatus(): NotificationPermission {
+    if (this.getCachedNativeTokenPayload()) {
+      return 'granted';
+    }
     return this.isSupported() ? Notification.permission : 'default';
   }
 
@@ -221,12 +399,29 @@ export class NotificationsManager {
    * Subscribe to Push Notifications
    */
   static async subscribeToPush(): Promise<PushSubscription | null> {
-    if (!this.isSupported() || !VAPID_PUBLIC_KEY) {
-      console.warn('Push not supported or VAPID key missing');
-      return null;
-    }
-
     try {
+      const nativeBridge = await this.getNativePushBridge();
+      if (nativeBridge) {
+        const nativeToken = await this.registerNativePushToken();
+        if (!nativeToken) {
+          return null;
+        }
+
+        const saved = await this.persistNativeSubscription(nativeToken);
+        if (!saved) {
+          return null;
+        }
+
+        return {
+          endpoint: `native://${nativeToken.platform}/${nativeToken.token}`,
+        } as PushSubscription;
+      }
+
+      if (!this.isSupported() || !VAPID_PUBLIC_KEY) {
+        console.warn('Push not supported or VAPID key missing');
+        return null;
+      }
+
       const hasPermission = await this.requestPermission();
       if (!hasPermission) {
         return null;
@@ -259,9 +454,22 @@ export class NotificationsManager {
    * Unsubscribe from Push Notifications
    */
   static async unsubscribeFromPush(): Promise<boolean> {
-    if (!('serviceWorker' in navigator)) return false;
-
     try {
+      const nativeBridge = await this.getNativePushBridge();
+      if (nativeBridge) {
+        const nativePayload = this.getCachedNativeTokenPayload();
+        if (!nativePayload) {
+          return false;
+        }
+
+        await this.removePersistedNativeSubscription(nativePayload);
+        window.localStorage.removeItem(NATIVE_PUSH_TOKEN_KEY);
+        window.localStorage.removeItem(NATIVE_PUSH_ENDPOINT_KEY);
+        return true;
+      }
+
+      if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return false;
+
       const registration = await this.ensureServiceWorkerReady();
       if (!registration) {
         return false;
@@ -290,8 +498,69 @@ export class NotificationsManager {
     const savedInSupabase = await this.persistSubscriptionToSupabase(subscriptionJson);
 
     if (!savedInSupabase) {
-      await this.persistSubscriptionToApi(subscriptionJson);
+      await this.persistSubscriptionToApi({
+        subscription: subscriptionJson,
+      });
     }
+  }
+
+  private static async persistNativeSubscription(payload: NativePushTokenPayload): Promise<boolean> {
+    const endpoint = `native://${payload.platform}/${payload.token}`;
+    let savedInSupabase = false;
+
+    if (hasSupabaseClientConfig) {
+      try {
+        const authClient = supabase.auth as any;
+        const {
+          data: { user },
+          error: userError,
+        } = await authClient.getUser();
+
+        if (!userError && user) {
+          const upsertPayload = {
+            user_id: user.id,
+            endpoint,
+            auth: '',
+            p256dh: '',
+            device_token: payload.token,
+            platform: payload.platform,
+            created_at: new Date().toISOString(),
+          };
+
+          const { error: upsertError } = await (supabase as any)
+            .from('push_subscriptions')
+            .upsert(upsertPayload, { onConflict: 'endpoint' });
+
+          if (upsertError) {
+            const { error: insertError } = await (supabase as any)
+              .from('push_subscriptions')
+              .insert(upsertPayload);
+            if (insertError) throw insertError;
+          }
+
+          savedInSupabase = true;
+        }
+      } catch (error) {
+        console.warn('Supabase native push subscription save failed:', error);
+      }
+    }
+
+    if (!savedInSupabase) {
+      const savedInApi = await this.persistSubscriptionToApi({
+        nativeToken: payload.token,
+        platform: payload.platform,
+      });
+      if (!savedInApi) {
+        return false;
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(NATIVE_PUSH_TOKEN_KEY, payload.token);
+      window.localStorage.setItem(NATIVE_PUSH_ENDPOINT_KEY, endpoint);
+    }
+
+    return true;
   }
 
   private static async persistSubscriptionToSupabase(
@@ -317,6 +586,7 @@ export class NotificationsManager {
         endpoint: subscription.endpoint,
         auth: subscription.keys?.auth || '',
         p256dh: subscription.keys?.p256dh || '',
+        device_token: null,
         platform: this.getPushPlatformLabel(),
         created_at: new Date().toISOString(),
       };
@@ -337,7 +607,11 @@ export class NotificationsManager {
     }
   }
 
-  private static async persistSubscriptionToApi(subscription: WebPushSubscriptionPayload): Promise<boolean> {
+  private static async persistSubscriptionToApi(payload: {
+    subscription?: WebPushSubscriptionPayload;
+    nativeToken?: string;
+    platform?: PushPlatform;
+  }): Promise<boolean> {
     try {
       const authClient = supabase.auth as any;
       const {
@@ -355,13 +629,54 @@ export class NotificationsManager {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ subscription }),
+        body: JSON.stringify(payload),
       });
 
       return response.ok;
     } catch (error) {
       console.warn('API push subscription save failed:', error);
       return false;
+    }
+  }
+
+  private static async removePersistedNativeSubscription(
+    payload: NativePushTokenPayload,
+  ): Promise<void> {
+    const endpoint = `native://${payload.platform}/${payload.token}`;
+
+    if (hasSupabaseClientConfig) {
+      try {
+        await (supabase as any)
+          .from('push_subscriptions')
+          .delete()
+          .eq('endpoint', endpoint);
+      } catch (error) {
+        console.warn('Supabase native push unsubscription cleanup failed:', error);
+      }
+    }
+
+    try {
+      const authClient = supabase.auth as any;
+      const {
+        data: { session },
+      } = await authClient.getSession();
+      const accessToken: string | undefined = session?.access_token;
+      if (!accessToken) return;
+
+      await fetch(`${API_BASE_URL}/notifications/unsubscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          endpoint,
+          nativeToken: payload.token,
+          platform: payload.platform,
+        }),
+      });
+    } catch (error) {
+      console.warn('API native push unsubscription cleanup failed:', error);
     }
   }
 

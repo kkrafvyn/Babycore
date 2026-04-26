@@ -28,6 +28,70 @@ type PushPayload = {
   tag?: string;
 };
 
+type NotificationPlatform = 'web' | 'android' | 'ios';
+
+const normalizePlatform = (platform?: string): NotificationPlatform => {
+  const normalized = (platform || '').toLowerCase();
+  if (normalized === 'android') return 'android';
+  if (normalized === 'ios') return 'ios';
+  return 'web';
+};
+
+const buildNativeEndpoint = (platform: NotificationPlatform, token: string): string =>
+  `native://${platform}/${token}`;
+
+const isNativeSubscriptionRow = (row: any): boolean =>
+  row?.platform === 'android' ||
+  row?.platform === 'ios' ||
+  String(row?.endpoint || '').startsWith('native://');
+
+const parseNativeTokenFromEndpoint = (endpoint?: string): string | null => {
+  if (!endpoint || !endpoint.startsWith('native://')) return null;
+  const token = endpoint.split('/').slice(3).join('/');
+  return token || null;
+};
+
+async function sendNativePushViaFcm(
+  tokens: string[],
+  payload: { title: string; body?: string; data?: Record<string, any> },
+): Promise<{ sent: number; failed: number }> {
+  const serverKey = process.env.FCM_SERVER_KEY || process.env.FIREBASE_SERVER_KEY;
+  if (!serverKey || !tokens.length) {
+    return { sent: 0, failed: tokens.length };
+  }
+
+  const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `key=${serverKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      registration_ids: tokens,
+      notification: {
+        title: payload.title,
+        body: payload.body || '',
+      },
+      data: payload.data || {},
+      priority: 'high',
+    }),
+  });
+
+  if (!response.ok) {
+    return { sent: 0, failed: tokens.length };
+  }
+
+  const body = (await response.json().catch(() => ({}))) as {
+    success?: number;
+    failure?: number;
+  };
+
+  return {
+    sent: Number(body.success || 0),
+    failed: Number(body.failure || 0),
+  };
+}
+
 async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; failed: number }> {
   const { userId, title, body, data, tag } = payload;
 
@@ -47,8 +111,14 @@ async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; fai
     badge: '/badge-72.png',
   });
 
-  const results = await Promise.allSettled(
-    (subscriptions || []).map((sub) =>
+  const webSubscriptions = (subscriptions || []).filter((row) => !isNativeSubscriptionRow(row));
+  const nativeTokens = (subscriptions || [])
+    .filter((row) => isNativeSubscriptionRow(row))
+    .map((row) => row.device_token || parseNativeTokenFromEndpoint(row.endpoint))
+    .filter((token): token is string => Boolean(token));
+
+  const webResults = await Promise.allSettled(
+    webSubscriptions.map((sub) =>
       webpush.sendNotification(
         {
           endpoint: sub.endpoint,
@@ -62,9 +132,13 @@ async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; fai
     ),
   );
 
+  const webSent = webResults.filter((result) => result.status === 'fulfilled').length;
+  const webFailed = webResults.filter((result) => result.status === 'rejected').length;
+  const nativeResult = await sendNativePushViaFcm(nativeTokens, { title, body, data });
+
   return {
-    sent: results.filter((result) => result.status === 'fulfilled').length,
-    failed: results.filter((result) => result.status === 'rejected').length,
+    sent: webSent + nativeResult.sent,
+    failed: webFailed + nativeResult.failed,
   };
 }
 
@@ -75,22 +149,46 @@ async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; fai
 export async function subscribeToPushNotifications(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
-    const { subscription } = req.body;
+    const { subscription, nativeToken, platform } = req.body;
 
-    if (!userId || !subscription) {
+    if (!userId || (!subscription && !nativeToken)) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    let endpoint = '';
+    let auth = '';
+    let p256dh = '';
+    let deviceToken: string | null = null;
+    const normalizedPlatform = normalizePlatform(platform);
+
+    if (nativeToken) {
+      const token = String(nativeToken).trim();
+      if (!token) {
+        return res.status(400).json({ error: 'Invalid native token' });
+      }
+      endpoint = buildNativeEndpoint(normalizedPlatform, token);
+      deviceToken = token;
+    } else {
+      endpoint = String(subscription?.endpoint || '').trim();
+      auth = String(subscription?.keys?.auth || '');
+      p256dh = String(subscription?.keys?.p256dh || '');
+      if (!endpoint) {
+        return res.status(400).json({ error: 'Invalid web push subscription payload' });
+      }
     }
 
     // Save subscription to database
     const { error } = await supabase
       .from('push_subscriptions')
-      .insert({
+      .upsert({
         user_id: userId,
-        endpoint: subscription.endpoint,
-        auth: subscription.keys.auth,
-        p256dh: subscription.keys.p256dh,
+        endpoint,
+        auth,
+        p256dh,
+        device_token: deviceToken,
+        platform: normalizedPlatform,
         created_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'endpoint' });
 
     if (error) throw error;
 
@@ -107,9 +205,15 @@ export async function subscribeToPushNotifications(req: Request, res: Response) 
 export async function unsubscribeFromPushNotifications(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
-    const { endpoint } = req.body;
+    const { endpoint, nativeToken, platform } = req.body;
 
-    if (!userId || !endpoint) {
+    const resolvedEndpoint = endpoint
+      ? String(endpoint)
+      : nativeToken
+        ? buildNativeEndpoint(normalizePlatform(platform), String(nativeToken))
+        : '';
+
+    if (!userId || !resolvedEndpoint) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -117,7 +221,7 @@ export async function unsubscribeFromPushNotifications(req: Request, res: Respon
       .from('push_subscriptions')
       .delete()
       .eq('user_id', userId)
-      .eq('endpoint', endpoint);
+      .eq('endpoint', resolvedEndpoint);
 
     if (error) throw error;
 

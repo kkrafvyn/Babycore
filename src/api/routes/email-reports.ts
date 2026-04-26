@@ -6,51 +6,26 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabase.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sendTransactionalEmail } from '../utils/email.js';
 
 const router = Router();
 
-const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
-  modulePath: string,
-) => Promise<any>;
-
-// Lazy load nodemailer only when needed
-let nodemailer: any = null;
-const loadNodemailer = async () => {
-  if (!nodemailer) {
-    try {
-      nodemailer = await dynamicImport('nodemailer');
-    } catch (err) {
-      console.warn('nodemailer not available, email features disabled');
-      return null;
-    }
-  }
-  return nodemailer;
-};
-
-// Email transporter setup (using SendGrid or Resend)
-const getEmailTransporter = async () => {
-  const nm = await loadNodemailer();
-  if (!nm) return null;
-
-  if (process.env.EMAIL_SERVICE === 'sendgrid') {
-    return nm.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      auth: {
-        user: 'apikey',
-        pass: process.env.SENDGRID_API_KEY!,
-      },
-    });
-  }
-  
-  // Mock transporter for development
-  return {
-    sendMail: async (mailOptions: any) => {
-      console.log('Email would be sent:', mailOptions);
-      return { accepted: [mailOptions.to], rejected: [] };
-    },
-  };
-};
+const getEmailTransporter = async () => ({
+  sendMail: async (mailOptions: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    from?: string;
+  }) =>
+    sendTransactionalEmail({
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+      text: mailOptions.text,
+      from: mailOptions.from,
+    }),
+});
 
 /**
  * POST /api/email-reports/generate-weekly
@@ -115,12 +90,11 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
     );
 
     // Send email
-    const transporter = await getEmailTransporter();
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@babylog.app',
+    await sendTransactionalEmail({
       to: user.email,
       subject: `Weekly Update: ${baby.name}'s Progress`,
       html: emailContent.html,
+      from: process.env.EMAIL_FROM || 'noreply@babylog.app',
     });
 
     // Record email sent

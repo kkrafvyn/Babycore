@@ -1,4 +1,4 @@
-export type EmailProvider = 'resend' | 'sendgrid' | 'dry-run';
+export type EmailProvider = 'resend' | 'sendgrid' | 'smtp' | 'dry-run';
 
 export interface TransactionalEmailOptions {
   to: string | string[];
@@ -16,10 +16,44 @@ export interface TransactionalEmailResult {
 
 const resolveFromAddress = (provided?: string): string =>
   provided ||
+  process.env.SMTP_FROM ||
   process.env.RESEND_FROM_EMAIL ||
   process.env.SENDGRID_FROM_EMAIL ||
   process.env.EMAIL_FROM ||
   'noreply@babycore.app';
+
+const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
+  modulePath: string,
+) => Promise<any>;
+
+const resolveSmtpConfig = (): {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+} | null => {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = (process.env.SMTP_USER || process.env.SMTP_USERNAME || '').trim();
+  const pass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').trim();
+  const portValue = Number(process.env.SMTP_PORT || 587);
+
+  if (!host || !user || !pass || !Number.isFinite(portValue)) {
+    return null;
+  }
+
+  const secureFlag = (process.env.SMTP_SECURE || '').toLowerCase();
+  const secure =
+    secureFlag.length > 0 ? ['1', 'true', 'yes'].includes(secureFlag) : portValue === 465;
+
+  return {
+    host,
+    port: portValue,
+    secure,
+    user,
+    pass,
+  };
+};
 
 const toRecipientList = (to: string | string[]): string[] =>
   (Array.isArray(to) ? to : [to]).map((item) => item.trim()).filter(Boolean);
@@ -98,8 +132,42 @@ export async function sendTransactionalEmail(
     };
   }
 
+  const smtpConfig = resolveSmtpConfig();
+  if (smtpConfig) {
+    const nodemailerModule = await dynamicImport('nodemailer').catch(() => null);
+    const nodemailer = nodemailerModule?.default || nodemailerModule;
+
+    if (!nodemailer?.createTransport) {
+      throw new Error('SMTP configured but nodemailer is not installed');
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    });
+
+    const info = await transporter.sendMail({
+      from,
+      to: recipients,
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+      ...(options.replyTo ? { replyTo: options.replyTo } : {}),
+    });
+
+    return {
+      provider: 'smtp',
+      id: info?.messageId,
+    };
+  }
+
   console.warn(
-    `[email:dry-run] No SENDGRID_API_KEY or RESEND_API_KEY configured. Intended recipients: ${recipients.join(', ')}`,
+    `[email:dry-run] No SENDGRID_API_KEY, RESEND_API_KEY, or SMTP_* configured. Intended recipients: ${recipients.join(', ')}`,
   );
   return { provider: 'dry-run' };
 }
