@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { motion } from 'motion/react';
+import { useEffect } from 'react';
 import {
   Home,
   Plus,
@@ -31,6 +32,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAppContext } from '../AppContext';
 import { onAuthStateChange, signOut } from '../../lib/supabase';
 import { useIsMobile } from './ui/use-mobile';
+import { updateBaby } from '../../lib/supabase-storage';
 import { FeedingTracker } from './FeedingTracker';
 import { SleepTracker } from './SleepTracker';
 import { DiaperLogScreen } from './DiaperLog';
@@ -67,7 +69,13 @@ function BabyAvatarDisplay({
     withRing ? 'ring-4 ring-primary/10 shadow-lg' : 'shadow-md'
   } bg-gradient-to-br from-primary/20 to-primary/5`;
 
-  if (photoUrl) {
+  const [showPhotoFallback, setShowPhotoFallback] = useState(false);
+
+  useEffect(() => {
+    setShowPhotoFallback(false);
+  }, [photoUrl]);
+
+  if (photoUrl && !showPhotoFallback) {
     return (
       <motion.div
         whileHover={{ scale: 1.02 }}
@@ -76,6 +84,7 @@ function BabyAvatarDisplay({
         <img 
           src={photoUrl} 
           alt={name} 
+          onError={() => setShowPhotoFallback(true)}
           className="w-full h-full object-cover"
         />
       </motion.div>
@@ -870,7 +879,8 @@ function HomeContent({ setActiveTab }: { setActiveTab: (tab: TabType) => void })
 }
 
 function ProfileSection() {
-  const { user, currentBaby } = useAppContext();
+  const { user, currentBaby, setCurrentBaby, refreshBabies } = useAppContext();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -879,6 +889,44 @@ function ProfileSection() {
       y: 0,
       transition: { duration: 0.6, ease: 'easeOut' as any },
     },
+  };
+
+  const handlePhotoSelect = async (file: File) => {
+    if (!currentBaby) return;
+
+    if (!file.type.startsWith('image/')) {
+      window.alert('Please select an image file.');
+      return;
+    }
+
+    if (file.size > 6 * 1024 * 1024) {
+      window.alert('Image is too large. Please use a file under 6MB.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const photoUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const updatedBaby = {
+        ...currentBaby,
+        photoUrl,
+      };
+
+      await updateBaby(updatedBaby);
+      setCurrentBaby(updatedBaby);
+      await refreshBabies();
+    } catch (error) {
+      console.error('Failed to upload baby photo:', error);
+      window.alert('Could not update baby photo. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   return (
@@ -920,6 +968,13 @@ function ProfileSection() {
                 <input
                   type="file"
                   accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handlePhotoSelect(file);
+                    }
+                    event.currentTarget.value = '';
+                  }}
                   className="hidden"
                   aria-label="Upload baby photo"
                 />
@@ -949,11 +1004,14 @@ function ProfileSection() {
                 {currentBaby?.photoUrl ? 'Update your baby\'s photo' : 'No photo uploaded yet. Add one to see it throughout the app!'}
               </p>
               <PhotoUploadButton 
-                label={currentBaby?.photoUrl ? 'Change Photo' : 'Upload Photo'}
-                onPhotoSelect={(file) => {
-                  console.log('Photo file selected:', file.name);
-                  // TODO: Upload to Supabase storage
-                }}
+                label={
+                  isUploadingPhoto
+                    ? 'Uploading...'
+                    : currentBaby?.photoUrl
+                      ? 'Change Photo'
+                      : 'Upload Photo'
+                }
+                onPhotoSelect={handlePhotoSelect}
               />
             </div>
             {currentBaby?.photoUrl && (

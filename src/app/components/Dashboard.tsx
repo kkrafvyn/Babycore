@@ -13,6 +13,7 @@ import { DiaperLogScreen as DiaperTracker } from './DiaperLog';
 import { VaccinationCalendar } from './VaccinationCalendar';
 import { SettingsScreen } from './SettingsScreen';
 import { useI18n } from './LanguageSwitcher';
+import { getDefaultAvatar } from '../../lib/baby-utils';
 
 interface ActivityCardProps {
   icon: React.ReactNode;
@@ -168,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div className="flex items-center gap-4">
               <div className="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-700">
                 <ImageWithFallback
-                  src={currentBaby.photoUrl || 'https://via.placeholder.com/64'}
+                  src={currentBaby.photoUrl || getDefaultAvatar(currentBaby.gender, currentBaby.name)}
                   alt={currentBaby.name}
                   className="w-full h-full object-cover"
                 />

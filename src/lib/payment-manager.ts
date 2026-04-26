@@ -272,6 +272,7 @@ export class UnifiedPaymentManager {
     lastName: string,
     phoneNumber?: string,
     countryCode?: string,
+    userId?: string,
   ): Promise<ProcessedSubscription> {
     const amount = plan.monthlyPrice || plan.yearlyPrice;
     const paystackLocationConfig = getPaystackLocationConfig(countryCode);
@@ -298,6 +299,7 @@ export class UnifiedPaymentManager {
         planName: plan.name,
         isSubscription: true,
         countryCode: normalizedCountryCode,
+        userId,
       },
     });
 

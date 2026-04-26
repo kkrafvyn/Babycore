@@ -3,6 +3,9 @@
  * Handles subscription management, feature access, and in-app purchases
  */
 
+import { getApiBaseUrl } from './api-base-url';
+import { supabase } from './supabase';
+
 export type SubscriptionTier = 'free' | 'premium';
 export type SubscriptionPeriod = 'monthly' | 'annual';
 export type SubscriptionStatus = 'active' | 'cancelled' | 'expired' | 'trial';
@@ -109,18 +112,27 @@ export const pricing = {
 
 class SubscriptionManager {
   private subscription: Subscription | null = null;
+  private lastBackendSync: string | null = null;
 
   /**
    * Initialize subscription from storage or API
    */
   async initialize(userId: string): Promise<Subscription> {
+    const remoteSubscription = await this.fetchSubscriptionFromBackend(userId);
+    if (remoteSubscription) {
+      this.subscription = remoteSubscription;
+      this.saveToStorage();
+      this.lastBackendSync = new Date().toISOString();
+      return this.subscription;
+    }
+
     this.subscription = this.loadFromStorage(userId) || {
       userId,
       tier: 'free',
-      status: 'active',
+      status: 'expired',
       period: 'monthly',
       startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      endDate: new Date().toISOString(),
       autoRenewal: false,
     };
 
@@ -141,7 +153,7 @@ class SubscriptionManager {
     if (!this.subscription) return false;
     const now = new Date();
     const endDate = new Date(this.subscription.endDate);
-    return this.subscription.status === 'active' && now < endDate;
+    return (this.subscription.status === 'active' || this.subscription.status === 'trial') && now < endDate;
   }
 
   /**
@@ -149,7 +161,7 @@ class SubscriptionManager {
    */
   hasFeature(feature: keyof PremiumFeatures): boolean {
     if (!this.subscription) return false;
-    const tier = this.subscription.tier;
+    const tier: SubscriptionTier = this.isActive() ? this.subscription.tier : 'free';
     return featureMatrix[tier][feature];
   }
 
@@ -158,7 +170,7 @@ class SubscriptionManager {
    */
   getAvailableFeatures(): PremiumFeatures {
     if (!this.subscription) return featureMatrix['free'];
-    return featureMatrix[this.subscription.tier];
+    return featureMatrix[this.isActive() ? this.subscription.tier : 'free'];
   }
 
   /**
@@ -197,7 +209,8 @@ class SubscriptionManager {
   }
 
   /**
-   * Upgrade to premium (mocked - real implementation would use App Store/Play Store APIs)
+   * Upgrade to premium in the local subscription store.
+   * Backend payment confirmation should call this after transaction verification.
    */
   async upgradeToPremium(period: SubscriptionPeriod): Promise<Subscription> {
     if (!this.subscription) {
@@ -224,6 +237,16 @@ class SubscriptionManager {
     };
 
     this.saveToStorage();
+    return this.subscription;
+  }
+
+  async refreshFromBackend(): Promise<Subscription | null> {
+    if (!this.subscription?.userId) return null;
+    const remote = await this.fetchSubscriptionFromBackend(this.subscription.userId);
+    if (!remote) return this.subscription;
+    this.subscription = remote;
+    this.saveToStorage();
+    this.lastBackendSync = new Date().toISOString();
     return this.subscription;
   }
 
@@ -273,12 +296,11 @@ class SubscriptionManager {
   }
 
   /**
-   * Restore purchases (for app store)
+   * Restore purchases from local state.
+   * App Store / Play Store restore hooks can be integrated in mobile builds.
    */
   async restorePurchases(): Promise<Subscription | null> {
-    // This would call App Store/Play Store APIs in real implementation
-    console.log('Restoring purchases from App Store/Play Store...');
-    return this.subscription;
+    return this.refreshFromBackend();
   }
 
   /**
@@ -302,6 +324,64 @@ class SubscriptionManager {
       return JSON.parse(data);
     }
     return null;
+  }
+
+  private async fetchSubscriptionFromBackend(userId: string): Promise<Subscription | null> {
+    try {
+      const auth = supabase.auth as any;
+      const {
+        data: { session },
+      } = await auth.getSession();
+
+      if (!session?.access_token) {
+        return null;
+      }
+
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/payments/subscription-status`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = await response.json();
+      if (!payload?.success || !payload?.subscription) {
+        return {
+          userId,
+          tier: 'free',
+          status: 'expired',
+          period: 'monthly',
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+          autoRenewal: false,
+        };
+      }
+
+      const remote = payload.subscription;
+      const period: SubscriptionPeriod =
+        remote.period === 'annual' || remote.period === 'yearly' ? 'annual' : 'monthly';
+
+      return {
+        userId,
+        tier: 'premium',
+        status: remote.status === 'trial' ? 'trial' : 'active',
+        period,
+        startDate: remote.startDate || new Date().toISOString(),
+        endDate: remote.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        renewalDate: remote.renewalDate,
+        autoRenewal: remote.autoRenewal !== false,
+        price: Number(remote.price || (period === 'monthly' ? pricing.monthly.price : pricing.annual.price)),
+        currency: remote.currency || pricing.monthly.currency,
+      };
+    } catch (error) {
+      console.error('Failed to fetch premium subscription from backend:', error);
+      return null;
+    }
   }
 }
 

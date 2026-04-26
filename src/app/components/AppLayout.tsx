@@ -1,7 +1,14 @@
 import React from 'react';
-import { Home, ClipboardList, TrendingUp, Settings, Bell, Book, Sun, Moon, X, Sparkles, Check } from 'lucide-react';
+import { Home, ClipboardList, TrendingUp, Settings, Bell, Book, Sun, Moon, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  getNotificationHistory,
+  markAllNotificationsRead,
+  markNotificationRead,
+  NOTIFICATION_HISTORY_EVENT,
+  type BabyLogNotification,
+} from '../../lib/notifications';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,6 +25,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 }) => {
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = React.useState(false);
+  const [notifications, setNotifications] = React.useState<BabyLogNotification[]>(
+    () => getNotificationHistory(),
+  );
+
+  React.useEffect(() => {
+    const handleNotificationUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<BabyLogNotification[]>;
+      if (Array.isArray(customEvent.detail)) {
+        setNotifications(customEvent.detail);
+        return;
+      }
+      setNotifications(getNotificationHistory());
+    };
+
+    window.addEventListener(NOTIFICATION_HISTORY_EVENT, handleNotificationUpdate as EventListener);
+    return () =>
+      window.removeEventListener(NOTIFICATION_HISTORY_EVENT, handleNotificationUpdate as EventListener);
+  }, []);
 
   const navItems = [
     { id: 'home' as const, label: 'HOME', icon: Home },
@@ -29,6 +54,33 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
   const isDark = theme === 'dark';
+  const unreadCount = React.useMemo(
+    () => notifications.filter((notification) => !notification.read).length,
+    [notifications],
+  );
+
+  const relativeTime = (iso: string) => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const handleOpenNotifications = () => {
+    setShowNotifications(true);
+  };
+
+  const handleNotificationClick = (notification: BabyLogNotification) => {
+    markNotificationRead(notification.id);
+    const deepLink = notification.data?.deepLink;
+    if (deepLink) {
+      window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: deepLink } }));
+    }
+  };
 
   return (
     <div className="fit-screen bg-background">
@@ -56,13 +108,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
            {/* Notification Bell */}
            <button 
-             onClick={() => setShowNotifications(true)}
+             onClick={handleOpenNotifications}
              className="relative p-1.5 sm:p-2 sm:-mr-1 hover:scale-105 active:scale-90 transition-all group"
            >
               <Bell size={20} className="text-foreground group-hover:text-secondary sm:h-6 sm:w-6" />
-              <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-error rounded-full border-2 border-white dark:border-background flex items-center justify-center">
-                 <span className="text-[8px] font-black text-white">2</span>
-              </div>
+              {unreadCount > 0 && (
+                <div className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 bg-error rounded-full border-2 border-white dark:border-background flex items-center justify-center">
+                   <span className="text-[8px] font-black text-white leading-none">
+                     {unreadCount > 99 ? '99+' : unreadCount}
+                   </span>
+                </div>
+              )}
            </button>
         </div>
       </header>
@@ -83,23 +139,51 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     <button onClick={() => setShowNotifications(false)} className="text-text-light"><X size={20} /></button>
                  </div>
                  <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-4">
-                    <div className="bg-secondary/10 p-5 rounded-3xl border border-secondary/20 flex gap-4">
-                       <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center text-white shrink-0"><Sparkles size={18} /></div>
-                       <div>
-                          <p className="text-xs font-black text-foreground uppercase tracking-tight">AI Insight</p>
-                          <p className="text-[11px] text-text-dim mt-1">Baby's nap routine is stabilizing. suggested wake window: 2.5h.</p>
-                       </div>
-                    </div>
-                    <div className="p-5 rounded-3xl border border-border-gray dark:border-zinc-800 flex gap-4 bg-surface-gray dark:bg-zinc-900/50">
-                       <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shrink-0"><Check size={18} /></div>
-                       <div>
-                          <p className="text-xs font-black text-foreground uppercase tracking-tight">Partner Sync</p>
-                          <p className="text-[11px] text-text-dim mt-1">Your sanctuary is now shared with 1 caregiver.</p>
-                       </div>
-                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="h-full flex items-center justify-center">
+                        <p className="text-sm font-semibold text-text-light">No notifications yet.</p>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full text-left p-5 rounded-3xl border transition-all flex gap-4 ${
+                            notification.read
+                              ? 'border-border-gray dark:border-zinc-800 bg-surface-gray dark:bg-zinc-900/50'
+                              : 'border-secondary/20 bg-secondary/10'
+                          }`}
+                        >
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 ${
+                              notification.read ? 'bg-zinc-500' : 'bg-secondary'
+                            }`}
+                          >
+                            <Bell size={18} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-foreground uppercase tracking-tight truncate">
+                              {notification.title}
+                            </p>
+                            <p className="text-[11px] text-text-dim mt-1 line-clamp-2">{notification.body}</p>
+                            <p className="text-[10px] text-text-light mt-2 uppercase tracking-widest">
+                              {relativeTime(notification.timestamp)}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                    )}
                  </div>
                  <div className="p-8 border-t border-border-gray dark:border-zinc-800">
-                    <button onClick={() => setShowNotifications(false)} className="w-full py-4 bg-surface-gray dark:bg-zinc-800 text-text-light rounded-2xl text-[9px] font-black uppercase tracking-widest">Mark all as Read</button>
+                    <button
+                      onClick={() => {
+                        markAllNotificationsRead();
+                        setShowNotifications(false);
+                      }}
+                      className="w-full py-4 bg-surface-gray dark:bg-zinc-800 text-text-light rounded-2xl text-[9px] font-black uppercase tracking-widest"
+                    >
+                      Mark all as Read
+                    </button>
                  </div>
               </MotionDiv>
            </MotionDiv>

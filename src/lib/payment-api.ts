@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from './api-base-url';
 import type { Currency } from './payment-manager';
+import { supabase } from './supabase';
 
 export interface FinalizePremiumPaymentPayload {
   reference: string;
@@ -23,10 +24,17 @@ export const finalizePremiumPayment = async (
 ): Promise<FinalizePremiumPaymentResponse> => {
   const apiBaseUrl = getApiBaseUrl();
   const endpoint = `${apiBaseUrl}/payments/finalize`;
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
 
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
     body: JSON.stringify(payload),
   });
 

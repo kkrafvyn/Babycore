@@ -10,7 +10,7 @@ export interface VaccineSchedule {
   shortName: string;
   descriptions: Record<string, string>;
   schedule: {
-    ageWeeks: number;
+    ageWeeks?: number;
     ageMonths?: number;
     ageYears?: number;
     doses: number;
@@ -315,17 +315,71 @@ export const WHO_SCHEDULE: VaccineSchedule[] = [
   },
 ];
 
-export const VACCINATION_SCHEDULES: CountrySchedule[] = [
+const US_COUNTRY_SCHEDULES: CountrySchedule[] = [
   { code: 'US', name: 'United States', schedules: US_SCHEDULE },
-  { code: 'WHO', name: 'WHO Global', schedules: WHO_SCHEDULE },
-  { code: 'GB', name: 'United Kingdom', schedules: US_SCHEDULE }, // Simplified: using US for demo
   { code: 'CA', name: 'Canada', schedules: US_SCHEDULE },
-  { code: 'AU', name: 'Australia', schedules: US_SCHEDULE },
+];
+
+const WHO_COUNTRY_CODES: Array<{ code: string; name: string }> = [
+  { code: 'WHO', name: 'WHO Global' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'GH', name: 'Ghana' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'KE', name: 'Kenya' },
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'IN', name: 'India' },
+  { code: 'PK', name: 'Pakistan' },
+  { code: 'BD', name: 'Bangladesh' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'CN', name: 'China' },
+  { code: 'PH', name: 'Philippines' },
+  { code: 'ID', name: 'Indonesia' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'CL', name: 'Chile' },
+  { code: 'CO', name: 'Colombia' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'TR', name: 'Turkey' },
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'SA', name: 'Saudi Arabia' },
+  { code: 'EG', name: 'Egypt' },
+  { code: 'MA', name: 'Morocco' },
+  { code: 'ET', name: 'Ethiopia' },
+  { code: 'TZ', name: 'Tanzania' },
+  { code: 'UG', name: 'Uganda' },
+];
+
+export const VACCINATION_SCHEDULES: CountrySchedule[] = [
+  ...US_COUNTRY_SCHEDULES,
+  ...WHO_COUNTRY_CODES.map((country) => ({
+    code: country.code,
+    name: country.name,
+    schedules: WHO_SCHEDULE,
+  })),
 ];
 
 export function getScheduleByCountry(countryCode: string): VaccineSchedule[] {
-  const schedule = VACCINATION_SCHEDULES.find((s) => s.code === countryCode);
-  return schedule?.schedules || US_SCHEDULE;
+  const normalizedCountryCode = (countryCode || '').toUpperCase();
+  const schedule = VACCINATION_SCHEDULES.find((s) => s.code === normalizedCountryCode);
+  return schedule?.schedules || WHO_SCHEDULE;
 }
 
 export function formatAge(weeks: number): string {

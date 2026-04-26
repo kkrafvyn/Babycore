@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabase';
-import { AuthRequest } from './auth';
+import { AuthRequest } from '../middleware/auth';
 
 export type UserRole = 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer';
 

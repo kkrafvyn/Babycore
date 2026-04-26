@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Camera, Image as ImageIcon, Share2, Plus } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
+import { addMemoryLog } from '../../lib/supabase-storage';
+import { getBabyPhotos, uploadBabyPhoto } from '../../lib/photo-management-service';
 
 const MotionDiv = motion.div as any;
 
@@ -12,6 +14,9 @@ interface MonthlyPhotosProps {
 export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
   const { currentBaby, memories } = useAppContext();
   const [photoGrid, setPhotoGrid] = useState<Record<number, string | null>>({});
+  const [isUploading, setIsUploading] = useState(false);
+  const [pendingMonth, setPendingMonth] = useState<number | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     // Attempt to map existing memories with photos to months
@@ -32,6 +37,34 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
     setPhotoGrid(newGrid);
   }, [currentBaby, memories]);
 
+  useEffect(() => {
+    if (!currentBaby) return;
+
+    const loadCloudPhotos = async () => {
+      try {
+        const photos = await getBabyPhotos(currentBaby.id, 200, 0);
+        if (!photos.length) return;
+
+        const dob = new Date(currentBaby.dateOfBirth).getTime();
+        setPhotoGrid((prev) => {
+          const next = { ...prev };
+          for (const photo of photos) {
+            const photoDate = new Date(photo.photo_date).getTime();
+            const monthAge = Math.floor((photoDate - dob) / (1000 * 60 * 60 * 24 * 30.44));
+            if (monthAge >= 1 && monthAge <= 12 && !next[monthAge]) {
+              next[monthAge] = photo.url;
+            }
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error('Failed to load cloud monthly photos:', error);
+      }
+    };
+
+    loadCloudPhotos();
+  }, [currentBaby]);
+
   const handleShare = async () => {
     try {
       if (navigator.share) {
@@ -48,12 +81,75 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
     }
   };
 
-  const handleAddFakePhoto = (month: number) => {
-    // In a real app, this would open a file picker and upload to storage.
-    // For now, we'll prompt for a URL or just use a placeholder to demonstrate functionality.
-    const url = window.prompt(`Enter image URL for Month ${month}:`, 'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&q=80');
-    if (url) {
-      setPhotoGrid(prev => ({ ...prev, [month]: url }));
+  const handleSelectMonth = (month: number) => {
+    setPendingMonth(month);
+    fileInputRef.current?.click();
+  };
+
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const month = pendingMonth;
+    event.target.value = '';
+
+    if (!file || !currentBaby || !month) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please choose an image file.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const dateForMonth = new Date(currentBaby.dateOfBirth);
+      dateForMonth.setMonth(dateForMonth.getMonth() + Math.max(0, month - 1));
+      const timestamp = dateForMonth.toISOString();
+
+      let imageUrl: string | null = null;
+
+      const uploadedPhoto = await uploadBabyPhoto(
+        currentBaby.id,
+        file,
+        timestamp,
+        `Month ${month} milestone`,
+        ['monthly', `month-${month}`],
+      );
+
+      if (uploadedPhoto?.url) {
+        imageUrl = uploadedPhoto.url;
+      } else {
+        imageUrl = await readFileAsDataUrl(file);
+      }
+
+      await addMemoryLog({
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        babyId: currentBaby.id,
+        timestamp,
+        text: `${currentBaby.name} month ${month} milestone photo`,
+        photoUrl: imageUrl,
+        isMilestone: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      setPhotoGrid((prev) => ({ ...prev, [month]: imageUrl }));
+    } catch (error) {
+      console.error('Failed to upload monthly photo:', error);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+      setPendingMonth(null);
     }
   };
 
@@ -73,6 +169,14 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
 
       <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-12">
         <div className="max-w-xl mx-auto w-full space-y-8">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleUpload}
+          />
+
           <div className="text-center">
             <h2 className="text-3xl font-headline font-black text-foreground tracking-tight mb-2">
               {currentBaby?.name}'s Growth
@@ -80,6 +184,11 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
             <p className="text-sm font-bold text-text-dim">
               Capture one photo each month to build a beautiful timeline of their first year.
             </p>
+            {isUploading && (
+              <p className="text-xs font-black uppercase tracking-widest text-secondary mt-3">
+                Uploading month {pendingMonth}...
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -99,15 +208,20 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-4">
-                      <button onClick={() => handleAddFakePhoto(month)} className="w-10 h-10 rounded-full bg-white/20 backdrop-blur text-white flex items-center justify-center hover:bg-white/40 transition-colors">
+                      <button
+                        onClick={() => handleSelectMonth(month)}
+                        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur text-white flex items-center justify-center hover:bg-white/40 transition-colors"
+                        disabled={isUploading}
+                      >
                         <Camera size={18} />
                       </button>
                     </div>
                   </>
                 ) : (
                   <button
-                    onClick={() => handleAddFakePhoto(month)}
+                    onClick={() => handleSelectMonth(month)}
                     className="w-full h-full flex flex-col items-center justify-center text-text-dim hover:bg-surface-gray dark:hover:bg-zinc-800 transition-colors"
+                    disabled={isUploading}
                   >
                     <div className="w-12 h-12 rounded-full border-2 border-dashed border-border-gray dark:border-zinc-700 flex items-center justify-center mb-3 text-border-gray dark:text-zinc-600">
                       <Plus size={20} />

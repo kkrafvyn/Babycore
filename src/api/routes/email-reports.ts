@@ -9,12 +9,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
+const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
+  modulePath: string,
+) => Promise<any>;
+
 // Lazy load nodemailer only when needed
 let nodemailer: any = null;
 const loadNodemailer = async () => {
   if (!nodemailer) {
     try {
-      nodemailer = await import('nodemailer');
+      nodemailer = await dynamicImport('nodemailer');
     } catch (err) {
       console.warn('nodemailer not available, email features disabled');
       return null;
@@ -29,7 +33,7 @@ const getEmailTransporter = async () => {
   if (!nm) return null;
 
   if (process.env.EMAIL_SERVICE === 'sendgrid') {
-    return nm.createTransporter({
+    return nm.createTransport({
       host: 'smtp.sendgrid.net',
       port: 587,
       auth: {
@@ -62,7 +66,8 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
     }
 
     // Get user email and baby data
-    const { data: { user } } = await supabase.auth.getUser();
+    const authClient = supabase.auth as any;
+    const { data: { user } } = await authClient.getUser();
     const { data: baby } = await supabase
       .from('babies')
       .select('*')
@@ -157,7 +162,8 @@ export async function sendMilestoneAnnouncement(req: Request, res: Response) {
     }
 
     // Get user and baby data
-    const { data: { user } } = await supabase.auth.getUser();
+    const authClient = supabase.auth as any;
+    const { data: { user } } = await authClient.getUser();
     const { data: baby } = await supabase
       .from('babies')
       .select('*')
@@ -437,3 +443,10 @@ function calculateNextSendDate(frequency: string): string {
   date.setHours(9, 0, 0, 0); // Set to 9 AM
   return date.toISOString();
 }
+
+router.post('/generate-weekly', generateWeeklyDigest);
+router.post('/send-milestone-announcement', sendMilestoneAnnouncement);
+router.post('/schedule-newsletter', scheduleNewsletter);
+router.post('/preview', getReportPreview);
+
+export default router;

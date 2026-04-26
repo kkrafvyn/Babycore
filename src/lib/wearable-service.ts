@@ -25,8 +25,8 @@ export interface WearableData {
  */
 export async function connectAppleHealth(userId: string): Promise<WearableIntegration | null> {
   try {
-    // In a real app, this would initiate OAuth flow with Apple Health
-    // For now, placeholder for the connection process
+    // Apple Health authorization is initiated on-device.
+    // This call stores the connected state after client permission succeeds.
 
     const { data, error } = await supabase
       .from('wearable_integrations')

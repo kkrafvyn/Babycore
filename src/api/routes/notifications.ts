@@ -3,9 +3,11 @@
  * Endpoints for managing PWA push subscriptions and notifications
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import * as webpush from 'web-push';
+
+const router = Router();
 
 const vapidSubject = process.env.VAPID_SUBJECT || 'support@babylog.app';
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
@@ -16,6 +18,54 @@ if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(`mailto:${vapidSubject}`, vapidPublicKey, vapidPrivateKey);
 } else {
   console.warn('VAPID keys are missing. Push notifications sending is disabled.');
+}
+
+type PushPayload = {
+  userId: string;
+  title: string;
+  body?: string;
+  data?: Record<string, any>;
+  tag?: string;
+};
+
+async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; failed: number }> {
+  const { userId, title, body, data, tag } = payload;
+
+  const { data: subscriptions, error: subError } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (subError) throw subError;
+
+  const messagePayload = JSON.stringify({
+    title,
+    body: body || '',
+    data: data || {},
+    tag: tag || 'default',
+    icon: '/icon-192.png',
+    badge: '/badge-72.png',
+  });
+
+  const results = await Promise.allSettled(
+    (subscriptions || []).map((sub) =>
+      webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth,
+          },
+        },
+        messagePayload,
+      ),
+    ),
+  );
+
+  return {
+    sent: results.filter((result) => result.status === 'fulfilled').length,
+    failed: results.filter((result) => result.status === 'rejected').length,
+  };
 }
 
 /**
@@ -45,7 +95,7 @@ export async function subscribeToPushNotifications(req: Request, res: Response) 
     if (error) throw error;
 
     return res.json({ success: true, message: 'Subscribed to notifications' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -72,7 +122,7 @@ export async function unsubscribeFromPushNotifications(req: Request, res: Respon
     if (error) throw error;
 
     return res.json({ success: true, message: 'Unsubscribed from notifications' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -89,41 +139,13 @@ export async function sendPushNotification(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get user's subscriptions
-    const { data: subscriptions, error: subError } = await supabase
-      .from('push_subscriptions')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (subError) throw subError;
-
-    const payload = JSON.stringify({
+    const { sent, failed } = await sendPushToUser({
+      userId,
       title,
-      body: body || '',
-      data: data || {},
-      tag: tag || 'default',
-      icon: '/icon-192.png',
-      badge: '/badge-72.png',
+      body,
+      data,
+      tag,
     });
-
-    // Send to all subscriptions
-    const results = await Promise.allSettled(
-      (subscriptions || []).map(sub =>
-        webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: {
-              p256dh: sub.p256dh,
-              auth: sub.auth,
-            },
-          },
-          payload
-        )
-      )
-    );
-
-    const sent = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
 
     return res.json({
       success: true,
@@ -131,7 +153,7 @@ export async function sendPushNotification(req: Request, res: Response) {
       sent,
       failed,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -163,7 +185,7 @@ export async function scheduleNotification(req: Request, res: Response) {
     if (error) throw error;
 
     return res.json({ success: true, message: 'Notification scheduled' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -191,11 +213,21 @@ export async function sendHealthAlertNotification(req: Request, res: Response) {
       tag: 'health-alert',
     };
 
-    return sendPushNotification(
-      { ...req, body: { userId, ...notification } },
-      res
-    );
-  } catch (error) {
+    const { sent, failed } = await sendPushToUser({
+      userId,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+      tag: notification.tag,
+    });
+
+    return res.json({
+      success: true,
+      message: `Sent health alert to ${sent} devices`,
+      sent,
+      failed,
+    });
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -231,7 +263,7 @@ export async function scheduleReminders(req: Request, res: Response) {
     if (error) throw error;
 
     return res.json({ success: true, message: 'Reminders configured' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -256,18 +288,13 @@ export async function processScheduledNotifications(req: Request, res: Response)
     let sent = 0;
     for (const notification of scheduled || []) {
       try {
-        await sendPushNotification(
-          {
-            ...req,
-            body: {
-              userId: notification.user_id,
-              title: notification.title,
-              body: notification.body,
-              data: notification.data,
-            },
-          } as any,
-          res
-        );
+        await sendPushToUser({
+          userId: notification.user_id,
+          title: notification.title,
+          body: notification.body,
+          data: notification.data,
+          tag: notification.tag,
+        });
 
         // Mark as sent
         await supabase
@@ -286,7 +313,17 @@ export async function processScheduledNotifications(req: Request, res: Response)
       message: `Processed ${sent} notifications`,
       count: sent,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
+
+router.post('/subscribe', subscribeToPushNotifications);
+router.post('/unsubscribe', unsubscribeFromPushNotifications);
+router.post('/send', sendPushNotification);
+router.post('/schedule', scheduleNotification);
+router.post('/health-alert', sendHealthAlertNotification);
+router.post('/schedule-reminders', scheduleReminders);
+router.post('/process', processScheduledNotifications);
+
+export default router;

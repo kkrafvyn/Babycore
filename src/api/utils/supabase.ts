@@ -38,7 +38,8 @@ export const supabasePublic = createClient(
 // Helper: Get user from token
 export async function getUserFromToken(token: string) {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    const authClient = supabase.auth as any;
+    const { data: { user }, error } = await authClient.getUser(token);
     if (error) throw error;
     return user;
   } catch (error) {

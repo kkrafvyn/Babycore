@@ -510,7 +510,10 @@ export async function searchCareTeamCandidates(query: string): Promise<CareTeamS
         return {
           name,
           email,
-          roleHint: invite.role === 'doctor' ? 'doctor' : 'caregiver',
+          roleHint: (invite.role === 'doctor' ? 'doctor' : 'caregiver') as
+            | 'doctor'
+            | 'caregiver'
+            | 'viewer',
           source: 'recent_invites' as const,
           metadata: invite.role || 'Care team',
         };

@@ -73,6 +73,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
         lastName,
         phoneNumber,
         currentBaby?.country,
+        user.id,
       );
 
       await finalizePremiumPayment({

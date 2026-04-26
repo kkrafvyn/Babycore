@@ -7,6 +7,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth';
 import { supabase } from '../utils/supabase';
 import { logger } from '../../utils/logger';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => 
       message: 'Doctor profile saved successfully',
     });
   } catch (error) {
-    logger.error('Failed to save doctor profile', 'DOCTOR', error);
+    logger.error('Failed to save doctor profile', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to save doctor profile' });
   }
 });
@@ -181,7 +182,7 @@ router.post('/assign-baby', requireAuth, async (req: AuthRequest, res: Response)
       message: 'Baby assigned successfully',
     });
   } catch (error) {
-    logger.error('Failed to assign baby', 'DOCTOR', error);
+    logger.error('Failed to assign baby', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to assign baby' });
   }
 });
@@ -205,7 +206,7 @@ router.get('/babies', requireAuth, async (req: AuthRequest, res: Response) => {
       count: (assignments || []).length,
     });
   } catch (error) {
-    logger.error('Failed to fetch doctor babies', 'DOCTOR', error);
+    logger.error('Failed to fetch doctor babies', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to fetch assigned babies' });
   }
 });
@@ -271,7 +272,7 @@ router.get('/babies/:babyId/details', requireAuth, async (req: AuthRequest, res:
       },
     });
   } catch (error) {
-    logger.error('Failed to fetch baby details', 'DOCTOR', error);
+    logger.error('Failed to fetch baby details', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to fetch baby details' });
   }
 });
@@ -322,7 +323,7 @@ router.post('/diagnoses', requireAuth, async (req: AuthRequest, res: Response) =
       message: 'Diagnosis recorded successfully',
     });
   } catch (error) {
-    logger.error('Failed to create diagnosis', 'DOCTOR', error);
+    logger.error('Failed to create diagnosis', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to create diagnosis' });
   }
 });
@@ -449,7 +450,7 @@ router.post('/medications', requireAuth, async (req: AuthRequest, res: Response)
       message: 'Medication prescribed successfully',
     });
   } catch (error) {
-    logger.error('Failed to prescribe medication', 'DOCTOR', error);
+    logger.error('Failed to prescribe medication', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to prescribe medication' });
   }
 });
@@ -596,7 +597,7 @@ router.post('/appointments/reminders', requireAuth, async (req: AuthRequest, res
       message: 'Appointment reminder set successfully',
     });
   } catch (error) {
-    logger.error('Failed to create appointment reminder', 'DOCTOR', error);
+    logger.error('Failed to create appointment reminder', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to create appointment reminder' });
   }
 });
@@ -703,7 +704,19 @@ router.post(
         .select()
         .single();
 
-      // TODO: Send notification via push/email/SMS
+      await supabase.from('scheduled_notifications').insert({
+        user_id: reminder.parent_id,
+        title: 'Appointment Reminder',
+        body: `You have an upcoming ${reminder.appointment_type} appointment on ${reminder.scheduled_date}${reminder.scheduled_time ? ` at ${reminder.scheduled_time}` : ''}.`,
+        data: {
+          type: 'appointment-reminder',
+          reminderId: reminder.id,
+          babyId: reminder.baby_id,
+          doctorId: reminder.doctor_id,
+        },
+        status: 'pending',
+        scheduled_for: new Date().toISOString(),
+      });
 
       logger.info('Appointment reminder notification sent', 'DOCTOR', { reminderId });
 
@@ -713,7 +726,7 @@ router.post(
         message: 'Reminder notification sent successfully',
       });
     } catch (error) {
-      logger.error('Failed to send appointment reminder', 'DOCTOR', error);
+      logger.error('Failed to send appointment reminder', error as Error, 'DOCTOR');
       res.status(500).json({ success: false, error: 'Failed to send reminder notification' });
     }
   }
@@ -762,7 +775,7 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
       },
     });
   } catch (error) {
-    logger.error('Failed to fetch doctor dashboard', 'DOCTOR', error);
+    logger.error('Failed to fetch doctor dashboard', error as Error, 'DOCTOR');
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard' });
   }
 });

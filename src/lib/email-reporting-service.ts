@@ -11,6 +11,18 @@ export interface EmailReport {
   recipient_email: string;
 }
 
+const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+
+  return {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+};
+
 /**
  * Schedule weekly digest email
  */
@@ -88,29 +100,22 @@ export async function sendMilestoneAnnouncement(
   babyName: string
 ): Promise<boolean> {
   try {
-    const { data: milestone } = await supabase
-      .from('milestone_announcements')
-      .insert({
-        baby_id: babyId,
-        milestone_type: milestoneType,
-        milestone_date: new Date().toISOString().split('T')[0],
-      })
-      .select()
-      .single();
-
-    if (!milestone) return false;
-
     // Generate social media card
     const cardUrl = await generateSocialMediaCard(babyName, milestoneType);
+    const headers = await getAuthHeaders();
 
-    // Send email notification to parents/family
-    const response = await fetch('/api/email/send-milestone', {
+    // Send milestone email through the API route
+    const response = await fetch('/api/email-reports/send-milestone-announcement', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
-        baby_id: babyId,
-        baby_name: babyName,
-        milestone_type: milestoneType,
+        babyId,
+        milestone: milestoneType,
+        details: {
+          babyName,
+          cardUrl,
+          announcedAt: new Date().toISOString(),
+        },
         card_url: cardUrl,
       }),
     });
@@ -126,9 +131,30 @@ export async function sendMilestoneAnnouncement(
  * Generate social media card for milestone
  */
 async function generateSocialMediaCard(babyName: string, milestoneType: string): Promise<string> {
-  // This would call a backend service to generate an image
-  // For now, return placeholder
-  return `/api/milestone-card?name=${babyName}&type=${milestoneType}`;
+  const safeName = babyName || 'Baby';
+  const safeMilestone = milestoneType.replace(/[-_]/g, ' ');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1d2a44" />
+          <stop offset="100%" stop-color="#3d6f8a" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="630" fill="url(#bg)" />
+      <text x="80" y="230" font-size="62" fill="#ffffff" font-family="Arial, sans-serif" font-weight="700">
+        ${safeName}
+      </text>
+      <text x="80" y="320" font-size="46" fill="#d7f3ff" font-family="Arial, sans-serif">
+        Milestone: ${safeMilestone}
+      </text>
+      <text x="80" y="410" font-size="30" fill="#d7f3ff" font-family="Arial, sans-serif">
+        Captured with BabyCore
+      </text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
@@ -136,15 +162,16 @@ async function generateSocialMediaCard(babyName: string, milestoneType: string):
  */
 export async function generateWeeklyDigestContent(babyId: string): Promise<string | null> {
   try {
-    const response = await fetch('/api/reports/weekly-digest', {
+    const headers = await getAuthHeaders();
+    const response = await fetch('/api/email-reports/preview', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
+      headers,
+      body: JSON.stringify({ babyId, reportType: 'weekly' }),
     });
 
     if (!response.ok) throw new Error('Failed to generate digest');
-    const { html } = await response.json();
-    return html;
+    const { preview } = await response.json();
+    return preview;
   } catch (err) {
     console.error('Error generating weekly digest:', err);
     return null;
@@ -156,15 +183,16 @@ export async function generateWeeklyDigestContent(babyId: string): Promise<strin
  */
 export async function generateMonthlyNewsletterContent(babyId: string): Promise<string | null> {
   try {
-    const response = await fetch('/api/reports/monthly-newsletter', {
+    const headers = await getAuthHeaders();
+    const response = await fetch('/api/email-reports/preview', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
+      headers,
+      body: JSON.stringify({ babyId, reportType: 'monthly' }),
     });
 
     if (!response.ok) throw new Error('Failed to generate newsletter');
-    const { html } = await response.json();
-    return html;
+    const { preview } = await response.json();
+    return preview;
   } catch (err) {
     console.error('Error generating monthly newsletter:', err);
     return null;
@@ -214,7 +242,7 @@ export async function unsubscribeFromEmailReports(
  */
 function getNextWeekday(dayOfWeek: number): Date {
   const today = new Date();
-  const daysAhead = dayOfWeek - today.getDay();
+  let daysAhead = dayOfWeek - today.getDay();
 
   if (daysAhead <= 0) {
     daysAhead += 7;

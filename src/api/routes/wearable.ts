@@ -3,10 +3,12 @@
  * Endpoints for syncing data from Apple Health, Fitbit, and other wearables
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+
+const router = Router();
 
 /**
  * POST /api/wearable/connect-apple-health
@@ -15,7 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 export async function connectAppleHealth(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
-    const { healthKitToken } = req.body;
+    const { healthKitToken, samples } = req.body;
 
     if (!userId || !healthKitToken) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -38,15 +40,16 @@ export async function connectAppleHealth(req: Request, res: Response) {
 
     if (error) throw error;
 
-    // Perform initial sync
-    await syncAppleHealthData(userId, healthKitToken);
+    // Perform initial sync with optional client-provided samples.
+    // Apple Health data is collected on-device and forwarded by the client.
+    await syncAppleHealthData(userId, healthKitToken, samples);
 
     return res.json({
       success: true,
       integration,
       message: 'Apple Health connected successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Apple Health connection error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -91,7 +94,7 @@ export async function connectFitbit(req: Request, res: Response) {
       integration,
       message: 'Fitbit connected successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Fitbit connection error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -119,7 +122,7 @@ export async function triggerWearableSync(req: Request, res: Response) {
 
     if (integError) throw integError;
 
-    let syncResults = [];
+    let syncResults: Array<{ device: string; status: 'success' | 'failed'; error?: string }> = [];
 
     for (const integration of integrations || []) {
       if (deviceType && integration.device_type !== deviceType) continue;
@@ -141,7 +144,7 @@ export async function triggerWearableSync(req: Request, res: Response) {
           .from('wearable_integrations')
           .update({ last_sync: new Date().toISOString() })
           .eq('id', integration.id);
-      } catch (err) {
+      } catch (err: any) {
         syncResults.push({
           device: integration.device_type,
           status: 'failed',
@@ -155,7 +158,7 @@ export async function triggerWearableSync(req: Request, res: Response) {
       syncResults,
       message: `Synced ${syncResults.filter(r => r.status === 'success').length} devices`,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Wearable sync error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -210,7 +213,7 @@ export async function getWearableData(req: Request, res: Response) {
       data: grouped,
       count: wearableData?.length || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -240,7 +243,7 @@ export async function disconnectWearable(req: Request, res: Response) {
       success: true,
       message: 'Wearable device disconnected',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -270,33 +273,42 @@ export async function getConnectedDevices(req: Request, res: Response) {
       devices: integrations || [],
       count: integrations?.length || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
 
 // Helper functions
 
-async function syncAppleHealthData(userId: string, token: string): Promise<void> {
+async function syncAppleHealthData(
+  userId: string,
+  token: string,
+  samples: Array<{
+    type: 'heart_rate' | 'sleep' | 'steps' | 'temperature' | 'activity';
+    value: number;
+    unit?: string;
+    timestamp?: string;
+  }> = [],
+): Promise<void> {
   try {
-    // In production, use HealthKit SDK
-    // This is a placeholder that would call Apple HealthKit API
-    
-    const mockData = [
-      { type: 'heart_rate', value: 120, unit: 'bpm', timestamp: new Date() },
-      { type: 'sleep', value: 8.5, unit: 'hours', timestamp: new Date() },
-      { type: 'steps', value: 5000, unit: 'steps', timestamp: new Date() },
-    ];
+    if (samples.length === 0) {
+      // No mocked inserts: we only persist real client-provided measurements.
+      return;
+    }
 
-    for (const dataPoint of mockData) {
+    for (const sample of samples) {
+      if (!sample || typeof sample.value !== 'number' || !sample.type) {
+        continue;
+      }
+
       await supabase.from('wearable_data').insert({
         id: uuidv4(),
         user_id: userId,
         device_type: 'apple_health',
-        data_type: dataPoint.type,
-        value: dataPoint.value,
-        unit: dataPoint.unit,
-        recorded_at: dataPoint.timestamp.toISOString(),
+        data_type: sample.type,
+        value: sample.value,
+        unit: sample.unit || (sample.type === 'sleep' ? 'hours' : sample.type === 'steps' ? 'steps' : 'bpm'),
+        recorded_at: sample.timestamp || new Date().toISOString(),
       });
     }
   } catch (error) {
@@ -304,6 +316,15 @@ async function syncAppleHealthData(userId: string, token: string): Promise<void>
     throw error;
   }
 }
+
+router.post('/connect-apple-health', connectAppleHealth);
+router.post('/connect-fitbit', connectFitbit);
+router.post('/sync', triggerWearableSync);
+router.get('/data', getWearableData);
+router.post('/disconnect', disconnectWearable);
+router.get('/integrations', getConnectedDevices);
+
+export default router;
 
 async function syncFitbitData(userId: string, accessToken: string): Promise<void> {
   try {

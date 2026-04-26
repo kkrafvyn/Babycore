@@ -39,6 +39,102 @@ export interface BabyLogNotification {
   read: boolean;
 }
 
+const NOTIFICATION_HISTORY_KEY = 'babylog_notification_history';
+const NOTIFICATION_HISTORY_LIMIT = 60;
+export const NOTIFICATION_HISTORY_EVENT = 'babylog:notifications-updated';
+
+function getDefaultNotificationType(type?: NotificationType): NotificationType {
+  return type || 'summary';
+}
+
+function readNotificationHistoryInternal(): BabyLogNotification[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(NOTIFICATION_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is BabyLogNotification =>
+        item &&
+        typeof item.id === 'string' &&
+        typeof item.title === 'string' &&
+        typeof item.body === 'string' &&
+        typeof item.timestamp === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveNotificationHistoryInternal(notifications: BabyLogNotification[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(notifications));
+  window.dispatchEvent(new CustomEvent(NOTIFICATION_HISTORY_EVENT, { detail: notifications }));
+}
+
+function isRecentDuplicate(
+  notifications: BabyLogNotification[],
+  payload: { title: string; body: string; type?: NotificationType },
+): boolean {
+  const type = getDefaultNotificationType(payload.type);
+  const now = Date.now();
+  return notifications.some((item) => {
+    if (item.type !== type) return false;
+    if (item.title !== payload.title || item.body !== payload.body) return false;
+    return now - new Date(item.timestamp).getTime() < 5 * 60 * 1000;
+  });
+}
+
+function persistNotification(payload: {
+  title: string;
+  body: string;
+  data?: any;
+  type?: NotificationType;
+}): { notification: BabyLogNotification; isDuplicate: boolean } {
+  const notifications = readNotificationHistoryInternal();
+  const duplicate = isRecentDuplicate(notifications, payload);
+
+  if (duplicate) {
+    return { notification: notifications[0], isDuplicate: true };
+  }
+
+  const notification: BabyLogNotification = {
+    id:
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type: getDefaultNotificationType(payload.type),
+    title: payload.title,
+    body: payload.body,
+    data: payload.data,
+    timestamp: new Date().toISOString(),
+    read: false,
+  };
+
+  const next = [notification, ...notifications].slice(0, NOTIFICATION_HISTORY_LIMIT);
+  saveNotificationHistoryInternal(next);
+  return { notification, isDuplicate: false };
+}
+
+export function getNotificationHistory(): BabyLogNotification[] {
+  return readNotificationHistoryInternal();
+}
+
+export function markNotificationRead(notificationId: string): void {
+  const notifications = readNotificationHistoryInternal();
+  const next = notifications.map((item) =>
+    item.id === notificationId ? { ...item, read: true } : item,
+  );
+  saveNotificationHistoryInternal(next);
+}
+
+export function markAllNotificationsRead(): void {
+  const notifications = readNotificationHistoryInternal();
+  const next = notifications.map((item) => ({ ...item, read: true }));
+  saveNotificationHistoryInternal(next);
+}
+
 interface WebPushSubscriptionPayload {
   endpoint: string;
   expirationTime?: number | null;
@@ -318,15 +414,18 @@ export class NotificationsManager {
    */
   static async sendLocalNotification(payload: { title: string; body: string; data?: any; type?: NotificationType }): Promise<void> {
     if (!this.isSupported()) return;
+    const { notification, isDuplicate } = persistNotification(payload);
+    if (isDuplicate) return;
 
     // 1. Show In-App Toast (Always show if app is active)
     if (typeof window !== 'undefined') {
-       toast(payload.title, {
-          description: payload.body,
+       const deepLink = notification.data?.deepLink;
+       toast(notification.title, {
+          description: notification.body,
           duration: 5000,
-          action: payload.data?.deepLink ? {
+          action: deepLink ? {
              label: 'View',
-             onClick: () => window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: payload.data.deepLink } }))
+             onClick: () => window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } }))
           } : undefined
        });
     }
@@ -336,12 +435,12 @@ export class NotificationsManager {
        if ('serviceWorker' in navigator) {
          const registration = await navigator.serviceWorker.ready;
          if (registration) {
-           registration.showNotification(payload.title, {
-             body: payload.body,
+           registration.showNotification(notification.title, {
+             body: notification.body,
              icon: '/logo.png',
              badge: '/logo.png',
-             tag: payload.type || 'general',
-             data: payload.data,
+             tag: notification.type || 'general',
+             data: notification.data,
              vibrate: [200, 100, 200],
            } as any);
            return;
@@ -349,20 +448,20 @@ export class NotificationsManager {
        }
 
        try {
-         new Notification(payload.title, {
-           body: payload.body,
+         new Notification(notification.title, {
+           body: notification.body,
            icon: '/logo.png',
-           tag: payload.type || 'general',
-           data: payload.data,
+           tag: notification.type || 'general',
+           data: notification.data,
          });
        } catch (e) {
-         console.warn('System Notification API failed');
+          console.warn('System Notification API failed');
        }
     }
   }
 
   /**
-   * Schedule a notification (Mock - for real background scheduling you need a push server)
+   * Schedule a notification for later in the current app session.
    */
   static scheduleLocalNotification(payload: { title: string; body: string; delayMs: number; type?: NotificationType }): number {
     return window.setTimeout(() => {

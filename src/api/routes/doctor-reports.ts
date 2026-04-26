@@ -3,11 +3,13 @@
  * Endpoints for generating and managing PDF reports
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { v4 as uuid } from 'uuid';
+
+const router = Router();
 
 /**
  * POST /api/reports/generate
@@ -123,7 +125,9 @@ export async function generateDoctorReport(req: Request, res: Response) {
 
     // Save to Supabase Storage
     const fileName = `reports/${babyId}/${Date.now()}-report.pdf`;
-    const buffer = doc.getContents();
+    const bufferPromise = getPdfBuffer(doc);
+    doc.end();
+    const buffer = await bufferPromise;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('doctor-reports')
@@ -150,7 +154,7 @@ export async function generateDoctorReport(req: Request, res: Response) {
       shareToken,
       fileUrl: uploadData?.path,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Report generation error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -176,7 +180,7 @@ export async function getSharedReport(req: Request, res: Response) {
     }
 
     return res.json(report);
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -214,7 +218,21 @@ export async function emailReportToDoctor(req: Request, res: Response) {
     }
 
     return res.json({ success: true, message: 'Report emailed to doctor' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
+
+const getPdfBuffer = (doc: any): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+router.post('/generate', generateDoctorReport);
+router.get('/shared/:token', getSharedReport);
+router.post('/email', emailReportToDoctor);
+
+export default router;

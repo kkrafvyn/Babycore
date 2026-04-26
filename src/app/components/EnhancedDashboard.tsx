@@ -340,7 +340,14 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
           >
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-border-gray dark:border-zinc-700 shrink-0">
-                <img src={getDefaultAvatar(currentBaby?.gender, currentBaby?.name)} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
+                  alt=""
+                  onError={(event) => {
+                    event.currentTarget.src = getDefaultAvatar(currentBaby?.gender, currentBaby?.name);
+                  }}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-sm font-headline font-black text-foreground truncate">{currentBaby?.name || 'Select Baby'}</span>
             </div>
@@ -362,7 +369,14 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
                     className={`w-full p-4 sm:p-5 sm:px-8 flex items-center gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all border-b border-border-gray dark:border-zinc-800 last:border-0 ${baby.id === currentBaby?.id ? 'bg-secondary/5' : ''}`}
                   >
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl overflow-hidden border border-border-gray dark:border-zinc-700 shadow-sm shrink-0">
-                      <img src={getDefaultAvatar(baby.gender, baby.name)} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={baby.photoUrl || getDefaultAvatar(baby.gender, baby.name)}
+                        alt=""
+                        onError={(event) => {
+                          event.currentTarget.src = getDefaultAvatar(baby.gender, baby.name);
+                        }}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <span className="text-sm sm:text-base font-headline font-black text-foreground truncate block">{baby.name}</span>
@@ -378,11 +392,25 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
       )}
 
       <div className="relative h-52 sm:h-64 w-full rounded-[2.2rem] sm:rounded-[3.5rem] overflow-hidden shadow-2xl group cursor-pointer bg-surface-gray dark:bg-zinc-900 border border-border-gray dark:border-zinc-800">
-         <img src={getDefaultAvatar(currentBaby?.gender, currentBaby?.name)} alt="Baby" className="w-full h-full object-contain p-7 sm:p-12 transition-transform duration-700 group-hover:scale-110" />
+         <img
+           src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
+           alt="Baby"
+           onError={(event) => {
+             event.currentTarget.src = getDefaultAvatar(currentBaby?.gender, currentBaby?.name);
+           }}
+           className="w-full h-full object-contain p-7 sm:p-12 transition-transform duration-700 group-hover:scale-110"
+         />
          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
          <div className="absolute bottom-6 left-6 sm:bottom-10 sm:left-10 flex items-center gap-3 sm:gap-6">
             <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border-2 border-white/50 p-1 backdrop-blur-md shrink-0">
-               <img src={getDefaultAvatar(currentBaby?.gender, currentBaby?.name)} alt="Baby Avatar" className="w-full h-full rounded-2xl bg-white/20" />
+               <img
+                 src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
+                 alt="Baby Avatar"
+                 onError={(event) => {
+                   event.currentTarget.src = getDefaultAvatar(currentBaby?.gender, currentBaby?.name);
+                 }}
+                 className="w-full h-full rounded-2xl bg-white/20 object-cover"
+               />
             </div>
             <div className="min-w-0">
                <h3 className="text-xl sm:text-3xl font-headline font-black text-white tracking-tighter leading-none mb-1 truncate">{currentBaby?.name || 'Your Baby'}</h3>

@@ -272,7 +272,8 @@ router.delete('/users/:userId', requireRole('admin'), async (req: AuthRequest, r
     });
 
     // Delete user from auth
-    const { error } = await supabase.auth.admin.deleteUser(userId);
+    const authAdmin = (supabase.auth as any).admin;
+    const { error } = await authAdmin.deleteUser(userId);
 
     if (error) throw error;
 

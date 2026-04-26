@@ -39,7 +39,8 @@ export default async function authMiddleware(
 
     // Verify token with Supabase
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const authClient = supabase.auth as any;
+      const { data: { user }, error } = await authClient.getUser(token);
 
       if (error || !user) {
         return res.status(401).json({
@@ -255,3 +256,5 @@ export function authErrorHandler(
 
   next(err);
 }
+
+export const requireAuth = authMiddleware;

@@ -3,12 +3,22 @@
  * Endpoints for transcribing voice memos and analyzing crying patterns
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
-import path from 'path';
+
+const router = Router();
+
+type CryAnalysis = {
+  primary_cry_type: string;
+  confidence: number;
+  pain_level: number;
+  hunger_probability: number;
+  tiredness_probability: number;
+  discomfort_probability: number;
+  recommendations: string[];
+};
 
 /**
  * POST /api/voice/upload
@@ -47,7 +57,7 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
     const transcription = await transcribeAudio(req.file.buffer);
 
     // Analyze if it's a cry recording
-    let cryAnalysis = null;
+    let cryAnalysis: CryAnalysis | null = null;
     if (category === 'cry') {
       cryAnalysis = await analyzeCryPattern(req.file.buffer);
     }
@@ -79,7 +89,7 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
       cryAnalysis,
       message: 'Voice memo uploaded and transcribed',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Voice upload error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -119,7 +129,7 @@ export async function getVoiceLogs(req: Request, res: Response) {
       logs: logs || [],
       count: logs?.length || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -155,7 +165,8 @@ export async function analyzeCry(req: Request, res: Response) {
     if (downloadError) throw downloadError;
 
     // Analyze
-    const analysis = await analyzeCryPattern(audioData as Buffer);
+    const audioBuffer = Buffer.from(await audioData.arrayBuffer());
+    const analysis = await analyzeCryPattern(audioBuffer);
 
     // Update database
     await supabase
@@ -170,7 +181,7 @@ export async function analyzeCry(req: Request, res: Response) {
       confidence: analysis.confidence,
       message: 'Cry pattern analyzed',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Cry analysis error:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -212,7 +223,7 @@ export async function getCryPatterns(req: Request, res: Response) {
       totalRecordings: logs?.length || 0,
       period: `Last ${daysBack} days`,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -278,7 +289,7 @@ export async function exportVoiceLogsAsMemories(req: Request, res: Response) {
       exportedLogs: logs?.length || 0,
       message: 'Voice logs exported to memories',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -321,7 +332,7 @@ export async function deleteVoiceLog(req: Request, res: Response) {
     if (deleteError) throw deleteError;
 
     return res.json({ success: true, message: 'Voice log deleted' });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -333,22 +344,35 @@ async function transcribeAudio(audioBuffer: Buffer): Promise<{
   confidence: number;
 }> {
   try {
-    // Use Google Cloud Speech-to-Text or Azure Speech API
-    // This is a placeholder - implement with actual API
-
-    if (process.env.SPEECH_API_SERVICE === 'google') {
-      // Google Cloud implementation
-      // const speech = require('@google-cloud/speech');
-      // Implementation here
-    } else if (process.env.SPEECH_API_SERVICE === 'azure') {
-      // Azure implementation
-      // Implementation here
+    const endpoint = process.env.SPEECH_TRANSCRIBE_ENDPOINT;
+    if (!endpoint) {
+      return {
+        text: '',
+        confidence: 0,
+      };
     }
 
-    // Mock response for now
+    const response = await axios.post(
+      endpoint,
+      {
+        audioBase64: audioBuffer.toString('base64'),
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.SPEECH_TRANSCRIBE_API_KEY
+            ? { Authorization: `Bearer ${process.env.SPEECH_TRANSCRIBE_API_KEY}` }
+            : {}),
+        },
+      },
+    );
+
+    const text = String(response.data?.text || '').trim();
+    const confidence = Number(response.data?.confidence ?? 0);
+
     return {
-      text: 'Sample transcription from voice memo',
-      confidence: 0.85,
+      text,
+      confidence: Number.isFinite(confidence) ? confidence : 0,
     };
   } catch (error) {
     console.error('Transcription error:', error);
@@ -359,40 +383,53 @@ async function transcribeAudio(audioBuffer: Buffer): Promise<{
   }
 }
 
-async function analyzeCryPattern(audioBuffer: Buffer): Promise<{
-  primary_cry_type: string;
-  confidence: number;
-  pain_level: number;
-  hunger_probability: number;
-  tiredness_probability: number;
-  discomfort_probability: number;
-  recommendations: string[];
-}> {
+async function analyzeCryPattern(audioBuffer: Buffer): Promise<CryAnalysis> {
   try {
-    // Use ML service to analyze cry patterns
-    // This could be TensorFlow.js, custom ML model, or cloud service
+    const endpoint = process.env.CRY_ANALYSIS_ENDPOINT;
+    if (!endpoint) {
+      return {
+        primary_cry_type: 'unclassified',
+        confidence: 0,
+        pain_level: 0,
+        hunger_probability: 0,
+        tiredness_probability: 0,
+        discomfort_probability: 0,
+        recommendations: ['Enable a cry-analysis provider to classify this recording.'],
+      };
+    }
 
-    // Mock analysis for now
-    const cryTypes = ['hungry', 'tired', 'uncomfortable', 'need_change', 'normal'];
-    const randomType = cryTypes[Math.floor(Math.random() * cryTypes.length)];
+    const response = await axios.post(
+      endpoint,
+      {
+        audioBase64: audioBuffer.toString('base64'),
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.CRY_ANALYSIS_API_KEY
+            ? { Authorization: `Bearer ${process.env.CRY_ANALYSIS_API_KEY}` }
+            : {}),
+        },
+      },
+    );
+
+    const data = response.data || {};
 
     return {
-      primary_cry_type: randomType,
-      confidence: 0.7 + Math.random() * 0.25,
-      pain_level: Math.random() * 10,
-      hunger_probability: Math.random(),
-      tiredness_probability: Math.random(),
-      discomfort_probability: Math.random(),
-      recommendations: [
-        'Check diaper',
-        'Ensure baby is comfortable',
-        'Consider feeding time',
-      ],
+      primary_cry_type: String(data.primary_cry_type || 'unclassified'),
+      confidence: Number.isFinite(Number(data.confidence)) ? Number(data.confidence) : 0,
+      pain_level: Number.isFinite(Number(data.pain_level)) ? Number(data.pain_level) : 0,
+      hunger_probability: Number.isFinite(Number(data.hunger_probability)) ? Number(data.hunger_probability) : 0,
+      tiredness_probability: Number.isFinite(Number(data.tiredness_probability)) ? Number(data.tiredness_probability) : 0,
+      discomfort_probability: Number.isFinite(Number(data.discomfort_probability)) ? Number(data.discomfort_probability) : 0,
+      recommendations: Array.isArray(data.recommendations)
+        ? data.recommendations.map((item: any) => String(item))
+        : [],
     };
   } catch (error) {
     console.error('Cry analysis error:', error);
     return {
-      primary_cry_type: 'unknown',
+      primary_cry_type: 'unclassified',
       confidence: 0,
       pain_level: 0,
       hunger_probability: 0,
@@ -402,6 +439,15 @@ async function analyzeCryPattern(audioBuffer: Buffer): Promise<{
     };
   }
 }
+
+router.post('/upload', uploadVoiceMemo);
+router.get('/logs', getVoiceLogs);
+router.post('/analyze-cry', analyzeCry);
+router.get('/cry-patterns', getCryPatterns);
+router.post('/export-memories', exportVoiceLogsAsMemories);
+router.delete('/:voiceLogId', deleteVoiceLog);
+
+export default router;
 
 function analyzeCryTrends(
   logs: any[]

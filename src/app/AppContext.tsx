@@ -21,6 +21,9 @@ import {
   clearOnboardingCache,
 } from '../lib/onboarding-storage';
 import { BabyLogNotification, NotificationsManager } from '../lib/notifications';
+import { getApiBaseUrl } from '../lib/api-base-url';
+import { supabase } from '../lib/supabase';
+import { subscriptionManager } from '../lib/premium';
 import { useTheme } from 'next-themes';
 import { setupRealtimeSync, performFullSync } from '../lib/cloud-sync-service';
 
@@ -184,6 +187,9 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           setTheme(defaultSettings.theme || 'system');
         }
 
+        await subscriptionManager.initialize(user.id);
+        await syncSubscriptionStatusFromBackend(user.id);
+
         // Setup Real-time Sync (Connectivity)
         setupRealtimeSync((change: any) => {
           console.log('Connectivity: Remote change detected', change);
@@ -223,6 +229,59 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     initialize();
     return () => clearInterval(syncInterval);
   }, [user]);
+
+  const syncSubscriptionStatusFromBackend = async (userId: string) => {
+    try {
+      const auth = supabase.auth as any;
+      const {
+        data: { session },
+      } = await auth.getSession();
+
+      if (!session?.access_token) {
+        return;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/payments/subscription-status`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) return;
+      const payload = await response.json();
+
+      if (!payload?.success) return;
+
+      if (!payload.subscription) {
+        setSettings((prev) =>
+          prev
+            ? {
+                ...prev,
+                subscriptionPlan: 'free',
+                subscriptionStatus: 'free',
+                updatedAt: new Date().toISOString(),
+              }
+            : prev,
+        );
+        return;
+      }
+
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              subscriptionPlan: String(payload.subscription.planId || 'premium'),
+              subscriptionStatus: 'active',
+              subscriptionStartDate: payload.subscription.startDate,
+              updatedAt: new Date().toISOString(),
+            }
+          : prev,
+      );
+    } catch (error) {
+      console.warn('Failed to sync subscription status from backend:', error);
+    }
+  };
 
   // Refresh all logs when current baby changes
   useEffect(() => {

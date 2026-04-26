@@ -269,7 +269,7 @@ export class RBACService {
    */
   hasRole(role: UserRole): boolean {
     const user = this.getCurrentUser();
-    return user?.role === role ?? false;
+    return user?.role === role;
   }
 
   /**

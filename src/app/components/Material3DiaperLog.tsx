@@ -4,9 +4,10 @@
  * Connected to AppContext for persistent diaper logs
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAppContext } from '../AppContext';
 import BottomNavigation from './BottomNavigation';
+import { addDiaperLog } from '../../lib/supabase-storage';
 
 type DiaperType = 'wet' | 'dirty' | 'both';
 
@@ -17,9 +18,11 @@ interface DiaperLogEntry {
 
 export const Material3DiaperLog: React.FC = () => {
   const context = useAppContext();
-  const { babies = [] } = context || {};
-  const diaperLogs: DiaperLogEntry[] = [];
-  const [recentLogs, setRecentLogs] = useState<DiaperLogEntry[]>(diaperLogs.slice(0, 10));
+  const { babies = [], currentBaby, diaperLogs = [], refreshAllLogs } = context || {};
+  const recentLogs: DiaperLogEntry[] = diaperLogs.slice(0, 10).map((log) => ({
+    type: log.type,
+    timestamp: log.timestamp,
+  }));
 
   const baby = babies?.[0];
 
@@ -34,9 +37,24 @@ export const Material3DiaperLog: React.FC = () => {
   const totalCount = todaysLogs.length;
 
   const handleLogDiaper = async (type: DiaperType) => {
-    // This will integrate with AppContext to save to backend
-    console.log(`Logged diaper change: ${type}`);
-    // TODO: Call context.addDiaperLog(type) when method is available
+    if (!currentBaby) return;
+
+    try {
+      await addDiaperLog({
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        babyId: currentBaby.id,
+        timestamp: new Date().toISOString(),
+        type,
+        createdAt: new Date().toISOString(),
+      });
+
+      await refreshAllLogs();
+    } catch (error) {
+      console.error('Failed to save diaper log entry:', error);
+    }
   };
 
   return (

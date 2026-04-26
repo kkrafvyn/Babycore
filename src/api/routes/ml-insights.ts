@@ -3,8 +3,10 @@
  * Endpoints for AI-powered analysis and predictions
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
+
+const router = Router();
 
 /**
  * POST /api/ml/analyze-sleep-patterns
@@ -31,14 +33,16 @@ export async function analyzeSleepPatterns(req: Request, res: Response) {
 
     if (error) throw error;
 
+    const safeSleepLogs = sleepLogs || [];
+
     // ML Analysis
     const analysis = {
-      averageSleepPerDay: calculateAverage(sleepLogs, 'total_sleep_minutes'),
-      sleepQuality: calculateAverageQuality(sleepLogs),
-      regressions: detectRegressions(sleepLogs),
-      trends: calculateTrends(sleepLogs),
-      recommendations: generateSleepRecommendations(sleepLogs),
-      anomalies: detectAnomalies(sleepLogs),
+      averageSleepPerDay: calculateAverage(safeSleepLogs, 'total_sleep_minutes'),
+      sleepQuality: calculateAverageQuality(safeSleepLogs),
+      regressions: detectRegressions(safeSleepLogs),
+      trends: calculateTrends(safeSleepLogs),
+      recommendations: generateSleepRecommendations(safeSleepLogs),
+      anomalies: detectAnomalies(safeSleepLogs),
     };
 
     return res.json({
@@ -47,7 +51,7 @@ export async function analyzeSleepPatterns(req: Request, res: Response) {
       period: `Last ${daysBack} days`,
       dataPoints: sleepLogs?.length || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -74,7 +78,17 @@ export async function predictNextSleep(req: Request, res: Response) {
       .limit(14); // Last 2 weeks
 
     // Simple pattern detection (replace with ML model in production)
-    const intervals = calculateSleepIntervals(recentSleep);
+    const intervals = calculateSleepIntervals(recentSleep || []);
+    if (!intervals.length || !recentSleep?.[0]) {
+      return res.json({
+        success: true,
+        prediction: {
+          timeUntilSleep: 0,
+          predictedTime: new Date().toISOString(),
+          confidence: 0.4,
+        },
+      });
+    }
     const averageInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
 
     const lastSleep = recentSleep?.[0];
@@ -89,7 +103,7 @@ export async function predictNextSleep(req: Request, res: Response) {
         confidence: calculateConfidence(intervals),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -143,7 +157,7 @@ export async function predictMilestone(req: Request, res: Response) {
         confidence: 0.75,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -162,19 +176,20 @@ export async function analyzeGrowthTrajectory(req: Request, res: Response) {
       .eq('baby_id', babyId)
       .order('recorded_date', { ascending: true });
 
+    const safeMeasurements = measurements || [];
     const analysis = {
       currentPercentile: {
-        weight: calculatePercentile(measurements, 'weight'),
-        height: calculatePercentile(measurements, 'height'),
-        headCircumference: calculatePercentile(measurements, 'head_circumference'),
+        weight: calculatePercentile(safeMeasurements, 'weight'),
+        height: calculatePercentile(safeMeasurements, 'height'),
+        headCircumference: calculatePercentile(safeMeasurements, 'head_circumference'),
       },
-      growthRate: calculateGrowthRate(measurements),
-      trend: detectGrowthTrend(measurements),
-      concerns: flagGrowthConcerns(measurements),
+      growthRate: calculateGrowthRate(safeMeasurements),
+      trend: detectGrowthTrend(safeMeasurements),
+      concerns: flagGrowthConcerns(safeMeasurements),
     };
 
     return res.json({ success: true, analysis });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -194,7 +209,11 @@ function detectRegressions(data: any[]): any[] {
   // Detect significant decreases in sleep quality/duration
   if (!data?.length) return [];
   
-  const regressions = [];
+  const regressions: Array<{
+    date: any;
+    severity: string;
+    explanation: string;
+  }> = [];
   for (let i = 1; i < data.length; i++) {
     const diff = data[i].total_sleep_minutes - data[i - 1].total_sleep_minutes;
     if (diff < -120) { // More than 2 hours less
@@ -216,7 +235,7 @@ function calculateTrends(data: any[]): string {
 }
 
 function generateSleepRecommendations(data: any[]): string[] {
-  const recommendations = [];
+  const recommendations: string[] = [];
   const quality = calculateAverageQuality(data);
   
   if (quality < 5) {
@@ -249,7 +268,7 @@ function detectAnomalies(data: any[]): any[] {
 function calculateSleepIntervals(data: any[]): number[] {
   if (!data?.length) return [];
   
-  const intervals = [];
+  const intervals: number[] = [];
   for (let i = 1; i < data.length; i++) {
     const current = new Date(data[i].recorded_date).getTime();
     const next = new Date(data[i - 1].recorded_date).getTime();
@@ -301,7 +320,7 @@ function detectGrowthTrend(data: any[]): string {
 }
 
 function flagGrowthConcerns(data: any[]): string[] {
-  const concerns = [];
+  const concerns: string[] = [];
   if (!data?.length) return concerns;
   
   const percentiles = {
@@ -315,3 +334,10 @@ function flagGrowthConcerns(data: any[]): string[] {
   
   return concerns;
 }
+
+router.post('/analyze-sleep-patterns', analyzeSleepPatterns);
+router.post('/predict-next-sleep', predictNextSleep);
+router.post('/predict-milestone', predictMilestone);
+router.post('/growth-analysis', analyzeGrowthTrajectory);
+
+export default router;

@@ -139,7 +139,7 @@ export async function sendLocalNotification(options: NotificationOptions): Promi
     }
 
     const registration = await navigator.serviceWorker.ready;
-    interface ExtendedNotificationOptions extends NotificationOptions {
+    interface ExtendedNotificationOptions extends Omit<NotificationOptions, 'title'> {
       actions?: NotificationAction[];
     }
     const notificationOptions: ExtendedNotificationOptions = {

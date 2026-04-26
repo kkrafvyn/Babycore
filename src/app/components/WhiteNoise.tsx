@@ -19,39 +19,144 @@ export const WhiteNoise: React.FC<WhiteNoiseProps> = ({ onBack }) => {
   const [activeSound, setActiveSound] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
-  
-  // In a real implementation this would hold AudioContext nodes or new Audio() instances
-  // We'll use a mocked Audio object for safety in case media can't play in this environment
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
+  const stopPlaybackRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    // Dummy audio constructor just to show the logic structure without requiring real assets
-    audioRef.current = new Audio();
-    audioRef.current.loop = true;
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (stopPlaybackRef.current) {
+        stopPlaybackRef.current();
+      }
+
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
       }
     };
   }, []);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (masterGainRef.current && audioContextRef.current) {
+      masterGainRef.current.gain.setValueAtTime(volume, audioContextRef.current.currentTime);
     }
   }, [volume]);
 
-  const handleToggle = (soundId: string) => {
-    if (activeSound === soundId && isPlaying) {
-      setIsPlaying(false);
-      // audioRef.current?.pause();
-    } else {
-      setActiveSound(soundId);
-      setIsPlaying(true);
-      // In a real app we'd load the correct source here
-      // audioRef.current.src = `/sounds/${soundId}.mp3`;
-      // audioRef.current.play().catch(e => console.error("Audio play failed", e));
+  const createNoiseBuffer = (context: AudioContext, seconds = 2): AudioBuffer => {
+    const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
+    const channelData = buffer.getChannelData(0);
+
+    for (let i = 0; i < channelData.length; i++) {
+      channelData[i] = Math.random() * 2 - 1;
     }
+
+    return buffer;
+  };
+
+  const stopPlayback = () => {
+    if (stopPlaybackRef.current) {
+      stopPlaybackRef.current();
+      stopPlaybackRef.current = null;
+    }
+
+    setIsPlaying(false);
+  };
+
+  const startPlayback = async (soundId: string) => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+
+      const context = audioContextRef.current;
+      if (context.state === 'suspended') {
+        await context.resume();
+      }
+
+      stopPlayback();
+
+      const master = context.createGain();
+      master.gain.value = volume;
+      master.connect(context.destination);
+      masterGainRef.current = master;
+
+      const cleanupCallbacks: Array<() => void> = [];
+
+      const attachNoise = (filterType: BiquadFilterType, frequency: number, q: number, gainValue: number) => {
+        const source = context.createBufferSource();
+        source.buffer = createNoiseBuffer(context, 2);
+        source.loop = true;
+
+        const filter = context.createBiquadFilter();
+        filter.type = filterType;
+        filter.frequency.value = frequency;
+        filter.Q.value = q;
+
+        const gain = context.createGain();
+        gain.gain.value = gainValue;
+
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(master);
+        source.start();
+
+        cleanupCallbacks.push(() => source.stop());
+      };
+
+      const attachOscillator = (type: OscillatorType, frequency: number, gainValue: number) => {
+        const oscillator = context.createOscillator();
+        oscillator.type = type;
+        oscillator.frequency.value = frequency;
+
+        const gain = context.createGain();
+        gain.gain.value = gainValue;
+
+        oscillator.connect(gain);
+        gain.connect(master);
+        oscillator.start();
+
+        cleanupCallbacks.push(() => oscillator.stop());
+      };
+
+      if (soundId === 'rain') {
+        attachNoise('lowpass', 1400, 0.7, 0.38);
+      } else if (soundId === 'shush') {
+        attachNoise('bandpass', 2000, 0.9, 0.45);
+      } else if (soundId === 'womb') {
+        attachNoise('lowpass', 500, 0.6, 0.14);
+        attachOscillator('sine', 110, 0.08);
+        attachOscillator('sine', 55, 0.05);
+      } else {
+        attachOscillator('triangle', 523.25, 0.05);
+        attachOscillator('triangle', 659.25, 0.03);
+        attachNoise('lowpass', 1200, 0.5, 0.05);
+      }
+
+      stopPlaybackRef.current = () => {
+        cleanupCallbacks.forEach((stop) => {
+          try {
+            stop();
+          } catch {
+            // No-op: oscillator/source may already be stopped.
+          }
+        });
+      };
+
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Audio playback failed:', error);
+      setIsPlaying(false);
+    }
+  };
+
+  const handleToggle = async (soundId: string) => {
+    if (activeSound === soundId && isPlaying) {
+      stopPlayback();
+      return;
+    }
+
+    setActiveSound(soundId);
+    await startPlayback(soundId);
   };
 
   return (
@@ -96,7 +201,7 @@ export const WhiteNoise: React.FC<WhiteNoiseProps> = ({ onBack }) => {
                 onClick={() => handleToggle(sound.id)}
                 className={`p-6 rounded-[2rem] flex flex-col items-center justify-center gap-4 transition-all duration-300 border ${
                   activeSound === sound.id && isPlaying
-                  ? `${sound.bg} border-${sound.color.split('-')[1]}-200 dark:border-${sound.color.split('-')[1]}-800 scale-[0.98]`
+                  ? `${sound.bg} border-white/20 dark:border-zinc-700 scale-[0.98]`
                   : 'bg-surface border-border-gray dark:border-zinc-800 hover:shadow-md hover:-translate-y-1'
                 }`}
               >

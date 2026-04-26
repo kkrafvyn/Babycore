@@ -46,7 +46,7 @@ export const generateCSV = (data: ExportData): string => {
   data.feedLogs.forEach((log) => {
     let details = '';
     if (log.type === 'breast') {
-      const sides = [];
+      const sides: string[] = [];
       if (log.breastLeft) sides.push('Left');
       if (log.breastRight) sides.push('Right');
       details = sides.join(' & ');
@@ -248,7 +248,7 @@ export const generatePDFHTML = (data: ExportData): string => {
         ${data.feedLogs.map(log => {
           let details = '';
           if (log.type === 'breast') {
-            const sides = [];
+            const sides: string[] = [];
             if (log.breastLeft) sides.push('Left');
             if (log.breastRight) sides.push('Right');
             details = sides.join(' & ');

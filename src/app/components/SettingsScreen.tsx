@@ -352,7 +352,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <div key={baby.id} className="bg-surface p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex items-center justify-between gap-3">
                        <button onClick={() => openEditBaby(baby)} title={`Edit ${baby.name}`} className="flex items-center gap-3 sm:gap-5 text-left min-w-0 flex-1">
                           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-surface-gray dark:bg-zinc-800 flex items-center justify-center overflow-hidden border border-border-gray dark:border-zinc-700 shrink-0">
-                             <img src={getDefaultAvatar(baby.gender, baby.name)} alt={baby.name} className="w-full h-full object-cover" />
+                             <img
+                               src={baby.photoUrl || getDefaultAvatar(baby.gender, baby.name)}
+                               alt={baby.name}
+                               onError={(event) => {
+                                 event.currentTarget.src = getDefaultAvatar(baby.gender, baby.name);
+                               }}
+                               className="w-full h-full object-cover"
+                             />
                           </div>
                           <div className="min-w-0">
                              <p className="text-base sm:text-lg font-headline font-black text-foreground truncate">{baby.name}</p>
@@ -522,7 +529,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <ChevronRight size={18} className="text-text-light shrink-0" />
                  </button>
-                 <button onClick={() => alert('Feature coming soon: This will connect to Apple Health / Google Fit APIs to sync birth and maternal data.')} className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left">
+                 <button
+                   onClick={() =>
+                     toast.message(
+                       'Health Sync uses your connected wearable integrations. Open "Wearables" from dashboard tools to connect Apple Health / Fitbit.',
+                     )
+                   }
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
                     <div className="flex items-center gap-3 sm:gap-5 min-w-0">
                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-rose-50 dark:bg-rose-900/10 text-rose-500 rounded-2xl flex items-center justify-center shrink-0"><Activity size={22} className="sm:h-6 sm:w-6" /></div>
                        <div className="min-w-0">

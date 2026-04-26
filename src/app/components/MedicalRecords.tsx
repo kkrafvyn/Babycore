@@ -34,6 +34,23 @@ const RECORD_TYPES = [
   { value: 'other', label: 'Other', icon: Pill },
 ];
 
+const MEDICAL_RECORDS_STORAGE_KEY = 'babylog_medical_records';
+
+function readMedicalRecordsFromStorage(): MedicalRecord[] {
+  try {
+    const raw = localStorage.getItem(MEDICAL_RECORDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeMedicalRecordsToStorage(records: MedicalRecord[]) {
+  localStorage.setItem(MEDICAL_RECORDS_STORAGE_KEY, JSON.stringify(records));
+}
+
 export const MedicalRecords: React.FC<MedicalRecordsProps> = ({ onBack }) => {
   const { currentBaby } = useAppContext();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
@@ -61,8 +78,11 @@ export const MedicalRecords: React.FC<MedicalRecordsProps> = ({ onBack }) => {
     if (!currentBaby) return;
     setLoading(true);
     try {
-      // TODO: Fetch from Supabase
-      setRecords([]);
+      const allRecords = readMedicalRecordsFromStorage();
+      const filtered = allRecords
+        .filter((record) => record.babyId === currentBaby.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setRecords(filtered);
     } catch (error) {
       console.error('Failed to load records:', error);
     } finally {
@@ -109,7 +129,11 @@ export const MedicalRecords: React.FC<MedicalRecordsProps> = ({ onBack }) => {
     try {
       const date = new Date(`${formData.date}T12:00:00`).toISOString();
       const record: MedicalRecord = {
-        id: editingRecord?.id || '',
+        id:
+          editingRecord?.id ||
+          (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`),
         babyId: currentBaby.id,
         date,
         type: formData.type,
@@ -124,11 +148,12 @@ export const MedicalRecords: React.FC<MedicalRecordsProps> = ({ onBack }) => {
         createdAt: editingRecord?.createdAt || new Date().toISOString(),
       };
 
-      if (editingRecord) {
-        // TODO: Update in Supabase
-      } else {
-        // TODO: Add to Supabase
-      }
+      const allRecords = readMedicalRecordsFromStorage();
+      const nextRecords = editingRecord
+        ? allRecords.map((item) => (item.id === editingRecord.id ? record : item))
+        : [record, ...allRecords];
+
+      writeMedicalRecordsToStorage(nextRecords);
 
       setIsDialogOpen(false);
       await loadRecords();
@@ -140,7 +165,9 @@ export const MedicalRecords: React.FC<MedicalRecordsProps> = ({ onBack }) => {
   const handleDelete = async (id: string) => {
     if (window.confirm('Delete this medical record?')) {
       try {
-        // TODO: Delete from Supabase
+        const allRecords = readMedicalRecordsFromStorage();
+        const nextRecords = allRecords.filter((record) => record.id !== id);
+        writeMedicalRecordsToStorage(nextRecords);
         await loadRecords();
       } catch (error) {
         console.error('Failed to delete record:', error);

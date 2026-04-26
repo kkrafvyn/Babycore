@@ -118,25 +118,86 @@ export function convertVolume(value: number, from: 'metric' | 'imperial', to: 'm
   return from === 'metric' ? Math.round(value / 29.5735 * 10) / 10 : Math.round(value * 29.5735 * 10) / 10;
 }
 
-// Gender-based default avatar
+function hashSeed(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getInitials(seed: string): string {
+  const cleaned = seed.trim().replace(/\s+/g, ' ');
+  if (!cleaned) return 'B';
+  const parts = cleaned.split(' ');
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
+function toDataUri(svg: string): string {
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function generateAvatarSvg(seed: string, foreground: string, palette: [string, string]): string {
+  const initials = getInitials(seed);
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${palette[0]}"/>
+      <stop offset="100%" stop-color="${palette[1]}"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <circle cx="128" cy="128" r="90" fill="rgba(255,255,255,0.18)"/>
+  <circle cx="420" cy="420" r="110" fill="rgba(255,255,255,0.12)"/>
+  <text
+    x="50%"
+    y="54%"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="Poppins, system-ui, -apple-system, Segoe UI, sans-serif"
+    font-size="180"
+    font-weight="800"
+    fill="${foreground}"
+  >${initials}</text>
+</svg>`.trim();
+}
+
+function paletteForSeed(seed: string, kind: 'baby' | 'user', gender?: string): [string, string] {
+  if (kind === 'baby' && gender === 'boy') {
+    return ['#7AC6FF', '#3D7FE8'];
+  }
+  if (kind === 'baby' && gender === 'girl') {
+    return ['#FFB7D7', '#FF6FA5'];
+  }
+  const palettes: Array<[string, string]> = [
+    ['#8ED9C8', '#2BAF8E'],
+    ['#F5C387', '#E68A3B'],
+    ['#B6B5FF', '#6B6AF7'],
+    ['#A8D8FF', '#4C90F0'],
+    ['#FFBCB3', '#F06A5B'],
+  ];
+  const hash = hashSeed(seed);
+  return palettes[hash % palettes.length];
+}
+
+// Reliable generated avatars that do not depend on third-party image hosts
 export function getDefaultAvatar(gender?: string, seed?: string): string {
-  const normalizedSeed = encodeURIComponent((seed || 'baby').trim());
-  const base = `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedSeed}&size=512&radius=24&scale=110`;
-
-  if (gender === 'boy') {
-    return `${base}&backgroundType=gradientLinear&top=shortHairShortFlat&hairColor=brown`;
-  }
-
-  if (gender === 'girl') {
-    return `${base}&backgroundType=gradientLinear&top=longHairStraight&hairColor=brown&accessories=round`;
-  }
-
-  return `${base}&backgroundType=gradientLinear`;
+  const normalizedSeed = (seed || 'baby').trim() || 'baby';
+  const palette = paletteForSeed(normalizedSeed, 'baby', gender);
+  const svg = generateAvatarSvg(normalizedSeed, '#FFFFFF', palette);
+  return toDataUri(svg);
 }
 
 export function getUserAvatar(seed?: string): string {
-  const normalizedSeed = encodeURIComponent((seed || 'parent').trim());
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedSeed}&size=512&radius=24&scale=110&backgroundType=gradientLinear`;
+  const normalizedSeed = (seed || 'parent').trim() || 'parent';
+  const palette = paletteForSeed(normalizedSeed, 'user');
+  const svg = generateAvatarSvg(normalizedSeed, '#FFFFFF', palette);
+  return toDataUri(svg);
 }
 
 // WHO Growth Standards (simplified percentile data for boys and girls 0-24 months)

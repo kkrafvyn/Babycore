@@ -3,9 +3,11 @@
  * Endpoints for forum discussions, posts, and community engagement
  */
 
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
+
+const router = Router();
 
 /**
  * GET /api/community/forums
@@ -29,7 +31,7 @@ export async function getForums(req: Request, res: Response) {
       success: true,
       forums: forums || [],
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -62,7 +64,7 @@ export async function getForumPosts(req: Request, res: Response) {
       posts: posts || [],
       count: posts?.length || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -102,7 +104,7 @@ export async function createForumPost(req: Request, res: Response) {
       post,
       message: 'Post created successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -152,7 +154,7 @@ export async function likePost(req: Request, res: Response) {
     if (error) throw error;
 
     return res.json({ success: true, liked: true });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -190,7 +192,7 @@ export async function replyToPost(req: Request, res: Response) {
       reply,
       message: 'Reply added successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -240,7 +242,7 @@ export async function createPlaydateEvent(req: Request, res: Response) {
       event,
       message: 'Playdate created successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -288,7 +290,7 @@ export async function getNearbyPlaydates(req: Request, res: Response) {
       playdates: nearby,
       count: nearby.length,
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -343,7 +345,7 @@ export async function joinPlaydate(req: Request, res: Response) {
       success: true,
       message: 'Joined playdate successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 }
@@ -367,3 +369,14 @@ function calculateDistance(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+
+router.get('/forums', getForums);
+router.get('/forums/:forumId/posts', getForumPosts);
+router.post('/forums/:forumId/posts', createForumPost);
+router.post('/posts/:postId/like', likePost);
+router.post('/posts/:postId/reply', replyToPost);
+router.post('/playdates', createPlaydateEvent);
+router.get('/playdates/nearby', getNearbyPlaydates);
+router.post('/playdates/:playdateId/join', joinPlaydate);
+
+export default router;

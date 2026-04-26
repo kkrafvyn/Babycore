@@ -4,7 +4,21 @@
  * Supports offline-first architecture with automatic sync when online
  */
 
+import React from 'react';
 import { Baby, SleepLog, FeedLog, DiaperLog, GrowthMeasurement, VaccinationRecord } from '../types/index';
+import {
+  getBabies,
+  getDiaperLogsByBaby,
+  getFeedLogsByBaby,
+  getGrowthMeasurementsByBaby,
+  getMemoryLogsByBaby,
+  getMilestonesByBaby,
+  getSleepLogsByBaby,
+  getUserSettings,
+  getVaccinationRecordsByBaby,
+} from './supabase-storage';
+import { pullFromCloud, performFullSync as performCloudSync } from './cloud-sync-service';
+import { getCurrentUser } from './supabase';
 
 export interface SyncState {
   isOnline: boolean;
@@ -121,19 +135,17 @@ class CloudSyncManager {
     this.dispatchSyncStateChange();
 
     try {
-      // Sync in batches
-      const changes = Array.from(this.syncQueue.entries());
-
-      for (const [key, change] of changes) {
-        try {
-          await this.syncChange(key, change);
-          this.syncQueue.delete(key);
-        } catch (error) {
-          console.error(`Failed to sync ${key}:`, error);
-          // Keep in queue for retry
-        }
+      const localSnapshot = await this.buildLocalSnapshot();
+      if (!localSnapshot) {
+        throw new Error('Unable to build local snapshot');
       }
 
+      const synced = await performCloudSync(localSnapshot);
+      if (!synced) {
+        throw new Error('Cloud sync rejected by backend');
+      }
+
+      this.syncQueue.clear();
       this.lastSyncTime = new Date();
       this.pendingChanges = this.syncQueue.size;
 
@@ -146,19 +158,63 @@ class CloudSyncManager {
     }
   }
 
-  /**
-   * Sync a single change
-   */
-  private async syncChange(key: string, change: any): Promise<void> {
-    // In production, this would call Supabase APIs
-    // For now, it's a placeholder
-    console.log(`Syncing ${key} (${change.type})`);
+  private async buildLocalSnapshot(): Promise<{
+    babies: any[];
+    sleepLogs: any[];
+    feedLogs: any[];
+    diaperLogs: any[];
+    growthMeasurements: any[];
+    vaccinationRecords: any[];
+    milestones: any[];
+    memories: any[];
+    userSettings: any;
+  } | null> {
+    const babies = await getBabies();
+    const aggregate = {
+      sleepLogs: [] as any[],
+      feedLogs: [] as any[],
+      diaperLogs: [] as any[],
+      growthMeasurements: [] as any[],
+      vaccinationRecords: [] as any[],
+      milestones: [] as any[],
+      memories: [] as any[],
+    };
 
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    for (const baby of babies) {
+      const [sleepLogs, feedLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories] =
+        await Promise.all([
+          getSleepLogsByBaby(baby.id),
+          getFeedLogsByBaby(baby.id),
+          getDiaperLogsByBaby(baby.id),
+          getGrowthMeasurementsByBaby(baby.id),
+          getVaccinationRecordsByBaby(baby.id),
+          getMilestonesByBaby(baby.id),
+          getMemoryLogsByBaby(baby.id),
+        ]);
 
-    // Mocked success
-    return Promise.resolve();
+      aggregate.sleepLogs.push(...sleepLogs);
+      aggregate.feedLogs.push(...feedLogs);
+      aggregate.diaperLogs.push(...diaperLogs);
+      aggregate.growthMeasurements.push(...growthMeasurements);
+      aggregate.vaccinationRecords.push(...vaccinationRecords);
+      aggregate.milestones.push(...milestones);
+      aggregate.memories.push(...memories);
+    }
+
+    const user = await getCurrentUser();
+    const userSettings = user?.id ? await getUserSettings(user.id) : null;
+
+    return {
+      babies,
+      sleepLogs: aggregate.sleepLogs,
+      feedLogs: aggregate.feedLogs,
+      diaperLogs: aggregate.diaperLogs,
+      growthMeasurements: aggregate.growthMeasurements,
+      vaccinationRecords: aggregate.vaccinationRecords,
+      milestones: aggregate.milestones,
+      memories: aggregate.memories,
+      userSettings,
+    };
   }
 
   /**
@@ -176,15 +232,14 @@ class CloudSyncManager {
       throw new Error('Cannot pull changes while offline');
     }
 
-    // In production, this would fetch from Supabase
-    // For now, return empty arrays
+    const remote = await pullFromCloud();
     return {
-      babies: [],
-      sleepLogs: [],
-      feedLogs: [],
-      diaperLogs: [],
-      growthMeasurements: [],
-      vaccinationRecords: [],
+      babies: remote?.babies || [],
+      sleepLogs: remote?.sleepLogs || [],
+      feedLogs: remote?.feedLogs || [],
+      diaperLogs: remote?.diaperLogs || [],
+      growthMeasurements: remote?.growthMeasurements || [],
+      vaccinationRecords: remote?.vaccinationRecords || [],
     };
   }
 
@@ -292,6 +347,3 @@ export const useSyncState = () => {
 
   return syncState;
 };
-
-// Note: React import would be at top of actual file
-import React from 'react';
