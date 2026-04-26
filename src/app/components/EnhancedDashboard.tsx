@@ -41,6 +41,7 @@ import { CommunityForum } from './CommunityForum';
 import { ContentLibraryBrowser } from './ContentLibraryBrowser';
 import { WearableDeviceManager } from './WearableDeviceManager';
 import { FamilySharing } from './FamilySharing';
+import { PatientAssignments } from './PatientAssignments';
 import { VoiceLogging } from './VoiceLogging';
 import { DoctorReportGenerator } from './DoctorReportGenerator';
 import { Paywall } from './Paywall';
@@ -55,7 +56,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 import { getCurrentUserRole } from '../../lib/admin-api';
 
-type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'voice-logging' | 'doctor-reports' | 'payment' | 'admin';
+type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'patients' | 'voice-logging' | 'doctor-reports' | 'payment' | 'admin';
 
 const MotionDiv = motion.div as any;
 
@@ -97,6 +98,10 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
   const hasPremiumAccess = isPremiumSubscriptionActive(settings?.subscriptionStatus);
+  const accountProfileType =
+    (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
+    'baby';
+  const isCareTeamProfile = accountProfileType === 'doctor' || accountProfileType === 'caregiver';
 
   const sorted = (arr: any[], key: string) => [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
   
@@ -134,6 +139,7 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     'content-library',
     'wearable',
     'family-sharing',
+    'patients',
     'voice-logging',
     'doctor-reports',
   ]);
@@ -220,6 +226,13 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!isCareTeamProfile) return;
+    if (babies.length > 0) return;
+    if (activeView !== 'dashboard') return;
+    setActiveView('patients');
+  }, [isCareTeamProfile, babies.length, activeView]);
+
   const handleTimerComplete = async (side: 'left' | 'right' | 'both', duration: number) => {
     if (!currentBaby) return;
     const newLog: FeedLog = {
@@ -282,8 +295,31 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? i18nT('dashboard.greeting') : hour < 17 ? i18nT('dashboard.greetingAfternoon') : i18nT('dashboard.greetingEvening');
 
-  const renderDashboard = () => (
-    <div className="space-y-6 sm:space-y-10">
+  const renderDashboard = () => {
+    if (isCareTeamProfile && babies.length === 0) {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-[2rem] border border-border-gray bg-surface p-6 sm:p-8 dark:border-zinc-800">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-light">Care Team</p>
+            <h2 className="mt-3 text-2xl font-headline font-black tracking-tight text-foreground">Manage Shared Patients</h2>
+            <p className="mt-2 text-sm font-semibold text-text-light">
+              Parents can share baby profiles with you. Accept a pending share to add that baby to your list.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                onClick={() => openView('patients')}
+                className="rounded-2xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
+              >
+                Open My Patients
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6 sm:space-y-10">
       <div className="flex items-center justify-between gap-3">
          <div className="space-y-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter leading-none truncate">{greeting},</h2>
@@ -376,6 +412,9 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
               { id: 'wearable', label: 'Wearables', icon: <Activity size={20} />, bg: 'bg-violet-50 dark:bg-violet-900/20 text-violet-500' },
               { id: 'voice-logging', label: 'Voice Logs', icon: <Mic size={20} />, bg: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500' },
               { id: 'doctor-reports', label: 'Doctor Reports', icon: <FileText size={20} />, bg: 'bg-teal-50 dark:bg-teal-900/20 text-teal-500' },
+              ...(isCareTeamProfile
+                ? [{ id: 'patients', label: 'My Patients', icon: <Users size={20} />, bg: 'bg-sky-50 dark:bg-sky-900/20 text-sky-500' }]
+                : []),
               { id: 'family-sharing', label: 'Family', icon: <Users size={20} />, bg: 'bg-green-50 dark:bg-green-900/20 text-green-500' },
               { id: 'community', label: 'Community', icon: <Users size={20} />, bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-500' },
               { id: 'content-library', label: 'Content', icon: <BookOpen size={20} />, bg: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600' },
@@ -533,8 +572,9 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
             </button>
          </div>
       </div>
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderContent = () => {
     switch (activeView) {
@@ -578,7 +618,8 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
       case 'community': return currentBaby ? <CommunityForum ageGroup={currentBaby.ageGroup} /> : null;
       case 'content-library': return <ContentLibraryBrowser />;
       case 'wearable': return currentBaby ? <WearableDeviceManager babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
-      case 'family-sharing': return currentBaby ? <FamilySharing babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
+      case 'family-sharing': return currentBaby ? <FamilySharing babyId={currentBaby.id} babyName={currentBaby.name} /> : <PatientAssignments onBack={backToDashboard} />;
+      case 'patients': return <PatientAssignments onBack={backToDashboard} />;
       case 'voice-logging': return currentBaby ? <VoiceLogging babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'doctor-reports': return currentBaby ? <DoctorReportGenerator babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       default: return renderDashboard();

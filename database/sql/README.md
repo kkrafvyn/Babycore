@@ -50,6 +50,7 @@ This folder contains organized SQL migration files for the BabyLog application.
 | `22-parent-wellness.sql` | Parent health & wellness |
 | `23-sleep-coaching.sql` | Sleep coaching programs |
 | `24-nutrition-meals.sql` | Nutrition & meals tracking |
+| `25-care-team-patient-assignment.sql` | Doctor/caregiver patient assignment invites + RLS |
 
 ## Deployment Instructions
 

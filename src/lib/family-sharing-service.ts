@@ -1,15 +1,20 @@
 import { supabase } from './supabase';
 
+export type FamilySharingRole = 'owner' | 'editor' | 'viewer' | 'caregiver' | 'doctor';
+
 export interface FamilySharingInvite {
   id: string;
   baby_id: string;
   invited_email: string;
-  role: 'owner' | 'editor' | 'viewer' | 'caregiver';
+  role: FamilySharingRole;
   invite_token: string;
   expires_at?: string;
   accepted_at?: string;
   created_by: string;
   created_at: string;
+  baby_name_snapshot?: string;
+  baby_photo_url_snapshot?: string;
+  status?: 'accepted' | 'pending';
 }
 
 export interface CaregiverSession {
@@ -39,8 +44,12 @@ export interface SharingActivityLog {
 export async function sendFamilySharingInvite(
   babyId: string,
   invitedEmail: string,
-  role: 'owner' | 'editor' | 'viewer' | 'caregiver',
-  createdBy: string
+  role: FamilySharingRole,
+  createdBy: string,
+  options?: {
+    babyNameSnapshot?: string;
+    babyPhotoUrlSnapshot?: string;
+  },
 ): Promise<FamilySharingInvite | null> {
   try {
     const inviteToken = `${babyId}_${Math.random().toString(36).substring(7)}`;
@@ -58,6 +67,8 @@ export async function sendFamilySharingInvite(
         invite_token: inviteToken,
         expires_at: expiresAt.toISOString(),
         created_by: createdBy,
+        baby_name_snapshot: options?.babyNameSnapshot,
+        baby_photo_url_snapshot: options?.babyPhotoUrlSnapshot,
       })
       .select()
       .single();
@@ -108,13 +119,29 @@ export async function acceptFamilySharingInvite(
   userId: string
 ): Promise<FamilySharingInvite | null> {
   try {
+    const { data: invite, error: inviteError } = await supabase
+      .from('family_sharing_invites')
+      .select('*')
+      .eq('invite_token', inviteToken)
+      .single();
+
+    if (inviteError || !invite) throw inviteError || new Error('Invite not found');
+
+    if (invite.accepted_at) {
+      return invite;
+    }
+
+    if (invite.expires_at && new Date(invite.expires_at).getTime() < Date.now()) {
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('family_sharing_invites')
       .update({
         accepted_at: new Date().toISOString(),
       })
-      .eq('invite_token', inviteToken)
-      .lte('expires_at', new Date().toISOString())
+      .eq('id', invite.id)
+      .is('accepted_at', null)
       .select()
       .single();
 
@@ -248,7 +275,10 @@ export async function getFamilyMembers(babyId: string): Promise<FamilySharingInv
       .not('accepted_at', 'is', null);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map((invite) => ({
+      ...invite,
+      status: invite.accepted_at ? 'accepted' : 'pending',
+    }));
   } catch (err) {
     console.error('Error fetching family members:', err);
     return [];
@@ -278,7 +308,7 @@ export async function revokeFamilyMemberAccess(inviteId: string): Promise<boolea
  */
 export async function updateFamilyMemberRole(
   inviteId: string,
-  newRole: 'owner' | 'editor' | 'viewer' | 'caregiver'
+  newRole: FamilySharingRole
 ): Promise<FamilySharingInvite | null> {
   try {
     const { data, error } = await supabase
@@ -292,6 +322,81 @@ export async function updateFamilyMemberRole(
     return data;
   } catch (err) {
     console.error('Error updating role:', err);
+    return null;
+  }
+}
+
+const getCurrentUserEmail = async (): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user?.email?.trim().toLowerCase() || null;
+  } catch (err) {
+    console.error('Error getting current user email:', err);
+    return null;
+  }
+};
+
+/**
+ * Get incoming sharing invites for logged in user by email.
+ * This is used by doctor/caregiver accounts to add shared babies to "My Patients".
+ */
+export async function getIncomingSharingInvites(
+  status: 'pending' | 'accepted' | 'all' = 'all'
+): Promise<FamilySharingInvite[]> {
+  try {
+    const userEmail = await getCurrentUserEmail();
+    if (!userEmail) return [];
+
+    let query = supabase
+      .from('family_sharing_invites')
+      .select('*')
+      .ilike('invited_email', userEmail)
+      .order('created_at', { ascending: false });
+
+    if (status === 'pending') {
+      query = query.is('accepted_at', null);
+    }
+
+    if (status === 'accepted') {
+      query = query.not('accepted_at', 'is', null);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map((invite) => ({
+      ...invite,
+      status: invite.accepted_at ? 'accepted' : 'pending',
+    }));
+  } catch (err) {
+    console.error('Error fetching incoming sharing invites:', err);
+    return [];
+  }
+}
+
+/**
+ * Accept incoming invite by invite ID and add baby to recipient patient list.
+ */
+export async function acceptIncomingSharingInvite(inviteId: string): Promise<FamilySharingInvite | null> {
+  try {
+    const { data, error } = await supabase
+      .from('family_sharing_invites')
+      .update({
+        accepted_at: new Date().toISOString(),
+      })
+      .eq('id', inviteId)
+      .is('accepted_at', null)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return {
+      ...data,
+      status: 'accepted',
+    };
+  } catch (err) {
+    console.error('Error accepting incoming invite:', err);
     return null;
   }
 }

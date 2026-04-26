@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ChevronLeft, Mail, Plus, Users } from 'lucide-react';
 import {
+  type FamilySharingRole,
   sendFamilySharingInvite,
   getFamilyMembers,
   updateFamilyMemberRole,
@@ -21,7 +22,7 @@ interface FamilySharingProps {
 interface FamilyMember {
   id: string;
   user_id: string;
-  role: 'owner' | 'editor' | 'viewer' | 'caregiver';
+  role: FamilySharingRole;
   status: 'accepted' | 'pending' | 'declined';
   user_email: string;
 }
@@ -30,7 +31,8 @@ const ROLES = [
   { value: 'owner', label: 'Owner - Full Access', desc: 'Manage all data and family access' },
   { value: 'editor', label: 'Editor - Add/Edit', desc: 'Can add and edit logs' },
   { value: 'viewer', label: 'Viewer - Read Only', desc: 'View data only' },
-  { value: 'caregiver', label: 'Caregiver - Session', desc: 'Temporary time-limited access' },
+  { value: 'caregiver', label: 'Caregiver - Ongoing', desc: 'Can support daily logging and updates' },
+  { value: 'doctor', label: 'Doctor - Clinical Access', desc: 'Assigned to patient for medical follow-up' },
 ];
 
 export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) {
@@ -38,7 +40,9 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer' | 'caregiver'>('viewer');
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer' | 'caregiver' | 'doctor'>(
+    'caregiver',
+  );
   const [inviting, setInviting] = useState(false);
   const resolvedBabyId = babyId ?? currentBaby?.id;
   const resolvedBabyName = babyName ?? currentBaby?.name ?? 'your baby';
@@ -62,8 +66,8 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
       id: invite.id,
       user_id: invite.user_id || '',
       user_email: invite.invited_email || '',
-      role: (invite.role || 'viewer') as 'caregiver' | 'viewer' | 'owner' | 'editor',
-      status: invite.status || 'pending',
+      role: (invite.role || 'viewer') as FamilySharingRole,
+      status: invite.accepted_at ? 'accepted' : 'pending',
     }));
     setMembers(mappedMembers);
     setLoading(false);
@@ -73,7 +77,16 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
     if (!inviteEmail.trim() || !user?.id || !resolvedBabyId) return;
 
     setInviting(true);
-    const invite = await sendFamilySharingInvite(resolvedBabyId, inviteEmail, inviteRole, user.id);
+    const invite = await sendFamilySharingInvite(
+      resolvedBabyId,
+      inviteEmail.trim().toLowerCase(),
+      inviteRole,
+      user.id,
+      {
+        babyNameSnapshot: resolvedBabyName,
+        babyPhotoUrlSnapshot: currentBaby?.photoUrl,
+      },
+    );
 
     if (invite) {
       setInviteEmail('');
@@ -84,7 +97,7 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
 
   const handleUpdateRole = async (
     memberId: string,
-    newRole: 'owner' | 'editor' | 'viewer' | 'caregiver',
+    newRole: FamilySharingRole,
   ) => {
     const success = await updateFamilyMemberRole(memberId, newRole);
 
@@ -132,7 +145,8 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
             <SelectContent>
               <SelectItem value="viewer">Viewer (Read-Only)</SelectItem>
               <SelectItem value="editor">Editor (Add/Edit)</SelectItem>
-              <SelectItem value="caregiver">Caregiver (Session)</SelectItem>
+              <SelectItem value="caregiver">Caregiver (Daily Care)</SelectItem>
+              <SelectItem value="doctor">Doctor (Patient Access)</SelectItem>
             </SelectContent>
           </Select>
 
@@ -178,7 +192,7 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
                           onValueChange={(v) =>
                             handleUpdateRole(
                               member.id,
-                              v as 'owner' | 'editor' | 'viewer' | 'caregiver',
+                              v as FamilySharingRole,
                             )
                           }
                         >
@@ -186,7 +200,7 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {ROLES.slice(0, 3).map((role) => (
+                            {ROLES.filter((role) => role.value !== 'owner').map((role) => (
                               <SelectItem key={role.value} value={role.value}>
                                 {role.value}
                               </SelectItem>
