@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabase.js';
 import axios from 'axios';
 import crypto from 'crypto';
 

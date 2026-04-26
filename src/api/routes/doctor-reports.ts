@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { v4 as uuid } from 'uuid';

@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { supabase } from '../utils/supabase';
+import { supabase } from '../utils/supabase.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
