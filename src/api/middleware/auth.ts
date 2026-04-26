@@ -84,8 +84,13 @@ export default async function authMiddleware(
 function isPublicEndpoint(path: string): boolean {
   const publicEndpoints = [
     '/health',
+    '/api/health',
     '/webhooks/paystack',
     '/webhooks/flutterwave',
+    '/api/webhooks/paystack',
+    '/api/webhooks/flutterwave',
+    '/api/payments/webhook/paystack',
+    '/api/payments/webhook/flutterwave',
     '/api/reports/shared/', // Shared reports with token
     '/api/auth/', // Auth endpoints (if using separate auth routes)
   ];

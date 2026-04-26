@@ -27,6 +27,19 @@ export interface PediatricianContact {
   is_primary: boolean;
 }
 
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+  const accessToken: string | undefined = session?.access_token;
+
+  return {
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+};
+
 /**
  * Generate doctor report PDF (would call backend service)
  */
@@ -39,9 +52,10 @@ export async function generateDoctorReport(
   try {
     // Call backend endpoint to generate PDF
     // This would include charts, data summaries, vaccination records, etc.
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/reports/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         baby_id: babyId,
         report_type: reportType,
@@ -164,9 +178,10 @@ export async function emailReportToDoctor(
     if (!report) return false;
 
     // Call email service (backend)
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/email/send-report', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         recipient_email: doctorEmail,
         baby_name: babyName,

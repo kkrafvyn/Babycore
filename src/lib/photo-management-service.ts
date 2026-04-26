@@ -21,6 +21,93 @@ export interface PhotoCollage {
   photos: string[];
 }
 
+type CollageTile = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+const escapeXml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const toDataUrl = (svg: string): string =>
+  `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+
+const getTileLayout = (count: number): CollageTile[] => {
+  if (count <= 1) {
+    return [{ x: 0, y: 0, width: 1200, height: 1200 }];
+  }
+
+  if (count === 2) {
+    return [
+      { x: 0, y: 0, width: 600, height: 1200 },
+      { x: 600, y: 0, width: 600, height: 1200 },
+    ];
+  }
+
+  if (count === 3) {
+    return [
+      { x: 0, y: 0, width: 1200, height: 600 },
+      { x: 0, y: 600, width: 600, height: 600 },
+      { x: 600, y: 600, width: 600, height: 600 },
+    ];
+  }
+
+  return [
+    { x: 0, y: 0, width: 600, height: 600 },
+    { x: 600, y: 0, width: 600, height: 600 },
+    { x: 0, y: 600, width: 600, height: 600 },
+    { x: 600, y: 600, width: 600, height: 600 },
+  ];
+};
+
+const buildCollageSvg = (photos: BabyPhoto[]): string => {
+  const selected = photos.slice(0, 4);
+  const tiles = getTileLayout(selected.length);
+
+  const imageMarkup = selected
+    .map((photo, index) => {
+      const tile = tiles[index];
+      const safeUrl = escapeXml(photo.url);
+      const clipId = `clip-${index}`;
+
+      return `
+        <clipPath id="${clipId}">
+          <rect x="${tile.x}" y="${tile.y}" width="${tile.width}" height="${tile.height}" rx="36" ry="36" />
+        </clipPath>
+        <image
+          href="${safeUrl}"
+          x="${tile.x}"
+          y="${tile.y}"
+          width="${tile.width}"
+          height="${tile.height}"
+          preserveAspectRatio="xMidYMid slice"
+          clip-path="url(#${clipId})"
+        />
+      `;
+    })
+    .join('\n');
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f7f9ff" />
+          <stop offset="100%" stop-color="#edf2ff" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="1200" fill="url(#bg)" rx="48" ry="48" />
+      ${imageMarkup}
+    </svg>
+  `.trim();
+};
+
 /**
  * Upload baby photo to cloud storage
  */
@@ -195,17 +282,30 @@ export async function generateMonthlyCollage(
     const photos = await getMonthlyPhotos(babyId, month);
     if (photos.length === 0) return null;
 
-    // TODO: Use sharp or similar library to generate collage
-    // For now, just create database record with photo URLs
-    const { data, error } = await supabase
+    const collageSvg = buildCollageSvg(photos);
+    const collageUrl = toDataUrl(collageSvg);
+    const collagePayload = {
+      baby_id: babyId,
+      month,
+      photos: photos.map((p) => p.id),
+      collage_url: collageUrl,
+    };
+
+    let { data, error } = await supabase
       .from('photo_collages')
-      .insert({
-        baby_id: babyId,
-        month,
-        photos: photos.map((p) => p.id),
-      })
+      .upsert(collagePayload, { onConflict: 'baby_id,month' })
       .select()
       .single();
+
+    if (error && /there is no unique|on conflict/i.test(String(error.message || error.details || ''))) {
+      const fallback = await supabase
+        .from('photo_collages')
+        .insert(collagePayload)
+        .select()
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
     return data;

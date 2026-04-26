@@ -91,13 +91,21 @@ export async function syncWearableData(userId: string, deviceType: string): Prom
 
     if (!integration || !integration.is_active) return false;
 
+    const auth = supabase.auth as any;
+    const {
+      data: { session },
+    } = await auth.getSession();
+    const accessToken: string | undefined = session?.access_token;
+
     // Fetch data from device API
-    const response = await fetch(`/api/wearables/${deviceType}/sync`, {
+    const response = await fetch('/api/wearable/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify({
-        user_id: userId,
-        access_token: integration.access_token,
+        deviceType,
       }),
     });
 

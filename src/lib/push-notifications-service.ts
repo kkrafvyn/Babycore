@@ -3,6 +3,8 @@
  * PWA push notifications with VAPID keys
  */
 
+import { supabase } from './supabase';
+
 interface NotificationOptions {
   title: string;
   body?: string;
@@ -16,6 +18,30 @@ interface NotificationOptions {
     icon?: string;
   }>;
 }
+
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+  const accessToken: string | undefined = session?.access_token;
+
+  return {
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+};
+
+const toUint8Array = (base64String: string): Uint8Array => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 /**
  * Request notification permission
@@ -58,19 +84,22 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     // Check if already subscribed
     let subscription = await registration.pushManager.getSubscription();
 
+    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+      throw new Error('VITE_VAPID_PUBLIC_KEY is not configured');
+    }
+
     if (!subscription) {
       // Subscribe to push notifications
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: process.env.VITE_VAPID_PUBLIC_KEY,
+        applicationServerKey: toUint8Array(vapidPublicKey),
       });
 
       // Send subscription to backend
       const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           subscription: subscription.toJSON(),
         }),
@@ -102,9 +131,9 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
       // Notify backend
       await fetch('/api/notifications/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
-          subscription: subscription.toJSON(),
+          endpoint: subscription.endpoint,
         }),
       });
 

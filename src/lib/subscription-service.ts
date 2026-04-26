@@ -126,9 +126,18 @@ async function processAddonPayment(
   paymentMethodId: string
 ): Promise<{ success: boolean; transactionId?: string }> {
   try {
+    const auth = supabase.auth as any;
+    const {
+      data: { session },
+    } = await auth.getSession();
+    const accessToken: string | undefined = session?.access_token;
+
     const response = await fetch('/api/payments/process-addon', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify({
         user_id: userId,
         addon_id: addonId,

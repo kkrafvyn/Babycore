@@ -137,9 +137,18 @@ async function sendInviteEmail(
   token: string
 ): Promise<void> {
   try {
+    const auth = supabase.auth as any;
+    const {
+      data: { session },
+    } = await auth.getSession();
+    const accessToken: string | undefined = session?.access_token;
+
     await fetch('/api/email/send-invite', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify({
         recipient_email: email,
         baby_id: babyId,

@@ -9,18 +9,34 @@ export interface AIInsight {
   data?: any;
 }
 
+const getJsonHeaders = async (): Promise<Record<string, string>> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+  const accessToken: string | undefined = session?.access_token;
+
+  return {
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+};
+
+const postMl = async (path: string, payload: Record<string, unknown>) =>
+  fetch(path, {
+    method: 'POST',
+    headers: await getJsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+
 /**
  * Analyze sleep patterns using ML
  */
 export async function analyzeSleepPatterns(babyId: string, days: number = 30): Promise<AIInsight[]> {
   try {
-    const response = await fetch('/api/ml/analyze-sleep', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        baby_id: babyId,
-        days,
-      }),
+    const response = await postMl('/api/ml/analyze-sleep', {
+      baby_id: babyId,
+      days,
     });
 
     if (!response.ok) throw new Error('Failed to analyze sleep');
@@ -41,11 +57,7 @@ export async function predictNextFeedingTime(babyId: string): Promise<{
   reason: string;
 } | null> {
   try {
-    const response = await fetch('/api/ml/predict-feeding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/predict-feeding', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to predict feeding time');
     const prediction = await response.json();
@@ -65,11 +77,7 @@ export async function predictNextSleepTime(babyId: string): Promise<{
   reason: string;
 } | null> {
   try {
-    const response = await fetch('/api/ml/predict-sleep', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/predict-sleep', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to predict sleep time');
     const prediction = await response.json();
@@ -85,11 +93,7 @@ export async function predictNextSleepTime(babyId: string): Promise<{
  */
 export async function detectAnomalies(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await fetch('/api/ml/detect-anomalies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/detect-anomalies', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to detect anomalies');
     const { anomalies } = await response.json();
@@ -105,11 +109,7 @@ export async function detectAnomalies(babyId: string): Promise<AIInsight[]> {
  */
 export async function getFeedingRecommendations(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await fetch('/api/ml/feeding-recommendations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/feeding-recommendations', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to get recommendations');
     const { recommendations } = await response.json();
@@ -125,11 +125,7 @@ export async function getFeedingRecommendations(babyId: string): Promise<AIInsig
  */
 export async function getSleepRecommendations(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await fetch('/api/ml/sleep-recommendations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/sleep-recommendations', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to get recommendations');
     const { recommendations } = await response.json();
@@ -149,11 +145,7 @@ export async function analyzeGrowthTrajectory(babyId: string): Promise<{
   healthAlert?: string;
 } | null> {
   try {
-    const response = await fetch('/api/ml/analyze-growth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/analyze-growth', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to analyze growth');
     const analysis = await response.json();
@@ -169,11 +161,7 @@ export async function analyzeGrowthTrajectory(babyId: string): Promise<{
  */
 export async function getPersonalizedTips(babyId: string): Promise<string[]> {
   try {
-    const response = await fetch('/api/ml/personalized-tips', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/personalized-tips', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to get tips');
     const { tips } = await response.json();
@@ -197,11 +185,7 @@ export async function predictMilestonesTiming(
   }>
 > {
   try {
-    const response = await fetch('/api/ml/predict-milestones', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/predict-milestones', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to predict milestones');
     const { milestones } = await response.json();
@@ -221,11 +205,7 @@ export async function calculateAdvancedSleepScore(babyId: string): Promise<{
   suggestions: string[];
 } | null> {
   try {
-    const response = await fetch('/api/ml/sleep-score', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baby_id: babyId }),
-    });
+    const response = await postMl('/api/ml/sleep-score', { baby_id: babyId });
 
     if (!response.ok) throw new Error('Failed to calculate sleep score');
     const score = await response.json();

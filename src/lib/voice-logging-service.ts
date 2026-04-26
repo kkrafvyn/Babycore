@@ -18,6 +18,19 @@ export interface VoiceRecognitionResult {
   confidence_score: number;
 }
 
+const getJsonHeaders = async (): Promise<Record<string, string>> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+  const accessToken: string | undefined = session?.access_token;
+
+  return {
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+};
+
 /**
  * Record and upload voice memo
  */
@@ -79,7 +92,7 @@ export async function transcribeVoiceLog(voiceLogId: string, audioUrl: string): 
     // Call backend transcription service
     const response = await fetch('/api/voice/transcribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getJsonHeaders(),
       body: JSON.stringify({
         voice_log_id: voiceLogId,
         audio_url: audioUrl,
@@ -121,7 +134,7 @@ export async function analyzeCryPattern(voiceLogId: string): Promise<VoiceRecogn
     // Call ML service for cry analysis
     const response = await fetch('/api/voice/analyze-cry', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getJsonHeaders(),
       body: JSON.stringify({
         audio_url: voiceLog.audio_url,
       }),

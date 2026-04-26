@@ -3,6 +3,8 @@
  * Sends email notifications using a backend provider (SendGrid, Resend, etc.)
  */
 
+import { supabase } from './supabase';
+
 interface EmailOptions {
   to: string;
   subject: string;
@@ -56,11 +58,18 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     });
     */
 
+    const auth = supabase.auth as any;
+    const {
+      data: { session },
+    } = await auth.getSession();
+    const accessToken: string | undefined = session?.access_token;
+
     // Option 3: Use your own backend endpoint
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify(options),
     });
