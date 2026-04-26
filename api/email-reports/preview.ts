@@ -1,6 +1,6 @@
-import { getReportPreview } from '../../src/api/routes/email-reports';
-import { runExpressHandler } from '../_shared/express-proxy';
-import { type VercelRequest, type VercelResponse } from '../_shared/http';
+import { getReportPreview } from '../../src/api/routes/email-reports.js';
+import { runExpressHandler } from '../_shared/express-proxy.js';
+import { type VercelRequest, type VercelResponse } from '../_shared/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runExpressHandler({

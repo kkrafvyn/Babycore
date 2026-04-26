@@ -1,5 +1,5 @@
-import { parseRequestBody, setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http';
-import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase';
+import { parseRequestBody, setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http.js';
+import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase.js';
 
 const extractStoragePath = (audioUrl?: string, storageKey?: string): string | null => {
   if (storageKey) {

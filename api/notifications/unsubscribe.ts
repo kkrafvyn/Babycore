@@ -1,6 +1,6 @@
-import { unsubscribeFromPushNotifications } from '../../src/api/routes/notifications';
-import { runExpressHandler } from '../_shared/express-proxy';
-import { type VercelRequest, type VercelResponse } from '../_shared/http';
+import { unsubscribeFromPushNotifications } from '../../src/api/routes/notifications.js';
+import { runExpressHandler } from '../_shared/express-proxy.js';
+import { type VercelRequest, type VercelResponse } from '../_shared/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runExpressHandler({

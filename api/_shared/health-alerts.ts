@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from './supabase';
+import { createSupabaseAdminClient } from './supabase.js';
 
 export type HealthAlertSeverity = 'low' | 'medium' | 'high' | 'critical';
 

@@ -2,9 +2,9 @@ import {
   GLOBAL_HEALTH_REGION,
   isActiveAlert,
   normalizeRegion,
-} from '../_shared/health-alerts';
-import { setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http';
-import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase';
+} from '../_shared/health-alerts.js';
+import { setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http.js';
+import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase.js';
 
 const SEVERITY_WEIGHT: Record<string, number> = {
   critical: 4,

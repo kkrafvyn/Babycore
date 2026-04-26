@@ -1,5 +1,5 @@
-import { parseRequestBody, setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http';
-import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase';
+import { parseRequestBody, setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http.js';
+import { createSupabaseAdminClient, getAuthenticatedUser } from '../_shared/supabase.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   setCommonHeaders(res);

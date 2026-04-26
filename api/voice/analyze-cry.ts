@@ -1,6 +1,6 @@
-import { analyzeCry } from '../../src/api/routes/voice-transcription';
-import { runExpressHandler } from '../_shared/express-proxy';
-import { type VercelRequest, type VercelResponse } from '../_shared/http';
+import { analyzeCry } from '../../src/api/routes/voice-transcription.js';
+import { runExpressHandler } from '../_shared/express-proxy.js';
+import { type VercelRequest, type VercelResponse } from '../_shared/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   await runExpressHandler({

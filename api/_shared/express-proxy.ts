@@ -1,10 +1,10 @@
-import { getAuthenticatedUser } from './supabase';
+import { getAuthenticatedUser } from './supabase.js';
 import {
   parseRequestBody,
   setCommonHeaders,
   type VercelRequest,
   type VercelResponse,
-} from './http';
+} from './http.js';
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 

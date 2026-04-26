@@ -1,6 +1,6 @@
-import { syncExternalHealthAlerts } from '../_shared/health-alerts';
-import { setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http';
-import { getAuthenticatedUser } from '../_shared/supabase';
+import { syncExternalHealthAlerts } from '../_shared/health-alerts.js';
+import { setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http.js';
+import { getAuthenticatedUser } from '../_shared/supabase.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   setCommonHeaders(res);

@@ -1,4 +1,4 @@
-import { setCommonHeaders, type VercelRequest, type VercelResponse } from './_shared/http';
+import { setCommonHeaders, type VercelRequest, type VercelResponse } from './_shared/http.js';
 
 export default function handler(req: VercelRequest, res: VercelResponse): void {
   setCommonHeaders(res);

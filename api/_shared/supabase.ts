@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getBearerToken, type VercelRequest } from './http';
+import { getBearerToken, type VercelRequest } from './http.js';
 
 export const createSupabaseAdminClient = () => {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
