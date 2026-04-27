@@ -24,6 +24,7 @@ type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies';
 
 const GUEST_SESSION_KEY = 'babylog_guest_session';
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
+const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
 
 const routeHashes: Record<PublicRoute, string> = {
   welcome: '#welcome',
@@ -56,6 +57,14 @@ const navigateToPublicRoute = (route: PublicRoute) => {
   }
 
   window.location.hash = nextHash;
+};
+
+const setAuthModeHint = (mode: 'signin' | 'signup') => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.sessionStorage.setItem(AUTH_MODE_HINT_KEY, mode);
 };
 
 const shouldShowMobileSplash = () => {
@@ -270,6 +279,7 @@ function AppShell() {
       units: data.units,
     });
 
+    setAuthModeHint('signup');
     navigateToPublicRoute('login');
   };
 
@@ -319,7 +329,10 @@ function AppShell() {
     return (
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
-        onSkip={() => navigateToPublicRoute('login')}
+        onSkip={() => {
+          setAuthModeHint('signin');
+          navigateToPublicRoute('login');
+        }}
         onViewPolicies={openPolicies}
       />
     );
@@ -340,7 +353,10 @@ function AppShell() {
   return (
     <Material3Welcome
       onGetStarted={() => navigateToPublicRoute('onboarding')}
-      onLogIn={() => navigateToPublicRoute('login')}
+      onLogIn={() => {
+        setAuthModeHint('signin');
+        navigateToPublicRoute('login');
+      }}
       onViewPolicies={openPolicies}
     />
   );

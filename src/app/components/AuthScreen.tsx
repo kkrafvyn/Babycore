@@ -26,6 +26,21 @@ interface AuthScreenProps {
 }
 
 type AuthMode = 'signin' | 'signup';
+const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
+
+const consumeAuthModeHint = (): AuthMode => {
+  if (typeof window === 'undefined') {
+    return 'signin';
+  }
+
+  const hintedMode = window.sessionStorage.getItem(AUTH_MODE_HINT_KEY);
+  if (hintedMode === 'signup' || hintedMode === 'signin') {
+    window.sessionStorage.removeItem(AUTH_MODE_HINT_KEY);
+    return hintedMode;
+  }
+
+  return 'signin';
+};
 
 const MotionDiv = motion.div as any;
 const socialProviders: Array<{
@@ -38,13 +53,14 @@ const socialProviders: Array<{
 ];
 
 export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScreenProps) {
-  const [mode, setMode] = useState<AuthMode>('signin');
+  const [mode, setMode] = useState<AuthMode>(() => consumeAuthModeHint());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [socialLoadingProvider, setSocialLoadingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const isAuthBusy = loading || socialLoadingProvider !== null;
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -54,6 +70,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
     }
 
     setError(null);
+    setNotice(null);
     setLoading(true);
 
     try {
@@ -64,14 +81,23 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
         const onboarding = getOnboardingCache();
         const profileType = onboarding.profileType;
 
-        await signUpWithEmail(email, password, {
+        const signUpResult: any = await signUpWithEmail(email, password, {
           onboarding_profile_type: profileType,
           doctor_name: onboarding.doctorProfile?.name || undefined,
           doctor_specialty: onboarding.doctorProfile?.specialty || undefined,
           caregiver_name: onboarding.caregiverProfile?.name || undefined,
           caregiver_relationship: onboarding.caregiverProfile?.relationship || undefined,
         });
-        onSuccess(true);
+
+        // Supabase can require email confirmation and return no session on sign up.
+        if (signUpResult?.session) {
+          onSuccess(true);
+          return;
+        }
+
+        setMode('signin');
+        setPassword('');
+        setNotice('Account created. Check your email to confirm, then sign in.');
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please try again.');
@@ -86,6 +112,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
     }
 
     setError(null);
+    setNotice(null);
     setSocialLoadingProvider(provider);
 
     try {
@@ -140,6 +167,21 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
             >
               <div className="rounded-3xl border border-error/20 bg-error/10 p-5 text-center text-[10px] font-black uppercase tracking-widest text-error">
                 {error}
+              </div>
+            </MotionDiv>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {notice && (
+            <MotionDiv
+              initial={{ y: 10, opacity: 0, height: 0 }}
+              animate={{ y: 0, opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-8 w-full max-w-sm overflow-hidden"
+            >
+              <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5 text-center text-[10px] font-black uppercase tracking-widest text-primary">
+                {notice}
               </div>
             </MotionDiv>
           )}
@@ -253,6 +295,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
             onClick={() => {
               setMode(mode === 'signin' ? 'signup' : 'signin');
               setError(null);
+              setNotice(null);
             }}
             disabled={isAuthBusy}
             className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
