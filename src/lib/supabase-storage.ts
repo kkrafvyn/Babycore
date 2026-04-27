@@ -17,13 +17,45 @@ import {
 } from "../types/index";
 
 import * as LocalStorage from "./storage";
+import { getCurrentUser } from "./supabase";
+
+const STORAGE_SCOPE_PREFIX = 'user:';
+const GUEST_STORAGE_SCOPE = 'guest';
+
+const resolveStorageScopeId = async (): Promise<string> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return GUEST_STORAGE_SCOPE;
+  }
+
+  return `${STORAGE_SCOPE_PREFIX}${user.id}`;
+};
 
 // Baby operations
-export const addBaby = async (baby: Baby): Promise<void> => LocalStorage.addBaby(baby);
-export const getBabies = async (): Promise<Baby[]> => LocalStorage.getBabies();
-export const getBaby = async (id: string): Promise<Baby | undefined> => LocalStorage.getBaby(id);
-export const updateBaby = async (baby: Baby): Promise<void> => LocalStorage.updateBaby(baby);
-export const deleteBaby = async (id: string): Promise<void> => LocalStorage.deleteBaby(id);
+export const addBaby = async (baby: Baby): Promise<void> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.addBaby(baby, scopeId);
+};
+
+export const getBabies = async (): Promise<Baby[]> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.getBabies(scopeId);
+};
+
+export const getBaby = async (id: string): Promise<Baby | undefined> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.getBaby(id, scopeId);
+};
+
+export const updateBaby = async (baby: Baby): Promise<void> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.updateBaby(baby, scopeId);
+};
+
+export const deleteBaby = async (id: string): Promise<void> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.deleteBaby(id, scopeId);
+};
 
 // Sleep log operations
 export const addSleepLog = async (log: SleepLog): Promise<void> => LocalStorage.addSleepLog(log);

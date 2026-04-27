@@ -14,7 +14,13 @@ import {
 } from '../types/index';
 
 const DB_NAME = 'babylog';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
+const BABY_OWNER_SCOPE_INDEX = 'ownerScopeId';
+const GUEST_OWNER_SCOPE_ID = 'guest';
+
+type StoredBaby = Baby & {
+  ownerScopeId?: string;
+};
 
 // Store names
 const STORES = {
@@ -46,10 +52,20 @@ export const initializeDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const database = (event.target as IDBOpenDBRequest).result;
+      const upgradeTransaction = (event.target as IDBOpenDBRequest).transaction;
+      if (!upgradeTransaction) {
+        throw new Error('Missing IndexedDB upgrade transaction');
+      }
 
       // Create object stores
+      let babiesStore: IDBObjectStore;
       if (!database.objectStoreNames.contains(STORES.BABIES)) {
-        database.createObjectStore(STORES.BABIES, { keyPath: 'id' });
+        babiesStore = database.createObjectStore(STORES.BABIES, { keyPath: 'id' });
+      } else {
+        babiesStore = upgradeTransaction.objectStore(STORES.BABIES);
+      }
+      if (!babiesStore.indexNames.contains(BABY_OWNER_SCOPE_INDEX)) {
+        babiesStore.createIndex(BABY_OWNER_SCOPE_INDEX, BABY_OWNER_SCOPE_INDEX, { unique: false });
       }
       if (!database.objectStoreNames.contains(STORES.SLEEP_LOGS)) {
         const sleepStore = database.createObjectStore(STORES.SLEEP_LOGS, { keyPath: 'id' });
@@ -114,6 +130,16 @@ const getDB = async (): Promise<IDBDatabase> => {
   return db;
 };
 
+const normalizeOwnerScopeId = (ownerScopeId?: string): string => {
+  const normalized = ownerScopeId?.trim();
+  return normalized ? normalized : GUEST_OWNER_SCOPE_ID;
+};
+
+const stripBabyOwnerScope = (baby: StoredBaby): Baby => {
+  const { ownerScopeId: _ownerScopeId, ...safeBaby } = baby;
+  return safeBaby as Baby;
+};
+
 // Generic operations factory
 const createOperations = <T>(storeName: string, sortKey?: string, sortOrder: 'asc' | 'desc' = 'desc') => {
   return {
@@ -172,58 +198,119 @@ const createOperations = <T>(storeName: string, sortKey?: string, sortOrder: 'as
 };
 
 // Baby operations (different because of keyPath)
-export const addBaby = async (baby: Baby): Promise<void> => {
+export const addBaby = async (baby: Baby, ownerScopeId?: string): Promise<void> => {
   const database = await getDB();
+  const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
+  const storedBaby: StoredBaby = {
+    ...baby,
+    ownerScopeId: normalizedScopeId,
+  };
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction([STORES.BABIES], 'readwrite');
     const store = tx.objectStore(STORES.BABIES);
-    const request = store.add(baby);
+    const request = store.add(storedBaby);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
   });
 };
 
-export const getBabies = async (): Promise<Baby[]> => {
+export const getBabies = async (ownerScopeId?: string): Promise<Baby[]> => {
   const database = await getDB();
+  const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction([STORES.BABIES], 'readonly');
     const store = tx.objectStore(STORES.BABIES);
-    const request = store.getAll();
+    const request = store.indexNames.contains(BABY_OWNER_SCOPE_INDEX)
+      ? store.index(BABY_OWNER_SCOPE_INDEX).getAll(normalizedScopeId)
+      : store.getAll();
+
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const records = (request.result as StoredBaby[]).filter(
+        (baby) => baby.ownerScopeId === normalizedScopeId,
+      );
+      resolve(records.map(stripBabyOwnerScope));
+    };
   });
 };
 
-export const getBaby = async (id: string): Promise<Baby | undefined> => {
+export const getBaby = async (id: string, ownerScopeId?: string): Promise<Baby | undefined> => {
   const database = await getDB();
+  const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction([STORES.BABIES], 'readonly');
     const store = tx.objectStore(STORES.BABIES);
     const request = store.get(id);
+
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const record = request.result as StoredBaby | undefined;
+      if (!record || record.ownerScopeId !== normalizedScopeId) {
+        resolve(undefined);
+        return;
+      }
+      resolve(stripBabyOwnerScope(record));
+    };
   });
 };
 
-export const updateBaby = async (baby: Baby): Promise<void> => {
+export const updateBaby = async (baby: Baby, ownerScopeId?: string): Promise<void> => {
   const database = await getDB();
+  const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction([STORES.BABIES], 'readwrite');
     const store = tx.objectStore(STORES.BABIES);
-    const request = store.put(baby);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    const getRequest = store.get(baby.id);
+
+    getRequest.onerror = () => reject(getRequest.error);
+    getRequest.onsuccess = () => {
+      const existingRecord = getRequest.result as StoredBaby | undefined;
+      if (existingRecord && existingRecord.ownerScopeId !== normalizedScopeId) {
+        reject(new Error('Cannot update a baby profile owned by another account.'));
+        return;
+      }
+
+      const putRequest = store.put({
+        ...baby,
+        ownerScopeId: normalizedScopeId,
+      } as StoredBaby);
+
+      putRequest.onerror = () => reject(putRequest.error);
+      putRequest.onsuccess = () => resolve();
+    };
   });
 };
 
-export const deleteBaby = async (id: string): Promise<void> => {
+export const deleteBaby = async (id: string, ownerScopeId?: string): Promise<void> => {
   const database = await getDB();
+  const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction([STORES.BABIES], 'readwrite');
     const store = tx.objectStore(STORES.BABIES);
-    const request = store.delete(id);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    const getRequest = store.get(id);
+
+    getRequest.onerror = () => reject(getRequest.error);
+    getRequest.onsuccess = () => {
+      const existingRecord = getRequest.result as StoredBaby | undefined;
+      if (!existingRecord) {
+        resolve();
+        return;
+      }
+
+      if (existingRecord.ownerScopeId !== normalizedScopeId) {
+        reject(new Error('Cannot delete a baby profile owned by another account.'));
+        return;
+      }
+
+      const deleteRequest = store.delete(id);
+      deleteRequest.onerror = () => reject(deleteRequest.error);
+      deleteRequest.onsuccess = () => resolve();
+    };
   });
 };
 
