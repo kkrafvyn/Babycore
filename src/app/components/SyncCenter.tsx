@@ -1,5 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, Cloud, CloudOff, DownloadCloud, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  Cloud,
+  CloudOff,
+  DownloadCloud,
+  RefreshCw,
+  ShieldCheck,
+  User,
+  Database,
+} from 'lucide-react';
 import { cloudSyncManager, type SyncConflict, useSyncState } from '../../lib/cloud-sync';
 
 interface SyncCenterProps {
@@ -16,6 +27,7 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
   const syncState = useSyncState();
   const [syncingNow, setSyncingNow] = useState(false);
   const [pullingNow, setPullingNow] = useState(false);
+  const [refreshingNow, setRefreshingNow] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [pullSummary, setPullSummary] = useState<string>('');
 
@@ -27,6 +39,21 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
     if (hasConflicts) return 'Conflicts require action';
     return 'Cloud in sync';
   }, [hasConflicts, syncState.isOnline, syncState.isSyncing, syncingNow]);
+
+  const accountLabel = syncState.accountEmail?.trim()
+    ? syncState.accountEmail
+    : syncState.dataScope === 'account'
+      ? 'Signed-in account'
+      : 'Guest on this device';
+
+  const handleRefreshDiagnostics = async () => {
+    setRefreshingNow(true);
+    try {
+      await cloudSyncManager.refreshDiagnostics();
+    } finally {
+      setRefreshingNow(false);
+    }
+  };
 
   const handleManualSync = async () => {
     setSyncingNow(true);
@@ -110,6 +137,33 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
             )}
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-secondary" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-light">Account Scope</p>
+              </div>
+              <p className="text-sm font-black text-foreground mt-3 break-all">{accountLabel}</p>
+              <p className="text-[11px] font-semibold text-text-dim mt-2">
+                Data scope: {syncState.dataScope === 'account' ? 'Cloud account' : 'Guest-only device storage'}
+              </p>
+            </div>
+
+            <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Database className="h-4 w-4 text-secondary" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-light">Local Snapshot</p>
+              </div>
+              <p className="text-sm font-black text-foreground mt-3">
+                Babies {syncState.localSummary.babyCount} | Records {syncState.localSummary.totalRecordCount}
+              </p>
+              <p className="text-[11px] font-semibold text-text-dim mt-2">
+                Sleep {syncState.localSummary.sleepLogCount}, Feed {syncState.localSummary.feedLogCount}, Diaper{' '}
+                {syncState.localSummary.diaperLogCount}
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleManualSync}
@@ -129,9 +183,28 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
             </button>
           </div>
 
+          <button
+            onClick={handleRefreshDiagnostics}
+            disabled={refreshingNow}
+            className="h-11 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {refreshingNow ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh Device Status
+          </button>
+
           {pullSummary && (
             <div className="rounded-xl border border-border-gray dark:border-zinc-800 bg-surface p-3 text-xs font-semibold text-text-dim whitespace-pre-wrap">
               {pullSummary}
+            </div>
+          )}
+
+          {syncState.dataScope === 'guest' && (
+            <div className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4">
+              <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                You are viewing guest-only data on this device. Sign in with the same account on every device, then tap
+                <span className="font-black"> Sync Now </span>
+                so your data can follow you everywhere.
+              </p>
             </div>
           )}
 
@@ -208,4 +281,3 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
     </div>
   );
 }
-

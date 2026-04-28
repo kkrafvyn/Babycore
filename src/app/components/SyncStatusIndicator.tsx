@@ -125,6 +125,13 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               </span>
             </div>
 
+            <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+              <span>Account Scope</span>
+              <span className="font-500 text-gray-900 dark:text-white">
+                {syncState.dataScope === 'account' ? syncState.accountEmail || 'Signed in' : 'Guest only'}
+              </span>
+            </div>
+
             {syncState.lastSyncTime && (
               <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
                 <span>Last Sync</span>
@@ -142,6 +149,13 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                 </span>
               </div>
             )}
+
+            <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+              <span>Local Snapshot</span>
+              <span className="text-gray-700 dark:text-gray-300">
+                {syncState.localSummary.babyCount} babies, {syncState.localSummary.totalRecordCount} records
+              </span>
+            </div>
           </div>
         )}
 

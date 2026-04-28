@@ -19,6 +19,7 @@ import {
 } from './supabase-storage';
 import { pullFromCloud, performFullSync as performCloudSync } from './cloud-sync-service';
 import { getCurrentUser } from './supabase';
+import { resolveSyncScope, summarizeSyncSnapshot, type SyncSnapshotSummary } from './sync-diagnostics';
 
 export interface SyncState {
   isOnline: boolean;
@@ -27,6 +28,10 @@ export interface SyncState {
   pendingChanges: number;
   syncError?: string | null;
   conflicts: SyncConflict[];
+  accountId?: string | null;
+  accountEmail?: string | null;
+  dataScope: 'guest' | 'account';
+  localSummary: SyncSnapshotSummary;
 }
 
 export interface SyncConflict {
@@ -49,10 +54,15 @@ class CloudSyncManager {
   private syncQueue: Map<string, any> = new Map();
   private lastSyncTime: Date | null = null;
   private syncInterval: number | null = null;
+  private accountId: string | null = null;
+  private accountEmail: string | null = null;
+  private dataScope: 'guest' | 'account' = 'guest';
+  private localSummary: SyncSnapshotSummary = summarizeSyncSnapshot(null);
 
   constructor() {
     this.setupNetworkListeners();
     this.startAutoSync();
+    void this.refreshDiagnostics();
   }
 
   /**
@@ -114,6 +124,10 @@ class CloudSyncManager {
       pendingChanges: this.pendingChanges,
       syncError: this.syncError,
       conflicts: this.conflicts,
+      accountId: this.accountId,
+      accountEmail: this.accountEmail,
+      dataScope: this.dataScope,
+      localSummary: this.localSummary,
     };
   }
 
@@ -151,6 +165,8 @@ class CloudSyncManager {
         throw new Error('Unable to build local snapshot');
       }
 
+      this.captureDiagnosticsFromSnapshot(localSnapshot);
+
       const remoteSnapshot = await pullFromCloud().catch(() => null);
       if (remoteSnapshot) {
         this.conflicts = this.detectConflicts(localSnapshot, remoteSnapshot);
@@ -180,6 +196,40 @@ class CloudSyncManager {
       this.syncError = error instanceof Error ? error.message : String(error);
     } finally {
       this.isSyncing = false;
+      this.dispatchSyncStateChange();
+    }
+  }
+
+  private captureDiagnosticsFromSnapshot(snapshot: {
+    babies: any[];
+    sleepLogs: any[];
+    feedLogs: any[];
+    diaperLogs: any[];
+    growthMeasurements: any[];
+    vaccinationRecords: any[];
+    milestones: any[];
+    memories: any[];
+    userSettings: any;
+  }): void {
+    this.localSummary = summarizeSyncSnapshot(snapshot);
+  }
+
+  async refreshDiagnostics(): Promise<void> {
+    try {
+      const user = await getCurrentUser();
+      this.accountId = user?.id || null;
+      this.accountEmail = user?.email || null;
+      this.dataScope = resolveSyncScope(Boolean(user?.id));
+
+      const localSnapshot = await this.buildLocalSnapshot();
+      if (localSnapshot) {
+        this.captureDiagnosticsFromSnapshot(localSnapshot);
+      } else {
+        this.localSummary = summarizeSyncSnapshot(null);
+      }
+    } catch (error) {
+      console.warn('Unable to refresh sync diagnostics:', error);
+    } finally {
       this.dispatchSyncStateChange();
     }
   }
@@ -406,6 +456,7 @@ class CloudSyncManager {
     if (!this.isOnline) {
       throw new Error('Cannot sync while offline');
     }
+    await this.refreshDiagnostics();
     await this.syncAll();
   }
 
