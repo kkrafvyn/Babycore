@@ -207,7 +207,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const amount = Number(body.amount);
   const expectedCurrency = typeof body.currency === 'string' ? body.currency.trim().toUpperCase() : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY || process.env.VITE_PAYSTACK_LIVE_SECRET_KEY;
+  const paystackSecretKey =
+    process.env.PAYSTACK_SECRET_KEY ||
+    process.env.PAYSTACK_SERVICE_KEY ||
+    process.env.PAYSTACK_SECRET ||
+    process.env.VITE_PAYSTACK_LIVE_SECRET_KEY ||
+    process.env.VITE_PAYSTACK_SECRET_KEY;
 
   if (!reference || !planId || !Number.isFinite(amount) || amount <= 0 || !expectedCurrency) {
     res.status(400).json({

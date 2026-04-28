@@ -180,12 +180,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     res.status(500).json({
       success: false,
-      error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_KEY',
+      error:
+        'Missing SUPABASE_URL or service role key (SUPABASE_SERVICE_KEY / SUPABASE_SERVICE_ROLE_KEY)',
     });
     return;
   }

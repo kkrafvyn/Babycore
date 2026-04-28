@@ -5,16 +5,23 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  '';
+
+if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error(
-    'Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_KEY'
+    'Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY)'
   );
 }
 
 // Create Supabase client with service role key (for backend operations)
 export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -25,8 +32,8 @@ export const supabase = createClient(
 
 // Create Supabase client with anon key (for public operations)
 export const supabasePublic = createClient(
-  process.env.SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY || '',
+  supabaseUrl,
+  process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   {
     auth: {
       autoRefreshToken: false,

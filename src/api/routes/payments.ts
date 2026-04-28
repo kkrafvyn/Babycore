@@ -21,6 +21,14 @@ type FinalizePayload = {
   countryCode?: string;
 };
 
+const getPaystackSecretKey = (): string =>
+  process.env.PAYSTACK_SECRET_KEY ||
+  process.env.PAYSTACK_SERVICE_KEY ||
+  process.env.PAYSTACK_SECRET ||
+  process.env.VITE_PAYSTACK_LIVE_SECRET_KEY ||
+  process.env.VITE_PAYSTACK_SECRET_KEY ||
+  '';
+
 /**
  * POST /api/payments/process-addon
  * Process payment for premium add-on subscription
@@ -422,6 +430,11 @@ async function processPaystackPayment(
   amount: number
 ): Promise<{ success: boolean; transactionId?: string; error?: string }> {
   try {
+    const paystackSecret = getPaystackSecretKey();
+    if (!paystackSecret) {
+      throw new Error('PAYSTACK_SECRET_KEY is not configured');
+    }
+
     const authAdmin = (supabase.auth as any).admin;
     const { data: authData } = await authAdmin.getUserById(userId);
     const email = authData?.user?.email;
@@ -444,7 +457,7 @@ async function processPaystackPayment(
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${paystackSecret}`,
         },
       }
     );
@@ -519,9 +532,9 @@ async function processStripePayment(
 }
 
 async function verifyPaystackTransaction(reference: string): Promise<any> {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = getPaystackSecretKey();
   if (!secret) {
-    throw new Error('PAYSTACK_SECRET_KEY is not configured');
+    throw new Error('PAYSTACK_SECRET_KEY is not configured (set PAYSTACK_SECRET_KEY or VITE_PAYSTACK_LIVE_SECRET_KEY)');
   }
 
   const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
@@ -673,7 +686,7 @@ async function sendPaymentConfirmationEmail(
 
 function verifyPaystackSignature(req: Request): boolean {
   const signature = req.headers['x-paystack-signature'] as string;
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = getPaystackSecretKey();
   if (!signature || !secret) return false;
   const hash = crypto
     .createHmac('sha512', secret)

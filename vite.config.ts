@@ -24,5 +24,19 @@ export default defineConfig({
   build: {
     target: 'esnext',
     minify: 'esbuild',
-  },
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react'
+          if (id.includes('/@supabase/')) return 'vendor-supabase'
+          if (id.includes('/framer-motion/') || id.includes('/motion/')) return 'vendor-motion'
+          if (id.includes('/three/') || id.includes('/@react-three/')) return 'vendor-3d'
+          if (id.includes('/recharts/')) return 'vendor-charts'
+          return undefined
+        },
+      },
+    },
+  } as any,
 })

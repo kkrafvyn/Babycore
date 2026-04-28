@@ -2,13 +2,6 @@ import React from 'react';
 import { ThemeProvider } from 'next-themes';
 import { Toaster, toast } from 'sonner';
 import { AppContextProvider, useAppContext } from './app/AppContext';
-import { AuthScreen } from './app/components/AuthScreen';
-import { EnhancedDashboard } from './app/components/EnhancedDashboard';
-import { Material3AddBaby } from './app/components/Material3AddBaby';
-import { Material3Onboarding } from './app/components/Material3Onboarding';
-import { Material3SplashScreen } from './app/components/Material3SplashScreen';
-import { Material3Welcome } from './app/components/Material3Welcome';
-import { LegalPolicies } from './app/components/LegalPolicies';
 import { AppErrorBoundary } from './app/components/AppErrorBoundary';
 import { PrivacyLock } from './app/components/PrivacyLock';
 import {
@@ -118,6 +111,32 @@ const FullScreenLoader = ({ label }: { label: string }) => (
       <p className="text-sm font-bold text-text-dim">{label}</p>
     </div>
   </div>
+);
+
+const AuthScreen = React.lazy(() =>
+  import('./app/components/AuthScreen').then((module) => ({ default: module.AuthScreen })),
+);
+const EnhancedDashboard = React.lazy(() =>
+  import('./app/components/EnhancedDashboard').then((module) => ({ default: module.EnhancedDashboard })),
+);
+const Material3AddBaby = React.lazy(() =>
+  import('./app/components/Material3AddBaby').then((module) => ({ default: module.Material3AddBaby })),
+);
+const Material3Onboarding = React.lazy(() =>
+  import('./app/components/Material3Onboarding').then((module) => ({ default: module.Material3Onboarding })),
+);
+const Material3SplashScreen = React.lazy(() =>
+  import('./app/components/Material3SplashScreen').then((module) => ({ default: module.Material3SplashScreen })),
+);
+const Material3Welcome = React.lazy(() =>
+  import('./app/components/Material3Welcome').then((module) => ({ default: module.Material3Welcome })),
+);
+const LegalPolicies = React.lazy(() =>
+  import('./app/components/LegalPolicies').then((module) => ({ default: module.LegalPolicies })),
+);
+
+const renderWithSuspense = (node: React.ReactNode, label: string) => (
+  <React.Suspense fallback={<FullScreenLoader label={label} />}>{node}</React.Suspense>
 );
 
 function AppShell() {
@@ -383,7 +402,10 @@ function AppShell() {
   };
 
   if (showMobileSplash) {
-    return <Material3SplashScreen logoSrc="/logo.png" onSplashComplete={handleSplashComplete} />;
+    return renderWithSuspense(
+      <Material3SplashScreen logoSrc="/logo.png" onSplashComplete={handleSplashComplete} />,
+      'Loading splash...',
+    );
   }
 
   if ((isLoading && !hasSession) || (guestSession && isGuestHydrating) || (Boolean(user) && isLoading)) {
@@ -391,7 +413,7 @@ function AppShell() {
   }
 
   if (publicRoute === 'policies') {
-    return (
+    return renderWithSuspense(
       <LegalPolicies
         onBack={() => {
           if (hasSession) {
@@ -400,7 +422,8 @@ function AppShell() {
           }
           navigateToPublicRoute(policyReturnRoute, { replace: true });
         }}
-      />
+      />,
+      'Loading policies...',
     );
   }
 
@@ -409,26 +432,28 @@ function AppShell() {
       babies.length === 0 && accountProfileType !== 'doctor' && accountProfileType !== 'caregiver';
 
     if (shouldForceBabySetup) {
-      return (
+      return renderWithSuspense(
         <Material3AddBaby
           onBabyAdded={() => navigateToAppView(appRouteView, { replace: true, preserveSearch: true })}
-        />
+        />,
+        'Loading baby setup...',
       );
     }
 
-    return (
+    return renderWithSuspense(
       <PrivacyLock>
         <EnhancedDashboard
           requestedView={appRouteView}
           onViewChange={(view) => navigateToAppView(view, { preserveSearch: true })}
           onSignOut={handleSignOut}
         />
-      </PrivacyLock>
+      </PrivacyLock>,
+      'Loading dashboard...',
     );
   }
 
   if (effectivePublicRoute === 'onboarding') {
-    return (
+    return renderWithSuspense(
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
         onSkip={() => {
@@ -436,12 +461,13 @@ function AppShell() {
           navigateToPublicRoute('login');
         }}
         onViewPolicies={openPolicies}
-      />
+      />,
+      'Loading onboarding...',
     );
   }
 
   if (effectivePublicRoute === 'login') {
-    return (
+    return renderWithSuspense(
       <AuthScreen
         onSuccess={() => {
           const nextView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
@@ -449,11 +475,12 @@ function AppShell() {
         }}
         onGuestMode={handleGuestMode}
         onViewPolicies={openPolicies}
-      />
+      />,
+      'Loading sign-in...',
     );
   }
 
-  return (
+  return renderWithSuspense(
     <Material3Welcome
       onGetStarted={() => navigateToPublicRoute('onboarding')}
       onLogIn={() => {
@@ -461,7 +488,8 @@ function AppShell() {
         navigateToPublicRoute('login');
       }}
       onViewPolicies={openPolicies}
-    />
+    />,
+    'Loading welcome...',
   );
 }
 

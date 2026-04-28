@@ -2,55 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
 import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield } from 'lucide-react';
-import { FeedingTracker } from './FeedingTracker';
-import { SleepTracker } from './SleepTracker';
-import { DiaperLogScreen as DiaperLog } from './DiaperLog';
-import { GrowthChart } from './GrowthChart';
-import { VaccinationCalendar } from './VaccinationCalendar';
-import { SettingsScreen } from './SettingsScreen';
-import { JournalScreen } from './JournalScreen';
-import { HistoryLogs } from './HistoryLogs';
-import { ExportScreen } from './ExportScreen';
-import { PartnerSyncScreen } from './PartnerSyncScreen';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 import { SerenityAI } from './SerenityAI';
 import { FeedingTimer } from './FeedingTimer';
-import { HealthDashboard } from './HealthDashboard';
-import { MemoriesScreen } from './MemoriesScreen';
-import { DailyTimeline } from './DailyTimeline';
-import { SmartInsights } from './SmartInsights';
-import { RoutinePredictor } from './RoutinePredictor';
-import { AgeTips } from './AgeTips';
-import { MonthlyPhotos } from './MonthlyPhotos';
-import { CaregiverHandoff } from './CaregiverHandoff';
-import { BabyJournal } from './BabyJournal';
-import { PediatricianReport } from './PediatricianReport';
-import { SleepTraining } from './SleepTraining';
-import { WhiteNoise } from './WhiteNoise';
-import { Achievements } from './Achievements';
-import { SmartReminders } from './SmartReminders';
-import { MultiBabyComparison } from './MultiBabyComparison';
-import { AIScrapbook } from './AIScrapbook';
-import { HealthAlerts } from './HealthAlerts';
-import { PhotoGallery } from './PhotoGallery';
-import { AnalyticsDashboard } from './AnalyticsDashboard';
-import { AIInsights } from './AIInsights';
-import { SubscriptionAddons } from './SubscriptionAddons';
-import { HealthRecords } from './HealthRecords';
-import { CommunityForum } from './CommunityForum';
-import { ContentLibraryBrowser } from './ContentLibraryBrowser';
-import { WearableDeviceManager } from './WearableDeviceManager';
-import { FamilySharing } from './FamilySharing';
-import { PatientAssignments } from './PatientAssignments';
-import { VoiceLogging } from './VoiceLogging';
-import { DoctorReportGenerator } from './DoctorReportGenerator';
 import { Paywall } from './Paywall';
-import { PaymentScreen } from './PaymentScreen';
-import { AdminPanel } from './AdminPanel';
-import { getSleepLogsByBaby, getFeedLogsByBaby, getDiaperLogsByBaby, getVaccinationRecordsByBaby, addFeedLog } from '../../lib/supabase-storage';
+import { addFeedLog } from '../../lib/supabase-storage';
 import { getBabyAge, timeAgo, getDefaultAvatar, getUserAvatar, formatDuration } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
-import type { SleepLog, FeedLog, DiaperLog as DiaperLogType, VaccinationRecord } from '../../types';
+import type { FeedLog } from '../../types';
 import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
@@ -60,6 +19,66 @@ import type { AppView } from '../../lib/app-routing';
 type ViewMode = AppView;
 
 const MotionDiv = motion.div as any;
+
+const lazyNamed = <TModule extends Record<string, unknown>>(
+  loader: () => Promise<TModule>,
+  exportName: keyof TModule,
+) =>
+  React.lazy(async () => {
+    const module = await loader();
+    return { default: module[exportName] as React.ComponentType<any> };
+  });
+
+const FeedingTracker = lazyNamed(() => import('./FeedingTracker'), 'FeedingTracker');
+const SleepTracker = lazyNamed(() => import('./SleepTracker'), 'SleepTracker');
+const DiaperLog = lazyNamed(() => import('./DiaperLog'), 'DiaperLogScreen');
+const GrowthChart = lazyNamed(() => import('./GrowthChart'), 'GrowthChart');
+const VaccinationCalendar = lazyNamed(() => import('./VaccinationCalendar'), 'VaccinationCalendar');
+const SettingsScreen = lazyNamed(() => import('./SettingsScreen'), 'SettingsScreen');
+const JournalScreen = lazyNamed(() => import('./JournalScreen'), 'JournalScreen');
+const HistoryLogs = lazyNamed(() => import('./HistoryLogs'), 'HistoryLogs');
+const ExportScreen = lazyNamed(() => import('./ExportScreen'), 'ExportScreen');
+const PartnerSyncScreen = lazyNamed(() => import('./PartnerSyncScreen'), 'PartnerSyncScreen');
+const HealthDashboard = lazyNamed(() => import('./HealthDashboard'), 'HealthDashboard');
+const MemoriesScreen = lazyNamed(() => import('./MemoriesScreen'), 'MemoriesScreen');
+const DailyTimeline = lazyNamed(() => import('./DailyTimeline'), 'DailyTimeline');
+const SmartInsights = lazyNamed(() => import('./SmartInsights'), 'SmartInsights');
+const RoutinePredictor = lazyNamed(() => import('./RoutinePredictor'), 'RoutinePredictor');
+const AgeTips = lazyNamed(() => import('./AgeTips'), 'AgeTips');
+const MonthlyPhotos = lazyNamed(() => import('./MonthlyPhotos'), 'MonthlyPhotos');
+const CaregiverHandoff = lazyNamed(() => import('./CaregiverHandoff'), 'CaregiverHandoff');
+const BabyJournal = lazyNamed(() => import('./BabyJournal'), 'BabyJournal');
+const PediatricianReport = lazyNamed(() => import('./PediatricianReport'), 'PediatricianReport');
+const SleepTraining = lazyNamed(() => import('./SleepTraining'), 'SleepTraining');
+const WhiteNoise = lazyNamed(() => import('./WhiteNoise'), 'WhiteNoise');
+const Achievements = lazyNamed(() => import('./Achievements'), 'Achievements');
+const SmartReminders = lazyNamed(() => import('./SmartReminders'), 'SmartReminders');
+const MultiBabyComparison = lazyNamed(() => import('./MultiBabyComparison'), 'MultiBabyComparison');
+const AIScrapbook = lazyNamed(() => import('./AIScrapbook'), 'AIScrapbook');
+const HealthAlerts = lazyNamed(() => import('./HealthAlerts'), 'HealthAlerts');
+const PhotoGallery = lazyNamed(() => import('./PhotoGallery'), 'PhotoGallery');
+const AnalyticsDashboard = lazyNamed(() => import('./AnalyticsDashboard'), 'AnalyticsDashboard');
+const AIInsights = lazyNamed(() => import('./AIInsights'), 'AIInsights');
+const SubscriptionAddons = lazyNamed(() => import('./SubscriptionAddons'), 'SubscriptionAddons');
+const HealthRecords = lazyNamed(() => import('./HealthRecords'), 'HealthRecords');
+const CommunityForum = lazyNamed(() => import('./CommunityForum'), 'CommunityForum');
+const ContentLibraryBrowser = lazyNamed(() => import('./ContentLibraryBrowser'), 'ContentLibraryBrowser');
+const WearableDeviceManager = lazyNamed(() => import('./WearableDeviceManager'), 'WearableDeviceManager');
+const FamilySharing = lazyNamed(() => import('./FamilySharing'), 'FamilySharing');
+const PatientAssignments = lazyNamed(() => import('./PatientAssignments'), 'PatientAssignments');
+const VoiceLogging = lazyNamed(() => import('./VoiceLogging'), 'VoiceLogging');
+const DoctorReportGenerator = lazyNamed(() => import('./DoctorReportGenerator'), 'DoctorReportGenerator');
+const PaymentScreen = lazyNamed(() => import('./PaymentScreen'), 'PaymentScreen');
+const AdminPanel = lazyNamed(() => import('./AdminPanel'), 'AdminPanel');
+
+const ViewLoader = ({ label = 'Loading view...' }: { label?: string }) => (
+  <div className="flex min-h-[50vh] items-center justify-center">
+    <div className="text-center">
+      <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+      <p className="text-xs font-black uppercase tracking-wider text-text-light">{label}</p>
+    </div>
+  </div>
+);
 
 const PREMIUM_FEATURE_BY_VIEW: Partial<Record<ViewMode, keyof PremiumFeatures>> = {
   'health-alerts': 'healthAlerts',
@@ -263,21 +282,58 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     refreshAllLogs();
   };
 
-  if (activeView === 'feeding') return <FeedingTracker onBack={backToDashboard} />;
-  if (activeView === 'sleep') return <SleepTracker onBack={backToDashboard} />;
-  if (activeView === 'diaper') return <DiaperLog onBack={backToDashboard} />;
-  if (activeView === 'vaccination') return <VaccinationCalendar onBack={backToDashboard} />;
-  if (activeView === 'admin') return <AdminPanel onBack={backToDashboard} />;
+  if (activeView === 'feeding') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading feeding tracker..." />}>
+        <FeedingTracker onBack={backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
+  if (activeView === 'sleep') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading sleep tracker..." />}>
+        <SleepTracker onBack={backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
+  if (activeView === 'diaper') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading diaper log..." />}>
+        <DiaperLog onBack={backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
+  if (activeView === 'vaccination') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading vaccinations..." />}>
+        <VaccinationCalendar onBack={backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
+  if (activeView === 'admin') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading admin panel..." />}>
+        <AdminPanel onBack={backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
   if (activeView === 'payment') {
     return (
-      <PaymentScreen
-        onBack={() => setActiveView('dashboard')}
-        onSuccess={() => {
-          const destination = pendingPremiumView || 'dashboard';
-          setPendingPremiumView(null);
-          setActiveView(destination);
-        }}
-      />
+      <React.Suspense fallback={<ViewLoader label="Loading checkout..." />}>
+        <PaymentScreen
+          onBack={() => setActiveView('dashboard')}
+          onSuccess={() => {
+            const destination = pendingPremiumView || 'dashboard';
+            setPendingPremiumView(null);
+            setActiveView(destination);
+          }}
+        />
+      </React.Suspense>
     );
   }
 
@@ -670,7 +726,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   return (
     <>
       <AppLayout activeNav={viewToNav[activeView] ?? 'home'} onNavChange={handleNavChange}>
-         {renderContent()}
+        <React.Suspense fallback={<ViewLoader />}>{renderContent()}</React.Suspense>
       </AppLayout>
       {paywallFeature && (
         <Paywall
