@@ -11,7 +11,14 @@ if ('serviceWorker' in navigator) {
   } else {
     window.addEventListener('load', async () => {
       try {
+        let hasReloadedForServiceWorkerUpdate = false
         const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (hasReloadedForServiceWorkerUpdate) return
+          hasReloadedForServiceWorkerUpdate = true
+          window.location.reload()
+        })
 
         if (registration.waiting) {
           registration.waiting.postMessage({ type: 'SKIP_WAITING' })
