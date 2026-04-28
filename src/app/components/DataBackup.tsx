@@ -224,6 +224,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
         sleepLogs,
         feedLogs,
         diaperLogs,
+        healthLogs,
         growthMeasurements,
         vaccinationRecords,
         milestones,

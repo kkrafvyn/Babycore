@@ -1,4 +1,10 @@
 import { supabase } from './supabase';
+import {
+  fromHealthLogCloudRow,
+  fromUserSettingsCloudRow,
+  toHealthLogCloudRow,
+  toUserSettingsCloudRow,
+} from './cloud-sync-mappers';
 
 interface SyncStatus {
   isSyncing: boolean;
@@ -97,12 +103,30 @@ export const syncVaccinationRecords = (records: any[]) => genericSync('vaccinati
 export const syncMilestones = (milestones: any[]) => genericSync('milestones', milestones);
 export const syncMemories = (memories: any[]) => genericSync('memories', memories);
 export const syncJournalEntries = (entries: any[]) => genericSync('journal_entries', entries);
+export const syncHealthLogs = (logs: any[]) => genericSync('health_logs', logs);
+export const syncUserSettings = async (userId: string, settings: any) => {
+  if (!settings) return true;
+
+  try {
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(toUserSettingsCloudRow(userId, settings), { onConflict: 'user_id' });
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error syncing user_settings:', error);
+    syncStatus.syncError = String(error);
+    return false;
+  }
+};
 
 export async function performFullSync(localData: {
   babies: any[];
   sleepLogs: any[];
   feedLogs: any[];
   diaperLogs: any[];
+  healthLogs?: any[];
   growthMeasurements: any[];
   vaccinationRecords: any[];
   milestones: any[];
@@ -165,6 +189,7 @@ export async function performFullSync(localData: {
         notes: l.notes,
         created_at: l.createdAt
       }))),
+      syncHealthLogs((localData.healthLogs || []).map((log) => toHealthLogCloudRow(log))),
       syncGrowthMeasurements(localData.growthMeasurements.map(m => ({
         id: m.id,
         baby_id: m.babyId,
@@ -212,6 +237,7 @@ export async function performFullSync(localData: {
         mood: entry.mood,
         created_at: entry.createdAt,
       }))),
+      syncUserSettings(user.id, localData.userSettings),
     ]);
 
     const allSuccess = results.every(r => r === true);
@@ -235,6 +261,16 @@ export async function pullFromCloud(): Promise<any> {
     const user = await getAuthenticatedUser();
     if (!user) throw new Error('User not authenticated');
 
+    const { data: userSettingsRow, error: userSettingsError } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (userSettingsError) {
+      console.warn('Unable to pull user settings from cloud:', userSettingsError);
+    }
+
     const { allIds } = await resolveAccessibleBabyIds(user);
     if (allIds.length === 0) {
       return {
@@ -242,11 +278,13 @@ export async function pullFromCloud(): Promise<any> {
         sleepLogs: [],
         feedLogs: [],
         diaperLogs: [],
+        healthLogs: [],
         growthMeasurements: [],
         vaccinationRecords: [],
         milestones: [],
         memories: [],
         journalEntries: [],
+        userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
       };
     }
 
@@ -260,10 +298,11 @@ export async function pullFromCloud(): Promise<any> {
     const fetchByBabyIds = (table: string) =>
       supabase.from(table).select('*').in('baby_id', babyIds);
 
-    const [sleepLogs, feedLogs, diaperLogs, growth, vaccine, milestones, memories, journalEntries] = await Promise.all([
+    const [sleepLogs, feedLogs, diaperLogs, healthLogs, growth, vaccine, milestones, memories, journalEntries] = await Promise.all([
       fetchByBabyIds('sleep_logs'),
       fetchByBabyIds('feed_logs'),
       fetchByBabyIds('diaper_logs'),
+      fetchByBabyIds('health_logs'),
       fetchByBabyIds('growth_measurements'),
       fetchByBabyIds('vaccination_records'),
       fetchByBabyIds('milestones'),
@@ -275,6 +314,7 @@ export async function pullFromCloud(): Promise<any> {
       sleepLogs.error,
       feedLogs.error,
       diaperLogs.error,
+      healthLogs.error,
       growth.error,
       vaccine.error,
       milestones.error,
@@ -327,6 +367,7 @@ export async function pullFromCloud(): Promise<any> {
         notes: l.notes,
         createdAt: l.created_at
       })),
+      healthLogs: (healthLogs.data || []).map((log) => fromHealthLogCloudRow(log)),
       growthMeasurements: (growth.data || []).map(m => ({
         id: m.id,
         babyId: m.baby_id,
@@ -374,6 +415,7 @@ export async function pullFromCloud(): Promise<any> {
         mood: entry.mood,
         createdAt: entry.created_at,
       })),
+      userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
     };
   } catch (error) {
     console.error('Error pulling from cloud:', error);
@@ -418,6 +460,7 @@ export function setupRealtimeSync(callback: (change: any) => void) {
         'sleep_logs', 
         'feed_logs', 
         'diaper_logs', 
+        'health_logs',
         'growth_measurements', 
         'vaccination_records',
         'milestones',
@@ -438,6 +481,27 @@ export function setupRealtimeSync(callback: (change: any) => void) {
           .subscribe();
         channels.push(tableChannel);
       });
+
+      const userSettingsChannel = supabase
+        .channel('public:user_settings')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_settings',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            callback({
+              table: 'user_settings',
+              event: payload.eventType,
+              data: payload.new || payload.old,
+            });
+          },
+        )
+        .subscribe();
+      channels.push(userSettingsChannel);
     });
   } catch (error) {
     console.error('Error setting up real-time sync:', error);

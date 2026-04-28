@@ -149,6 +149,7 @@ export interface BackupData {
 }
 
 export interface UserSettings {
+  userId?: string;
   units: 'metric' | 'imperial';
   language?: string;
   notificationsEnabled: boolean;
@@ -170,6 +171,8 @@ export interface UserSettings {
   subscriptionPlan?: string;
   subscriptionStatus?: 'free' | 'active' | 'expired';
   subscriptionStartDate?: string;
+  subscriptionEndDate?: string;
+  subscriptionCurrency?: string;
   biometricLockEnabled?: boolean;
   privacyLockDelay?: number; // minutes
   updatedAt: string;

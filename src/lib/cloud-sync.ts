@@ -5,12 +5,13 @@
  */
 
 import React from 'react';
-import { Baby, SleepLog, FeedLog, DiaperLog, GrowthMeasurement, VaccinationRecord, JournalEntry } from '../types/index';
+import { Baby, SleepLog, FeedLog, DiaperLog, GrowthMeasurement, VaccinationRecord, JournalEntry, HealthLog } from '../types/index';
 import {
   getBabies,
   getDiaperLogsByBaby,
   getFeedLogsByBaby,
   getGrowthMeasurementsByBaby,
+  getHealthLogsByBaby,
   getJournalEntriesByBaby,
   getMemoryLogsByBaby,
   getMilestonesByBaby,
@@ -206,6 +207,7 @@ class CloudSyncManager {
     sleepLogs: any[];
     feedLogs: any[];
     diaperLogs: any[];
+    healthLogs: any[];
     growthMeasurements: any[];
     vaccinationRecords: any[];
     milestones: any[];
@@ -241,6 +243,7 @@ class CloudSyncManager {
     sleepLogs: any[];
     feedLogs: any[];
     diaperLogs: any[];
+    healthLogs: any[];
     growthMeasurements: any[];
     vaccinationRecords: any[];
     milestones: any[];
@@ -253,6 +256,7 @@ class CloudSyncManager {
       sleepLogs: [] as any[],
       feedLogs: [] as any[],
       diaperLogs: [] as any[],
+      healthLogs: [] as any[],
       growthMeasurements: [] as any[],
       vaccinationRecords: [] as any[],
       milestones: [] as any[],
@@ -261,11 +265,12 @@ class CloudSyncManager {
     };
 
     for (const baby of babies) {
-      const [sleepLogs, feedLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories, journalEntries] =
+      const [sleepLogs, feedLogs, diaperLogs, healthLogs, growthMeasurements, vaccinationRecords, milestones, memories, journalEntries] =
         await Promise.all([
           getSleepLogsByBaby(baby.id),
           getFeedLogsByBaby(baby.id),
           getDiaperLogsByBaby(baby.id),
+          getHealthLogsByBaby(baby.id),
           getGrowthMeasurementsByBaby(baby.id),
           getVaccinationRecordsByBaby(baby.id),
           getMilestonesByBaby(baby.id),
@@ -276,6 +281,7 @@ class CloudSyncManager {
       aggregate.sleepLogs.push(...sleepLogs);
       aggregate.feedLogs.push(...feedLogs);
       aggregate.diaperLogs.push(...diaperLogs);
+      aggregate.healthLogs.push(...healthLogs);
       aggregate.growthMeasurements.push(...growthMeasurements);
       aggregate.vaccinationRecords.push(...vaccinationRecords);
       aggregate.milestones.push(...milestones);
@@ -291,6 +297,7 @@ class CloudSyncManager {
       sleepLogs: aggregate.sleepLogs,
       feedLogs: aggregate.feedLogs,
       diaperLogs: aggregate.diaperLogs,
+      healthLogs: aggregate.healthLogs,
       growthMeasurements: aggregate.growthMeasurements,
       vaccinationRecords: aggregate.vaccinationRecords,
       milestones: aggregate.milestones,
@@ -344,6 +351,7 @@ class CloudSyncManager {
       'sleepLogs',
       'feedLogs',
       'diaperLogs',
+      'healthLogs',
       'growthMeasurements',
       'vaccinationRecords',
       'milestones',
@@ -411,6 +419,7 @@ class CloudSyncManager {
     sleepLogs: SleepLog[];
     feedLogs: FeedLog[];
     diaperLogs: DiaperLog[];
+    healthLogs: HealthLog[];
     growthMeasurements: GrowthMeasurement[];
     vaccinationRecords: VaccinationRecord[];
     journalEntries: JournalEntry[];
@@ -425,6 +434,7 @@ class CloudSyncManager {
       sleepLogs: remote?.sleepLogs || [],
       feedLogs: remote?.feedLogs || [],
       diaperLogs: remote?.diaperLogs || [],
+      healthLogs: remote?.healthLogs || [],
       growthMeasurements: remote?.growthMeasurements || [],
       vaccinationRecords: remote?.vaccinationRecords || [],
       journalEntries: remote?.journalEntries || [],

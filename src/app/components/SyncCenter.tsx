@@ -75,6 +75,7 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
         (snapshot.sleepLogs?.length || 0) +
         (snapshot.feedLogs?.length || 0) +
         (snapshot.diaperLogs?.length || 0) +
+        (snapshot.healthLogs?.length || 0) +
         (snapshot.growthMeasurements?.length || 0) +
         (snapshot.vaccinationRecords?.length || 0) +
         (snapshot.journalEntries?.length || 0);
@@ -160,7 +161,8 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
               </p>
               <p className="text-[11px] font-semibold text-text-dim mt-2">
                 Sleep {syncState.localSummary.sleepLogCount}, Feed {syncState.localSummary.feedLogCount}, Diaper{' '}
-                {syncState.localSummary.diaperLogCount}, Journal {syncState.localSummary.journalEntryCount}
+                {syncState.localSummary.diaperLogCount}, Health {syncState.localSummary.healthLogCount}, Journal{' '}
+                {syncState.localSummary.journalEntryCount}
               </p>
             </div>
           </div>

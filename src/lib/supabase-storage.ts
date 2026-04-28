@@ -17,6 +17,11 @@ import {
 } from "../types/index";
 
 import * as LocalStorage from "./storage";
+import {
+  fromUserSettingsCloudRow,
+  toHealthLogCloudRow,
+  toUserSettingsCloudRow,
+} from './cloud-sync-mappers';
 import { getCurrentUser, supabase } from "./supabase";
 
 const STORAGE_SCOPE_PREFIX = 'user:';
@@ -237,6 +242,85 @@ const deleteJournalEntryFromCloud = async (id: string): Promise<void> => {
   }
 };
 
+const upsertHealthLogToCloud = async (log: HealthLog): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('health_logs').upsert(toHealthLogCloudRow(log), { onConflict: 'id' });
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to sync health log directly to cloud:', error);
+  }
+};
+
+const deleteHealthLogFromCloud = async (id: string): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('health_logs').delete().eq('id', id);
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to delete health log from cloud:', error);
+  }
+};
+
+const upsertUserSettingsToCloud = async (userId: string, settings: UserSettings): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id || user.id !== userId) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(toUserSettingsCloudRow(userId, settings), { onConflict: 'user_id' });
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to sync user settings directly to cloud:', error);
+  }
+};
+
+const getRemoteUserSettings = async (userId: string): Promise<UserSettings | undefined> => {
+  const user = await getCurrentUser();
+  if (!user?.id || user.id !== userId) {
+    return undefined;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return undefined;
+    }
+
+    return fromUserSettingsCloudRow(data);
+  } catch (error) {
+    console.warn('Unable to load user settings from cloud:', error);
+    return undefined;
+  }
+};
+
 // Baby operations
 export const addBaby = async (baby: Baby): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
@@ -377,10 +461,25 @@ export const deleteMemoryLog = async (id: string, options?: SyncWriteOptions): P
 };
 
 // Health log operations
-export const addHealthLog = async (log: HealthLog): Promise<void> => LocalStorage.addHealthLog(log);
+export const addHealthLog = async (log: HealthLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addHealthLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertHealthLogToCloud(log);
+  }
+};
 export const getHealthLogsByBaby = async (babyId: string): Promise<HealthLog[]> => LocalStorage.getHealthLogsByBaby(babyId);
-export const updateHealthLog = async (log: HealthLog): Promise<void> => LocalStorage.updateHealthLog(log);
-export const deleteHealthLog = async (id: string): Promise<void> => LocalStorage.deleteHealthLog(id);
+export const updateHealthLog = async (log: HealthLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateHealthLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertHealthLogToCloud(log);
+  }
+};
+export const deleteHealthLog = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteHealthLog(id);
+  if (!options?.skipCloudSync) {
+    await deleteHealthLogFromCloud(id);
+  }
+};
 
 // Journal entry operations
 export const addJournalEntry = async (entry: JournalEntry, options?: SyncWriteOptions): Promise<void> => {
@@ -411,14 +510,35 @@ export const updateAchievement = async (achievement: Achievement): Promise<void>
 export const deleteAchievement = async (id: string): Promise<void> => LocalStorage.deleteAchievement(id);
 
 // Settings operations
-export const setUserSettings = async (userId: string, settings: UserSettings): Promise<void> => {
+export const setUserSettings = async (
+  userId: string,
+  settings: UserSettings,
+  options?: SyncWriteOptions,
+): Promise<void> => {
   const settingsWithUserId = { ...settings, userId };
-  return LocalStorage.saveUserSettings(settingsWithUserId);
+  await LocalStorage.saveUserSettings(settingsWithUserId);
+  if (!options?.skipCloudSync) {
+    await upsertUserSettingsToCloud(userId, settingsWithUserId);
+  }
 };
 
-export const saveUserSettings = async (settings: UserSettings): Promise<void> => LocalStorage.saveUserSettings(settings);
+export const saveUserSettings = async (settings: UserSettings, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.saveUserSettings(settings);
+  if (!options?.skipCloudSync && settings.userId) {
+    await upsertUserSettingsToCloud(settings.userId, settings);
+  }
+};
 
 export const getUserSettings = async (userId?: string): Promise<UserSettings | undefined> => {
-  if (!userId) return LocalStorage.getUserSettings('');
+  if (!userId) {
+    return LocalStorage.getUserSettings('');
+  }
+
+  const remoteSettings = await getRemoteUserSettings(userId);
+  if (remoteSettings) {
+    await LocalStorage.saveUserSettings(remoteSettings);
+    return remoteSettings;
+  }
+
   return LocalStorage.getUserSettings(userId);
 };

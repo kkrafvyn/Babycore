@@ -9,6 +9,7 @@ describe('sync-diagnostics', () => {
         sleepLogs: [{ id: 'sleep-1' }, { id: 'sleep-2' }],
         feedLogs: [{ id: 'feed-1' }],
         diaperLogs: [],
+        healthLogs: [{ id: 'health-1' }, { id: 'health-2' }],
         growthMeasurements: [{ id: 'growth-1' }],
         vaccinationRecords: [{ id: 'vaccine-1' }, { id: 'vaccine-2' }],
         milestones: [{ id: 'milestone-1' }],
@@ -20,12 +21,13 @@ describe('sync-diagnostics', () => {
       sleepLogCount: 2,
       feedLogCount: 1,
       diaperLogCount: 0,
+      healthLogCount: 2,
       growthMeasurementCount: 1,
       vaccinationRecordCount: 2,
       milestoneCount: 1,
       memoryCount: 3,
       journalEntryCount: 1,
-      totalRecordCount: 11,
+      totalRecordCount: 13,
     });
   });
 
@@ -35,6 +37,7 @@ describe('sync-diagnostics', () => {
       sleepLogCount: 0,
       feedLogCount: 0,
       diaperLogCount: 0,
+      healthLogCount: 0,
       growthMeasurementCount: 0,
       vaccinationRecordCount: 0,
       milestoneCount: 0,

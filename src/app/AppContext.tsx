@@ -11,6 +11,7 @@ import {
   getMemoryLogsByBaby,
   updateMemoryLog,
   getHealthLogsByBaby,
+  updateHealthLog,
   getMilestonesByBaby,
   updateMilestone,
   getFeedLogsByBaby,
@@ -35,6 +36,7 @@ import { BabyLogNotification, NotificationsManager } from '../lib/notifications'
 import { getApiBaseUrl } from '../lib/api-base-url';
 import { supabase } from '../lib/supabase';
 import { subscriptionManager } from '../lib/premium';
+import { i18nInstance, type SupportedLanguage, type Unit } from '../lib/i18n';
 import { useTheme } from 'next-themes';
 import { setupRealtimeSync, performFullSync, pullFromCloud } from '../lib/cloud-sync-service';
 
@@ -115,6 +117,44 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     currentBabyRef.current = currentBaby;
   }, [currentBaby]);
 
+  const applySettingsState = (nextSettings: UserSettings | null) => {
+    if (!nextSettings) {
+      return;
+    }
+
+    const defaultReminderPreferences = {
+      feeding: true,
+      sleep: true,
+      diaper: false,
+      medication: true,
+      vaccine: true,
+      growth: true,
+      retryMissed: true,
+      snoozeMinutes: 30,
+      quietHoursEnabled: true,
+    };
+
+    const normalizedSettings: UserSettings = {
+      ...nextSettings,
+      subscriptionPlan: nextSettings.subscriptionPlan || 'free',
+      subscriptionStatus: nextSettings.subscriptionStatus || 'free',
+      reminderPreferences: {
+        ...defaultReminderPreferences,
+        ...(nextSettings.reminderPreferences || {}),
+      },
+    };
+
+    if (normalizedSettings.language) {
+      i18nInstance.setLanguage(normalizedSettings.language as SupportedLanguage);
+    }
+    if (normalizedSettings.units) {
+      i18nInstance.setUnit(normalizedSettings.units as Unit);
+    }
+
+    setSettings(normalizedSettings);
+    setTheme(normalizedSettings.theme || 'system');
+  };
+
   const mergeRemoteSnapshotIntoLocal = async () => {
     try {
       const remoteSnapshot = await pullFromCloud();
@@ -124,6 +164,9 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         ...(remoteSnapshot?.sleepLogs || []).map((log: SleepLog) => updateSleepLog(log)),
         ...(remoteSnapshot?.feedLogs || []).map((log: FeedLog) => updateFeedLog(log)),
         ...(remoteSnapshot?.diaperLogs || []).map((log: DiaperLog) => updateDiaperLog(log)),
+        ...(remoteSnapshot?.healthLogs || []).map((log: HealthLog) =>
+          updateHealthLog(log, { skipCloudSync: true }),
+        ),
         ...(remoteSnapshot?.growthMeasurements || []).map((measurement: GrowthMeasurement) =>
           updateGrowthMeasurement(measurement),
         ),
@@ -138,6 +181,15 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           updateJournalEntry(entry, { skipCloudSync: true }),
         ),
       ]);
+
+      if (remoteSnapshot?.userSettings && user?.id) {
+        const remoteSettings = {
+          ...remoteSnapshot.userSettings,
+          userId: user.id,
+        };
+        await saveUserSettings(remoteSettings, { skipCloudSync: true });
+        applySettingsState(remoteSettings);
+      }
     } catch (error) {
       console.warn('Remote hydration skipped due to sync error:', error);
     }
@@ -190,6 +242,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         sleepLogs: [] as SleepLog[],
         feedLogs: [] as FeedLog[],
         diaperLogs: [] as DiaperLog[],
+        healthLogs: [] as HealthLog[],
         growthMeasurements: [] as GrowthMeasurement[],
         vaccinationRecords: [] as VaccinationRecord[],
         milestones: [] as Milestone[],
@@ -202,6 +255,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           sleepEntries,
           feedEntries,
           diaperEntries,
+          healthEntries,
           growthEntries,
           vaccineEntries,
           milestoneEntries,
@@ -212,6 +266,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             getSleepLogsByBaby(baby.id),
             getFeedLogsByBaby(baby.id),
             getDiaperLogsByBaby(baby.id),
+            getHealthLogsByBaby(baby.id),
             getGrowthMeasurementsByBaby(baby.id),
             getVaccinationRecordsByBaby(baby.id),
             getMilestonesByBaby(baby.id),
@@ -222,6 +277,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         aggregate.sleepLogs.push(...sleepEntries);
         aggregate.feedLogs.push(...feedEntries);
         aggregate.diaperLogs.push(...diaperEntries);
+        aggregate.healthLogs.push(...healthEntries);
         aggregate.growthMeasurements.push(...growthEntries);
         aggregate.vaccinationRecords.push(...vaccineEntries);
         aggregate.milestones.push(...milestoneEntries);
@@ -236,6 +292,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         sleepLogs: aggregate.sleepLogs,
         feedLogs: aggregate.feedLogs,
         diaperLogs: aggregate.diaperLogs,
+        healthLogs: aggregate.healthLogs,
         growthMeasurements: aggregate.growthMeasurements,
         vaccinationRecords: aggregate.vaccinationRecords,
         milestones: aggregate.milestones,
@@ -326,31 +383,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         
         // Load settings
         const userSettings = await getUserSettings(user.id);
-        const defaultReminderPreferences = {
-          feeding: true,
-          sleep: true,
-          diaper: false,
-          medication: true,
-          vaccine: true,
-          growth: true,
-          retryMissed: true,
-          snoozeMinutes: 30,
-          quietHoursEnabled: true,
-        };
 
         if (userSettings) {
-          setSettings({
-            ...userSettings,
-            subscriptionPlan: userSettings.subscriptionPlan || 'free',
-            subscriptionStatus: userSettings.subscriptionStatus || 'free',
-            reminderPreferences: {
-              ...defaultReminderPreferences,
-              ...(userSettings.reminderPreferences || {}),
-            },
-          });
-          setTheme(userSettings.theme || 'system');
+          applySettingsState(userSettings);
         } else {
           const defaultSettings: UserSettings = {
+            userId: user.id,
             units: onboardingSettings?.units || 'metric',
             language: onboardingSettings?.language || 'en',
             notificationsEnabled: onboardingSettings?.notificationsEnabled !== false,
@@ -358,12 +396,21 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             theme: onboardingSettings?.theme || 'system',
             subscriptionPlan: 'free',
             subscriptionStatus: 'free',
-            reminderPreferences: defaultReminderPreferences,
+            reminderPreferences: {
+              feeding: true,
+              sleep: true,
+              diaper: false,
+              medication: true,
+              vaccine: true,
+              growth: true,
+              retryMissed: true,
+              snoozeMinutes: 30,
+              quietHoursEnabled: true,
+            },
             updatedAt: new Date().toISOString(),
           };
           await setUserSettings(user.id, defaultSettings);
-          setSettings(defaultSettings);
-          setTheme(defaultSettings.theme || 'system');
+          applySettingsState(defaultSettings);
         }
 
         await subscriptionManager.initialize(user.id);
@@ -408,6 +455,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
   const syncSubscriptionStatusFromBackend = async (userId: string) => {
     try {
+      const baseSettings = await getUserSettings(userId);
+      if (!baseSettings) {
+        return;
+      }
+
       const auth = supabase.auth as any;
       const {
         data: { session },
@@ -430,30 +482,30 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       if (!payload?.success) return;
 
       if (!payload.subscription) {
-        setSettings((prev) =>
-          prev
-            ? {
-                ...prev,
-                subscriptionPlan: 'free',
-                subscriptionStatus: 'free',
-                updatedAt: new Date().toISOString(),
-              }
-            : prev,
-        );
+        const updatedSettings: UserSettings = {
+          ...baseSettings,
+          userId,
+          subscriptionPlan: 'free',
+          subscriptionStatus: 'free',
+          subscriptionEndDate: undefined,
+          subscriptionCurrency: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        await setUserSettings(userId, updatedSettings);
+        applySettingsState(updatedSettings);
         return;
       }
 
-      setSettings((prev) =>
-        prev
-          ? {
-              ...prev,
-              subscriptionPlan: String(payload.subscription.planId || 'premium'),
-              subscriptionStatus: 'active',
-              subscriptionStartDate: payload.subscription.startDate,
-              updatedAt: new Date().toISOString(),
-            }
-          : prev,
-      );
+      const updatedSettings: UserSettings = {
+        ...baseSettings,
+        userId,
+        subscriptionPlan: String(payload.subscription.planId || 'premium'),
+        subscriptionStatus: 'active',
+        subscriptionStartDate: payload.subscription.startDate,
+        updatedAt: new Date().toISOString(),
+      };
+      await setUserSettings(userId, updatedSettings);
+      applySettingsState(updatedSettings);
     } catch (error) {
       console.warn('Failed to sync subscription status from backend:', error);
     }
@@ -483,6 +535,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     feedLogs,
     sleepLogs,
     diaperLogs,
+    healthLogs,
     growthMeasurements,
     vaccinationRecords,
     milestones,
@@ -550,15 +603,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       const updated: UserSettings = {
         ...settings,
         ...newSettings,
+        userId: user.id,
         updatedAt: new Date().toISOString(),
       };
       
       await setUserSettings(user.id, updated);
-      setSettings(updated);
-
-      if (newSettings.theme) {
-        setTheme(newSettings.theme);
-      }
+      applySettingsState(updated);
     } catch (err) {
       console.error('Failed to update settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to update settings');

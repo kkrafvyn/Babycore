@@ -60,13 +60,6 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
     try {
       i18nInstance.setLanguage(langCode);
       setCurrentLanguage(langCode);
-      
-      // Dispatch custom event for other components
-      window.dispatchEvent(
-        new CustomEvent('languageChanged', {
-          detail: { language: langCode },
-        })
-      );
 
       onLanguageChange?.(langCode);
     } catch (error) {

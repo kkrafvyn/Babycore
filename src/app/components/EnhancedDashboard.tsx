@@ -39,7 +39,6 @@ const JournalScreen = lazyNamed(() => import('./JournalScreen'), 'JournalScreen'
 const HistoryLogs = lazyNamed(() => import('./HistoryLogs'), 'HistoryLogs');
 const ExportScreen = lazyNamed(() => import('./ExportScreen'), 'ExportScreen');
 const PartnerSyncScreen = lazyNamed(() => import('./PartnerSyncScreen'), 'PartnerSyncScreen');
-const HealthDashboard = lazyNamed(() => import('./HealthDashboard'), 'HealthDashboard');
 const MemoriesScreen = lazyNamed(() => import('./MemoriesScreen'), 'MemoriesScreen');
 const DailyTimeline = lazyNamed(() => import('./DailyTimeline'), 'DailyTimeline');
 const SmartInsights = lazyNamed(() => import('./SmartInsights'), 'SmartInsights');
@@ -181,7 +180,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'settings',
     'logs',
     'partner-sync',
-    'health',
     'memories',
     'timeline',
     'insights',
@@ -662,7 +660,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
             </button>
 
-            <button onClick={() => setActiveView('health')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => setActiveView('health-records')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                      <Heart size={22} className="sm:h-7 sm:w-7" fill="currentColor" />
@@ -670,9 +668,9 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                   <span className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.14em] sm:tracking-widest pt-1.5 sm:pt-2">Health</span>
                </div>
                <div className="min-w-0">
-                  <p className="text-[clamp(1.1rem,6vw,1.875rem)] font-headline font-black text-foreground tracking-tight leading-none break-words">Healthy</p>
-                  <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.12em] sm:tracking-widest mt-2 leading-tight break-words">Vitals & Meds</p>
-               </div>
+                  <p className="text-[clamp(1.1rem,6vw,1.875rem)] font-headline font-black text-foreground tracking-tight leading-none break-words">Records</p>
+                  <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.12em] sm:tracking-widest mt-2 leading-tight break-words">Visits & Meds</p>
+                </div>
             </button>
 
             <button onClick={() => setActiveView('memories')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
@@ -753,7 +751,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       case 'logs': return <HistoryLogs onBack={backToDashboard} showBackButton={false} />;
       case 'export': return <ExportScreen onBack={backToDashboard} />;
       case 'partner-sync': return <PartnerSyncScreen onBack={backToDashboard} />;
-      case 'health': return <HealthDashboard onBack={backToDashboard} />;
+      case 'health': return currentBaby ? <HealthRecords babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'memories': return <MemoriesScreen onBack={backToDashboard} />;
       case 'timeline': return <DailyTimeline onBack={backToDashboard} />;
       case 'insights': return <SmartInsights onBack={backToDashboard} />;

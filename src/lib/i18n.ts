@@ -245,10 +245,19 @@ class i18n {
     this.loadSettings();
   }
 
+  private emit(eventName: string, detail: Record<string, unknown>): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent(eventName, { detail }));
+  }
+
   setLanguage(lang: SupportedLanguage): void {
     if (translations[lang]) {
       this.currentLanguage = lang;
       localStorage.setItem('babylog_language', lang);
+      this.emit('languageChanged', { language: lang });
     }
   }
 
@@ -259,6 +268,7 @@ class i18n {
   setUnit(unit: Unit): void {
     this.currentUnit = unit;
     localStorage.setItem('babylog_units', unit);
+    this.emit('unitsChanged', { unit });
   }
 
   getUnit(): Unit {

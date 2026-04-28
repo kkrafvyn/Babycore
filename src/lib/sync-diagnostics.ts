@@ -3,6 +3,7 @@ export interface SyncSnapshotLike {
   sleepLogs?: unknown[];
   feedLogs?: unknown[];
   diaperLogs?: unknown[];
+  healthLogs?: unknown[];
   growthMeasurements?: unknown[];
   vaccinationRecords?: unknown[];
   milestones?: unknown[];
@@ -15,6 +16,7 @@ export interface SyncSnapshotSummary {
   sleepLogCount: number;
   feedLogCount: number;
   diaperLogCount: number;
+  healthLogCount: number;
   growthMeasurementCount: number;
   vaccinationRecordCount: number;
   milestoneCount: number;
@@ -30,6 +32,7 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
   const sleepLogCount = getCollectionSize(snapshot?.sleepLogs);
   const feedLogCount = getCollectionSize(snapshot?.feedLogs);
   const diaperLogCount = getCollectionSize(snapshot?.diaperLogs);
+  const healthLogCount = getCollectionSize(snapshot?.healthLogs);
   const growthMeasurementCount = getCollectionSize(snapshot?.growthMeasurements);
   const vaccinationRecordCount = getCollectionSize(snapshot?.vaccinationRecords);
   const milestoneCount = getCollectionSize(snapshot?.milestones);
@@ -41,6 +44,7 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
     sleepLogCount,
     feedLogCount,
     diaperLogCount,
+    healthLogCount,
     growthMeasurementCount,
     vaccinationRecordCount,
     milestoneCount,
@@ -50,6 +54,7 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
       sleepLogCount +
       feedLogCount +
       diaperLogCount +
+      healthLogCount +
       growthMeasurementCount +
       vaccinationRecordCount +
       milestoneCount +
