@@ -142,6 +142,56 @@ async function sendPushToUser(payload: PushPayload): Promise<{ sent: number; fai
   };
 }
 
+export async function processDueScheduledNotifications(limit = 200): Promise<{
+  processed: number;
+  sent: number;
+  failed: number;
+}> {
+  const now = new Date().toISOString();
+  const { data: scheduled, error: queryError } = await supabase
+    .from('scheduled_notifications')
+    .select('*')
+    .eq('status', 'pending')
+    .lte('scheduled_for', now)
+    .order('scheduled_for', { ascending: true })
+    .limit(Math.max(1, Math.min(500, limit)));
+
+  if (queryError) {
+    throw queryError;
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const notification of scheduled || []) {
+    try {
+      await sendPushToUser({
+        userId: notification.user_id,
+        title: notification.title,
+        body: notification.body,
+        data: notification.data,
+        tag: notification.tag,
+      });
+
+      await supabase
+        .from('scheduled_notifications')
+        .update({ status: 'sent', sent_at: now })
+        .eq('id', notification.id);
+
+      sent += 1;
+    } catch (err) {
+      failed += 1;
+      console.error('Failed to send notification:', err);
+    }
+  }
+
+  return {
+    processed: (scheduled || []).length,
+    sent,
+    failed,
+  };
+}
+
 /**
  * POST /api/notifications/subscribe
  * Subscribe user to push notifications
@@ -378,44 +428,14 @@ export async function scheduleReminders(req: Request, res: Response) {
  */
 export async function processScheduledNotifications(req: Request, res: Response) {
   try {
-    const now = new Date().toISOString();
-
-    // Get due notifications
-    const { data: scheduled, error: queryError } = await supabase
-      .from('scheduled_notifications')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('scheduled_for', now);
-
-    if (queryError) throw queryError;
-
-    let sent = 0;
-    for (const notification of scheduled || []) {
-      try {
-        await sendPushToUser({
-          userId: notification.user_id,
-          title: notification.title,
-          body: notification.body,
-          data: notification.data,
-          tag: notification.tag,
-        });
-
-        // Mark as sent
-        await supabase
-          .from('scheduled_notifications')
-          .update({ status: 'sent', sent_at: now })
-          .eq('id', notification.id);
-
-        sent++;
-      } catch (err) {
-        console.error('Failed to send notification:', err);
-      }
-    }
+    const result = await processDueScheduledNotifications();
 
     return res.json({
       success: true,
-      message: `Processed ${sent} notifications`,
-      count: sent,
+      message: `Processed ${result.sent} notifications`,
+      count: result.sent,
+      processed: result.processed,
+      failed: result.failed,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

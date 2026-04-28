@@ -49,8 +49,10 @@ export const APP_VIEWS = [
   'voice-logging',
   'doctor-reports',
   'care-priority',
+  'activity-center',
   'emergency-card',
   'clinic-panel',
+  'sync-center',
   'payment',
   'admin',
 ] as const;
@@ -77,6 +79,33 @@ export const getPublicRouteFromPathname = (pathname: string): PublicRoute | null
   );
 
   return match?.[0] || null;
+};
+
+export const getEmergencyShareTokenFromPathname = (pathname: string): string | null => {
+  const normalizedPath = normalizePathname(pathname);
+  const match = normalizedPath.match(/^\/emergency-card\/([^/]+)$/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+};
+
+export const resolveAppViewIntent = (value: string): AppView | null => {
+  const normalizedValue = normalizePathname(value);
+  if (normalizedValue === '/') {
+    return null;
+  }
+
+  const directCandidate = normalizedValue.replace(/^\/+/, '');
+  if (isAppView(directCandidate)) {
+    return directCandidate;
+  }
+
+  if (directCandidate.startsWith('app/')) {
+    const nestedCandidate = directCandidate.slice(4);
+    if (isAppView(nestedCandidate)) {
+      return nestedCandidate;
+    }
+  }
+
+  return getAppViewFromPathname(normalizedValue);
 };
 
 export const getAppViewFromPathname = (pathname: string): AppView | null => {

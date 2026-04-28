@@ -1,4 +1,4 @@
-import { finalizePremiumPayment } from '../../src/api/routes/payments.js';
+import { savePaymentEvent } from '../../src/api/routes/payments.js';
 import { runExpressHandler } from '../_shared/express-proxy.js';
 import { type VercelRequest, type VercelResponse } from '../_shared/http.js';
 
@@ -7,6 +7,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     request: req,
     response: res,
     methods: ['POST'],
-    handler: finalizePremiumPayment as any,
+    handler: savePaymentEvent as any,
   });
 }

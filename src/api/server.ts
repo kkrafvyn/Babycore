@@ -34,6 +34,7 @@ import adminRoutes from './routes/admin.js';
 import managerRoutes from './routes/manager.js';
 import doctorRoutes from './routes/doctor.js';
 import careAdvancedRoutes from './routes/care-advanced.js';
+import cronRoutes from './routes/cron.js';
 
 // Load baseline environment values from .env in every runtime.
 dotenv.config({ path: '.env' });
@@ -179,6 +180,9 @@ apiRouter.use('/doctor', doctorRoutes);
 
 // Advanced care features (med tracker, approvals, clinic tools, emergency card)
 apiRouter.use('/care', careAdvancedRoutes);
+
+// Scheduled jobs / maintenance
+apiRouter.use('/cron', cronRoutes);
 
 app.use('/api', apiRouter);
 

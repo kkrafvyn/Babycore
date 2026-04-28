@@ -21,6 +21,11 @@ interface GrowthChartProps {
   showBackButton?: boolean;
 }
 
+const CDC_DEFAULT_COUNTRIES = new Set(['US', 'PR', 'GU', 'VI', 'AS', 'MP']);
+
+const getDefaultGrowthStandardForCountry = (country?: string): GrowthStandard =>
+  CDC_DEFAULT_COUNTRIES.has(String(country || '').toUpperCase()) ? 'CDC' : 'WHO';
+
 function getInterpolatedPercentile(value: number, ageMonths: number, whoData: Array<any>): number {
   if (!whoData.length) return 50;
 
@@ -68,7 +73,10 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedPoint, setSelectedPoint] = useState<GrowthMeasurement | null>(null);
   const [useImperial, setUseImperial] = useState(settings?.units === 'imperial');
-  const [growthStandard, setGrowthStandard] = useState<GrowthStandard>('WHO');
+  const [growthStandard, setGrowthStandard] = useState<GrowthStandard>(
+    getDefaultGrowthStandardForCountry(currentBaby?.country),
+  );
+  const [standardOverridden, setStandardOverridden] = useState(false);
 
   const isImperial = useImperial;
   const weightUnit = isImperial ? 'lbs' : 'kg';
@@ -78,6 +86,11 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   useEffect(() => {
     loadMeasurements();
   }, [currentBaby]);
+
+  useEffect(() => {
+    if (standardOverridden) return;
+    setGrowthStandard(getDefaultGrowthStandardForCountry(currentBaby?.country));
+  }, [currentBaby?.country, standardOverridden]);
 
   const loadMeasurements = async () => {
     if (!currentBaby) return;
@@ -207,6 +220,14 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
     latestPercentileRank !== null && previousPercentileRank !== null
       ? latestPercentileRank - previousPercentileRank
       : null;
+  const recentPercentileRanks = babyPoints
+    .slice(-3)
+    .map((point) => getInterpolatedPercentile(point.metricVal, point.age, referenceData));
+  const percentileRange =
+    recentPercentileRanks.length >= 2
+      ? Math.max(...recentPercentileRanks) - Math.min(...recentPercentileRanks)
+      : 0;
+  const hasRapidShift = percentileRange >= 20;
   const percentileTrendLabel =
     percentileDelta === null
       ? 'No trend yet'
@@ -220,6 +241,8 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
       ? 'Insufficient data'
       : latestPercentileRank < 5 || latestPercentileRank > 95
       ? 'Outside typical range'
+      : hasRapidShift
+      ? 'Large percentile shift'
       : 'Within expected range';
   const isCdcPlaceholder = growthStandard === 'CDC';
 
@@ -269,7 +292,10 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
            <div className="flex justify-end px-2">
              <div className="bg-surface-gray dark:bg-zinc-800 p-1 rounded-[1.5rem] flex gap-1 shadow-inner">
                <button
-                 onClick={() => setGrowthStandard('WHO')}
+                 onClick={() => {
+                   setGrowthStandard('WHO');
+                   setStandardOverridden(true);
+                 }}
                  className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
                    growthStandard === 'WHO' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
                  }`}
@@ -277,7 +303,10 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                  WHO
                </button>
                <button
-                 onClick={() => setGrowthStandard('CDC')}
+                 onClick={() => {
+                   setGrowthStandard('CDC');
+                   setStandardOverridden(true);
+                 }}
                  className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
                    growthStandard === 'CDC' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
                  }`}
@@ -304,7 +333,7 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                </div>
              </div>
              <p className="text-[9px] font-black text-text-light uppercase tracking-widest mb-4">
-               Standard: {growthStandard}
+               Standard: {growthStandard} {currentBaby?.country ? `(${currentBaby.country})` : ''}
              </p>
              {isCdcPlaceholder && (
                <p className="text-[10px] font-bold text-text-dim mb-4">
@@ -379,7 +408,7 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                   <p className="text-[11px] font-bold text-text-dim mt-1">{percentileTrendLabel}</p>
                   <p
                     className={`text-[10px] font-black uppercase tracking-wider mt-2 ${
-                      percentileRiskLabel === 'Outside typical range'
+                      percentileRiskLabel === 'Outside typical range' || percentileRiskLabel === 'Large percentile shift'
                         ? 'text-red-600 dark:text-red-400'
                         : 'text-emerald-600 dark:text-emerald-400'
                     }`}
@@ -390,6 +419,11 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                     <p className="text-[10px] font-bold text-text-dim mt-1">
                       Change since last log: {percentileDelta > 0 ? '+' : ''}
                       {percentileDelta.toFixed(1)} percentile points
+                    </p>
+                  )}
+                  {hasRapidShift && (
+                    <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-1">
+                      Trend flag: rapid percentile movement across recent logs.
                     </p>
                   )}
                 </div>

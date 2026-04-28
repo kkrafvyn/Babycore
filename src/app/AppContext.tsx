@@ -3,6 +3,7 @@ import { Baby, UserSettings, View, FeedLog, SleepLog, HealthLog, MemoryLog, Diap
 import {
   getBabies,
   getUserSettings,
+  migrateGuestBabiesToCurrentUser,
   saveUserSettings,
   setUserSettings,
   addBaby,
@@ -283,6 +284,15 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           }
         }
 
+        try {
+          const migratedGuestBabies = await migrateGuestBabiesToCurrentUser();
+          if (migratedGuestBabies > 0) {
+            console.info(`Migrated ${migratedGuestBabies} guest baby profile(s) into the signed-in account.`);
+          }
+        } catch (err) {
+          console.error('Failed to migrate guest baby profiles:', err);
+        }
+
         // Pull latest cloud snapshot for this account on every login/device.
         await mergeRemoteSnapshotIntoLocal();
         
@@ -291,11 +301,27 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         
         // Load settings
         const userSettings = await getUserSettings(user.id);
+        const defaultReminderPreferences = {
+          feeding: true,
+          sleep: true,
+          diaper: false,
+          medication: true,
+          vaccine: true,
+          growth: true,
+          retryMissed: true,
+          snoozeMinutes: 30,
+          quietHoursEnabled: true,
+        };
+
         if (userSettings) {
           setSettings({
+            ...userSettings,
             subscriptionPlan: userSettings.subscriptionPlan || 'free',
             subscriptionStatus: userSettings.subscriptionStatus || 'free',
-            ...userSettings,
+            reminderPreferences: {
+              ...defaultReminderPreferences,
+              ...(userSettings.reminderPreferences || {}),
+            },
           });
           setTheme(userSettings.theme || 'system');
         } else {
@@ -307,6 +333,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             theme: onboardingSettings?.theme || 'system',
             subscriptionPlan: 'free',
             subscriptionStatus: 'free',
+            reminderPreferences: defaultReminderPreferences,
             updatedAt: new Date().toISOString(),
           };
           await setUserSettings(user.id, defaultSettings);

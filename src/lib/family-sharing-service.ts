@@ -347,7 +347,7 @@ export async function getFamilyMembers(babyId: string): Promise<FamilySharingInv
       .from('family_sharing_invites')
       .select('*')
       .eq('baby_id', babyId)
-      .not('accepted_at', 'is', null);
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
     return (data || []).map((invite) => ({

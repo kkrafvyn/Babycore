@@ -153,6 +153,17 @@ export interface UserSettings {
   language?: string;
   notificationsEnabled: boolean;
   feedingInterval?: number; // hours
+  reminderPreferences?: {
+    feeding?: boolean;
+    sleep?: boolean;
+    diaper?: boolean;
+    medication?: boolean;
+    vaccine?: boolean;
+    growth?: boolean;
+    retryMissed?: boolean;
+    snoozeMinutes?: number;
+    quietHoursEnabled?: boolean;
+  };
   quietHoursStart?: string; // 24h format "22:00"
   quietHoursEnd?: string; // 24h format "07:00"
   theme?: 'light' | 'dark' | 'system';

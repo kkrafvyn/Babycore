@@ -285,6 +285,49 @@ export const updateBaby = async (baby: Baby, ownerScopeId?: string): Promise<voi
   });
 };
 
+export const transferBabyOwnerScope = async (
+  id: string,
+  fromOwnerScopeId?: string,
+  toOwnerScopeId?: string,
+): Promise<boolean> => {
+  const database = await getDB();
+  const normalizedFromScopeId = normalizeOwnerScopeId(fromOwnerScopeId);
+  const normalizedToScopeId = normalizeOwnerScopeId(toOwnerScopeId);
+
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction([STORES.BABIES], 'readwrite');
+    const store = tx.objectStore(STORES.BABIES);
+    const getRequest = store.get(id);
+
+    getRequest.onerror = () => reject(getRequest.error);
+    getRequest.onsuccess = () => {
+      const existingRecord = getRequest.result as StoredBaby | undefined;
+      if (!existingRecord) {
+        resolve(false);
+        return;
+      }
+
+      if (existingRecord.ownerScopeId === normalizedToScopeId) {
+        resolve(false);
+        return;
+      }
+
+      if (existingRecord.ownerScopeId !== normalizedFromScopeId) {
+        reject(new Error('Cannot transfer a baby profile owned by another account.'));
+        return;
+      }
+
+      const putRequest = store.put({
+        ...existingRecord,
+        ownerScopeId: normalizedToScopeId,
+      } as StoredBaby);
+
+      putRequest.onerror = () => reject(putRequest.error);
+      putRequest.onsuccess = () => resolve(true);
+    };
+  });
+};
+
 export const deleteBaby = async (id: string, ownerScopeId?: string): Promise<void> => {
   const database = await getDB();
   const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);

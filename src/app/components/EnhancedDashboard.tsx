@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
-import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield, Stethoscope, AlertTriangle, RefreshCw } from 'lucide-react';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 import { SerenityAI } from './SerenityAI';
 import { FeedingTimer } from './FeedingTimer';
@@ -14,7 +14,7 @@ import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 import { getCurrentUserRole } from '../../lib/admin-api';
-import type { AppView } from '../../lib/app-routing';
+import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 
 type ViewMode = AppView;
 
@@ -69,8 +69,10 @@ const PatientAssignments = lazyNamed(() => import('./PatientAssignments'), 'Pati
 const VoiceLogging = lazyNamed(() => import('./VoiceLogging'), 'VoiceLogging');
 const DoctorReportGenerator = lazyNamed(() => import('./DoctorReportGenerator'), 'DoctorReportGenerator');
 const CarePriorityBoard = lazyNamed(() => import('./CarePriorityBoard'), 'CarePriorityBoard');
+const ActivityCenter = lazyNamed(() => import('./ActivityCenter'), 'ActivityCenter');
 const EmergencyShareCard = lazyNamed(() => import('./EmergencyShareCard'), 'EmergencyShareCard');
 const ClinicDoctorPanel = lazyNamed(() => import('./ClinicDoctorPanel'), 'ClinicDoctorPanel');
+const SyncCenter = lazyNamed(() => import('./SyncCenter'), 'SyncCenter');
 const PaymentScreen = lazyNamed(() => import('./PaymentScreen'), 'PaymentScreen');
 const AdminPanel = lazyNamed(() => import('./AdminPanel'), 'AdminPanel');
 
@@ -171,6 +173,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'care-priority',
     'emergency-card',
     'clinic-panel',
+    'sync-center',
   ]);
   const viewsWithEmbeddedHeader = new Set<ViewMode>([
     'journal',
@@ -194,6 +197,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'compare',
     'scrapbook',
     'payment',
+    'activity-center',
+    'sync-center',
     'admin',
   ]);
   const showShellHeader = !viewsWithEmbeddedHeader.has(activeView);
@@ -260,6 +265,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     // Initial sync
     syncNotifications(babies, settings, {
       feedLogs: [latestFeed],
+      sleepLogs: [latestSleep],
       diaperLogs: [latestDiaper],
       vaccinationRecords,
     });
@@ -268,23 +274,33 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     const interval = setInterval(() => {
       syncNotifications(babies, settings, {
         feedLogs: [latestFeed],
+        sleepLogs: [latestSleep],
         diaperLogs: [latestDiaper],
         vaccinationRecords,
       });
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [babies, settings, latestFeed, latestDiaper, vaccinationRecords]);
+  }, [babies, settings, latestFeed, latestSleep, latestDiaper, vaccinationRecords]);
 
   useEffect(() => {
     const handleDeepLink = (e: any) => {
-      const view = e.detail?.view;
-      if (view) {
-        openView(view as ViewMode);
+      const requestedView = e?.detail?.view ?? e?.detail?.screen;
+      const resolvedView =
+        typeof requestedView === 'string' ? resolveAppViewIntent(requestedView) : null;
+
+      if (resolvedView) {
+        openView(resolvedView);
       }
     };
+
     window.addEventListener('nav_deep_link', handleDeepLink);
-    return () => window.removeEventListener('nav_deep_link', handleDeepLink);
+    window.addEventListener('navigate', handleDeepLink);
+
+    return () => {
+      window.removeEventListener('nav_deep_link', handleDeepLink);
+      window.removeEventListener('navigate', handleDeepLink);
+    };
   }, [hasPremiumAccess]);
 
   useEffect(() => {
@@ -550,10 +566,12 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'voice-logging', label: 'Voice Logs', icon: <Mic size={20} />, bg: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500' },
               { id: 'doctor-reports', label: 'Doctor Reports', icon: <FileText size={20} />, bg: 'bg-teal-50 dark:bg-teal-900/20 text-teal-500' },
               { id: 'care-priority', label: 'Priority Board', icon: <AlertTriangle size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
+              { id: 'activity-center', label: 'Activity Center', icon: <Activity size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' },
               { id: 'emergency-card', label: 'Emergency Card', icon: <Shield size={20} />, bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' },
               ...(accountProfileType === 'doctor'
                 ? [{ id: 'clinic-panel', label: 'Clinic Panel', icon: <Stethoscope size={20} />, bg: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500' }]
                 : []),
+              { id: 'sync-center', label: 'Sync Center', icon: <RefreshCw size={20} />, bg: 'bg-slate-50 dark:bg-slate-900/20 text-slate-500' },
               ...(isCareTeamProfile
                 ? [{ id: 'patients', label: 'My Patients', icon: <Users size={20} />, bg: 'bg-sky-50 dark:bg-sky-900/20 text-sky-500' }]
                 : []),
@@ -774,8 +792,17 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             onOpenHealthRecords={() => setActiveView('health-records')}
           />
         ) : null;
+      case 'activity-center':
+        return currentBaby ? (
+          <ActivityCenter
+            babyId={currentBaby.id}
+            babyName={currentBaby.name}
+            onBack={backToDashboard}
+          />
+        ) : null;
       case 'emergency-card': return currentBaby ? <EmergencyShareCard babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'clinic-panel': return accountProfileType === 'doctor' ? <ClinicDoctorPanel onBack={backToDashboard} /> : null;
+      case 'sync-center': return <SyncCenter onBack={backToDashboard} />;
       default: return renderDashboard();
     }
   };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield, Scale, Stethoscope, Search, Link2, Copy, UserPlus2 } from 'lucide-react';
+import { ChevronLeft, Bell, Plus, Trash2, Edit2, LogOut, Ruler, Download, ChevronRight, Moon, Sun, Monitor, Clock, X, Check, Globe, Users, Activity, Lock, Shield, Scale, Stethoscope, Search, Link2, Copy, UserPlus2, RefreshCw } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { addBaby, deleteBaby, updateBaby } from '../../lib/supabase-storage';
@@ -552,6 +552,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        <div className="min-w-0">
                           <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Health Sync</p>
                           <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Apple Health / Google Fit</p>
+                       </div>
+                    </div>
+                    <ChevronRight size={18} className="text-text-light shrink-0" />
+                 </button>
+                 <button
+                   onClick={() =>
+                     window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: 'sync-center' } }))
+                   }
+                   className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
+                 >
+                    <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                       <div className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-50 dark:bg-slate-900/20 text-slate-500 rounded-2xl flex items-center justify-center shrink-0">
+                         <RefreshCw size={22} className="sm:h-6 sm:w-6" />
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Sync Center</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Resolve cross-device conflicts</p>
                        </div>
                     </div>
                     <ChevronRight size={18} className="text-text-light shrink-0" />

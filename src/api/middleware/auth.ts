@@ -91,6 +91,8 @@ function isPublicEndpoint(path: string): boolean {
     '/api/webhooks/flutterwave',
     '/api/payments/webhook/paystack',
     '/api/payments/webhook/flutterwave',
+    '/api/care/public/emergency-card/',
+    '/api/cron/',
     '/api/reports/shared/', // Shared reports with token
     '/api/auth/', // Auth endpoints (if using separate auth routes)
   ];

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, ChevronLeft, FileText, PlusCircle, Stethoscope, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Download, FileText, PlusCircle, Stethoscope, Trash2, Users } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
   deleteClinicReportTemplate,
+  exportClinicPatientQueue,
   getClinicPatientQueue,
   getClinicReportTemplates,
   saveClinicReportTemplate,
@@ -18,8 +19,13 @@ interface ClinicDoctorPanelProps {
 export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   const [loading, setLoading] = useState(true);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [clinicData, setClinicData] = useState<ClinicPanelPayload | null>(null);
   const [templates, setTemplates] = useState<ClinicReportTemplate[]>([]);
+  const [search, setSearch] = useState('');
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'priority' | 'appointments'>('priority');
   const [form, setForm] = useState({
     name: '',
     reportType: 'health_summary',
@@ -30,7 +36,10 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [queue, reportTemplates] = await Promise.all([getClinicPatientQueue(), getClinicReportTemplates()]);
+      const [queue, reportTemplates] = await Promise.all([
+        getClinicPatientQueue({ search, pendingOnly, overdueOnly, sortBy }),
+        getClinicReportTemplates(),
+      ]);
       setClinicData(queue);
       setTemplates(reportTemplates);
     } catch (error) {
@@ -41,8 +50,11 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   };
 
   useEffect(() => {
-    loadAll();
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      void loadAll();
+    }, 180);
+    return () => window.clearTimeout(timeoutId);
+  }, [search, pendingOnly, overdueOnly, sortBy]);
 
   const handleCreateTemplate = async () => {
     if (!form.name.trim()) {
@@ -85,11 +97,26 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
     }
   };
 
+  const handleExportQueue = async () => {
+    setExporting(true);
+    try {
+      await exportClinicPatientQueue({ search, pendingOnly, overdueOnly, sortBy });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to export patient queue.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return <div className="py-10 text-center text-sm font-semibold text-text-light">Loading clinic panel...</div>;
   }
 
   const stats = clinicData?.stats || { totalPatients: 0, pendingApprovals: 0, overdueVaccines: 0 };
+  const filteredPatients =
+    typeof clinicData?.stats?.filteredPatients === 'number'
+      ? clinicData.stats.filteredPatients
+      : clinicData?.queue?.length || 0;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -136,17 +163,47 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
         <CardHeader>
           <CardTitle className="text-base">Patient Queue</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="border rounded px-2 py-1 text-xs col-span-2"
+              placeholder="Search patient name"
+            />
+            <Button size="sm" variant={pendingOnly ? 'default' : 'outline'} onClick={() => setPendingOnly((prev) => !prev)}>
+              Pending only
+            </Button>
+            <Button size="sm" variant={overdueOnly ? 'default' : 'outline'} onClick={() => setOverdueOnly((prev) => !prev)}>
+              Overdue only
+            </Button>
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as 'priority' | 'appointments')}
+              className="border rounded px-2 py-1 text-xs col-span-2"
+            >
+              <option value="priority">Sort: Priority</option>
+              <option value="appointments">Sort: Upcoming appointments</option>
+            </select>
+            <Button size="sm" onClick={handleExportQueue} disabled={exporting} className="col-span-2">
+              <Download className="mr-2 h-4 w-4" />
+              {exporting ? 'Exporting...' : 'Bulk Export CSV'}
+            </Button>
+          </div>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Showing {filteredPatients} of {stats.totalPatients} patients
+          </p>
+
           {(clinicData?.queue || []).map((entry) => (
             <div key={entry.assignmentId} className="rounded-xl border p-3">
               <p className="font-semibold text-sm">{entry.babyName}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Approvals: {entry.pendingApprovalsCount} • Overdue vaccines: {entry.overdueVaccinesCount}
+                Approvals: {entry.pendingApprovalsCount} | Overdue vaccines: {entry.overdueVaccinesCount}
               </p>
               {entry.nextAppointment?.scheduled_date && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Next appointment: {entry.nextAppointment.scheduled_date}{' '}
-                  {entry.nextAppointment.scheduled_time || ''}
+                  Next appointment: {entry.nextAppointment.scheduled_date} {entry.nextAppointment.scheduled_time || ''}
                 </p>
               )}
             </div>
@@ -162,7 +219,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           <CardTitle className="text-base">Alert Inbox</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {(clinicData?.alertInbox || []).slice(0, 15).map((alert) => (
+          {(clinicData?.alertInbox || []).slice(0, 20).map((alert) => (
             <div key={`${alert.type}-${alert.id}`} className="rounded-xl border p-3">
               <p className="font-semibold text-sm">{alert.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{alert.message}</p>
@@ -239,3 +296,4 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
     </div>
   );
 }
+

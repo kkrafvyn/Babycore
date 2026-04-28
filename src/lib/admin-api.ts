@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './api-base-url';
+import type { BillingEventRecord } from './payment-api';
 import { supabase } from './supabase';
 
 export interface AdminOverviewResponse {
@@ -55,6 +56,24 @@ export interface AdminMutationResponse {
   success: boolean;
   message?: string;
   data?: Record<string, any>;
+  error?: string;
+}
+
+export interface AdminBillingResponse {
+  success: boolean;
+  data?: {
+    events: BillingEventRecord[];
+    total: number;
+    limit: number;
+    offset: number;
+    summary: {
+      total: number;
+      failed: number;
+      retrying: number;
+      recovered: number;
+      abandoned: number;
+    };
+  };
   error?: string;
 }
 
@@ -234,4 +253,87 @@ export const fetchAdminAuditLogs = async (input?: {
   return adminRequest<AdminLogsResponse>(`/admin/audit-logs${suffix}`, {
     method: 'GET',
   });
+};
+
+export const fetchAdminBilling = async (input?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  status?: string;
+  recoveryStatus?: string;
+}): Promise<AdminBillingResponse> => {
+  const query = new URLSearchParams();
+  if (typeof input?.limit === 'number') query.set('limit', String(input.limit));
+  if (typeof input?.offset === 'number') query.set('offset', String(input.offset));
+  if (input?.search?.trim()) query.set('search', input.search.trim());
+  if (input?.status?.trim()) query.set('status', input.status.trim());
+  if (input?.recoveryStatus?.trim()) query.set('recoveryStatus', input.recoveryStatus.trim());
+
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return adminRequest<AdminBillingResponse>(`/admin/billing${suffix}`, {
+    method: 'GET',
+  });
+};
+
+export const retryAdminBillingEvent = async (
+  reference: string,
+): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>('/admin/billing/retry-now', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reference }),
+  });
+
+export const resolveAdminBillingEvent = async (input: {
+  reference: string;
+  status: 'reconciled' | 'cancelled';
+  notes?: string;
+}): Promise<AdminMutationResponse> =>
+  adminRequest<AdminMutationResponse>('/admin/billing/resolve', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+export const exportAdminBillingEvents = async (input?: {
+  search?: string;
+  status?: string;
+  recoveryStatus?: string;
+}): Promise<void> => {
+  const accessToken = await getAdminAuthToken();
+  if (!accessToken) {
+    throw new Error('No valid session token found. Please sign in again.');
+  }
+
+  const query = new URLSearchParams();
+  if (input?.search?.trim()) query.set('search', input.search.trim());
+  if (input?.status?.trim()) query.set('status', input.status.trim());
+  if (input?.recoveryStatus?.trim()) query.set('recoveryStatus', input.recoveryStatus.trim());
+
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const response = await fetch(`${getApiBaseUrl()}/admin/billing/export${suffix}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || `Admin export failed (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = `billing-events-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
 };

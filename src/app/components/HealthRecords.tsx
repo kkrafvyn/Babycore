@@ -18,12 +18,14 @@ import {
 import {
   decideCareApprovalRequest,
   getCareApprovalRequests,
+  getCareApprovalTimeline,
   getMedicationDoseLogs,
   getMedicationRefillAlerts,
   getMedicationSchedules,
   logMedicationDoseAdvanced,
   saveMedicationSchedule,
   type CareApprovalRequest,
+  type CareApprovalTimelineEvent,
   type MedicationDoseLog,
   type MedicationSchedule,
   type RefillAlert,
@@ -43,6 +45,10 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
   const [advancedDoseLogs, setAdvancedDoseLogs] = useState<MedicationDoseLog[]>([]);
   const [refillAlerts, setRefillAlerts] = useState<RefillAlert[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<CareApprovalRequest[]>([]);
+  const [approvalTimeline, setApprovalTimeline] = useState<CareApprovalTimelineEvent[]>([]);
+  const [approvalFilter, setApprovalFilter] = useState<
+    'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'
+  >('all');
   const [canDecideApprovals, setCanDecideApprovals] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [pendingDecisionId, setPendingDecisionId] = useState<string | null>(null);
@@ -59,7 +65,7 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
 
   useEffect(() => {
     loadHealthData();
-  }, [babyId]);
+  }, [babyId, approvalFilter]);
 
   const loadHealthData = async () => {
     setLoading(true);
@@ -72,6 +78,7 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
       doseLogData,
       refillAlertData,
       approvalData,
+      approvalTimelineData,
     ] = await Promise.all([
       getHealthRecords(babyId),
       getAllergies(babyId),
@@ -80,7 +87,8 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
       getMedicationSchedules(babyId).catch(() => []),
       getMedicationDoseLogs(babyId).catch(() => []),
       getMedicationRefillAlerts(babyId).catch(() => []),
-      getCareApprovalRequests(babyId, 'all').catch(() => ({ requests: [], canDecide: false })),
+      getCareApprovalRequests(babyId, approvalFilter).catch(() => ({ requests: [], canDecide: false })),
+      getCareApprovalTimeline(babyId).catch(() => []),
     ]);
 
     setRecords(healthRecords);
@@ -91,6 +99,7 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
     setAdvancedDoseLogs(doseLogData);
     setRefillAlerts(refillAlertData);
     setApprovalRequests(approvalData.requests);
+    setApprovalTimeline(approvalTimelineData);
     setCanDecideApprovals(approvalData.canDecide);
     setLoading(false);
   };
@@ -123,7 +132,7 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
 
     setSavingSchedule(true);
     try {
-      await saveMedicationSchedule({
+      const result = await saveMedicationSchedule({
         babyId,
         medicationName: scheduleForm.medicationName.trim(),
         dosage: scheduleForm.dosage.trim() || null,
@@ -143,6 +152,10 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
         refillThreshold: '',
         requiresConfirmation: true,
       });
+
+      if (result.requiresApproval) {
+        alert(result.message || 'Submitted for parent approval.');
+      }
       await loadHealthData();
     } catch (error: any) {
       alert(error?.message || 'Failed to save schedule.');
@@ -534,6 +547,18 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
 
           <TabsContent value="approvals">
             <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'pending', 'approved', 'rejected', 'cancelled'] as const).map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={approvalFilter === status ? 'default' : 'outline'}
+                    onClick={() => setApprovalFilter(status)}
+                  >
+                    {status}
+                  </Button>
+                ))}
+              </div>
               {approvalRequests.map((request) => (
                 <Card key={request.id}>
                   <CardContent className="pt-3 space-y-2">
@@ -549,6 +574,17 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
                         </p>
                         {request.reason && (
                           <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{request.reason}</p>
+                        )}
+                        {request.decided_at && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Decision: {request.status} at {new Date(request.decided_at).toLocaleString()}
+                            {request.decided_by ? ` by ${request.decided_by.slice(0, 8)}...` : ''}
+                          </p>
+                        )}
+                        {request.decision_notes && (
+                          <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                            Note: {request.decision_notes}
+                          </p>
                         )}
                       </div>
                       <span className="text-[10px] uppercase font-bold text-gray-500">
@@ -592,6 +628,27 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
               ))}
               {approvalRequests.length === 0 && (
                 <p className="text-sm text-gray-500 text-center py-4">No approval requests.</p>
+              )}
+
+              {approvalTimeline.length > 0 && (
+                <Card>
+                  <CardContent className="pt-4 space-y-2">
+                    <p className="text-sm font-semibold">Audit Timeline</p>
+                    {approvalTimeline.slice(0, 20).map((event) => (
+                      <div key={event.id} className="rounded border p-2 text-xs">
+                        <div className="font-semibold">
+                          {event.action.toUpperCase()} • {event.requestType?.replace(/_/g, ' ') || 'approval'}
+                        </div>
+                        <div className="text-gray-500 dark:text-gray-400">
+                          {new Date(event.createdAt).toLocaleString()}
+                        </div>
+                        {event.actorRole && (
+                          <div className="text-gray-500 dark:text-gray-400">Role: {event.actorRole}</div>
+                        )}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
               )}
             </div>
           </TabsContent>

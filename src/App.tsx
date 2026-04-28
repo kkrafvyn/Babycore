@@ -15,12 +15,13 @@ import { signOut } from './lib/supabase';
 import {
   type AppView,
   type PublicRoute,
+  getEmergencyShareTokenFromPathname,
   getAppViewFromPathname,
   getAppViewPath,
   getPublicRouteFromPathname,
   getPublicRoutePath,
-  isAppView,
   normalizePathname,
+  resolveAppViewIntent,
 } from './lib/app-routing';
 
 type LocationRoute =
@@ -31,6 +32,10 @@ type LocationRoute =
   | {
       kind: 'app';
       appView: AppView;
+    }
+  | {
+      kind: 'public-emergency-card';
+      token: string;
     };
 
 const GUEST_SESSION_KEY = 'babylog_guest_session';
@@ -54,8 +59,9 @@ const getLegacyRouteFromHash = (): LocationRoute | null => {
 
   if (hash === '#app') {
     const queryView = new URLSearchParams(window.location.search).get('view');
-    if (queryView && isAppView(queryView)) {
-      return { kind: 'app', appView: queryView };
+    const resolvedQueryView = queryView ? resolveAppViewIntent(queryView) : null;
+    if (resolvedQueryView) {
+      return { kind: 'app', appView: resolvedQueryView };
     }
     return { kind: 'app', appView: 'dashboard' };
   }
@@ -67,6 +73,11 @@ const getLocationRoute = (): LocationRoute => {
   const appView = getAppViewFromPathname(window.location.pathname);
   if (appView) {
     return { kind: 'app', appView };
+  }
+
+  const emergencyShareToken = getEmergencyShareTokenFromPathname(window.location.pathname);
+  if (emergencyShareToken) {
+    return { kind: 'public-emergency-card', token: emergencyShareToken };
   }
 
   const publicRoute = getPublicRouteFromPathname(window.location.pathname);
@@ -82,8 +93,17 @@ const getLocationRoute = (): LocationRoute => {
   return { kind: 'public', publicRoute: 'welcome' };
 };
 
-const getCanonicalPathForRoute = (route: LocationRoute): string =>
-  route.kind === 'app' ? getAppViewPath(route.appView) : getPublicRoutePath(route.publicRoute);
+const getCanonicalPathForRoute = (route: LocationRoute): string => {
+  if (route.kind === 'app') {
+    return getAppViewPath(route.appView);
+  }
+
+  if (route.kind === 'public-emergency-card') {
+    return `/emergency-card/${encodeURIComponent(route.token)}`;
+  }
+
+  return getPublicRoutePath(route.publicRoute);
+};
 
 const setAuthModeHint = (mode: 'signin' | 'signup') => {
   if (typeof window === 'undefined') {
@@ -133,6 +153,11 @@ const Material3Welcome = React.lazy(() =>
 );
 const LegalPolicies = React.lazy(() =>
   import('./app/components/LegalPolicies').then((module) => ({ default: module.LegalPolicies })),
+);
+const PublicEmergencyShareCard = React.lazy(() =>
+  import('./app/components/PublicEmergencyShareCard').then((module) => ({
+    default: module.PublicEmergencyShareCard,
+  })),
 );
 
 const renderWithSuspense = (node: React.ReactNode, label: string) => (
@@ -245,17 +270,27 @@ function AppShell() {
   }, [guestSession]);
 
   React.useEffect(() => {
+    if (!user || !guestSession) {
+      return;
+    }
+
+    localStorage.removeItem(GUEST_SESSION_KEY);
+    setGuestSession(false);
+  }, [user, guestSession]);
+
+  React.useEffect(() => {
     if (!hasSession) {
       return;
     }
 
-    const view = new URLSearchParams(window.location.search).get('view');
-    if (!view || !isAppView(view)) {
+    const requestedView = new URLSearchParams(window.location.search).get('view');
+    const resolvedView = requestedView ? resolveAppViewIntent(requestedView) : null;
+    if (!resolvedView) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view } }));
+      window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: resolvedView } }));
     }, 150);
 
     return () => window.clearTimeout(timeoutId);
@@ -283,9 +318,10 @@ function AppShell() {
         await refreshBabies();
 
         const nextView = params.get('view');
-        if (nextView && isAppView(nextView)) {
+        const resolvedNextView = nextView ? resolveAppViewIntent(nextView) : null;
+        if (resolvedNextView) {
           window.setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: nextView } }));
+            window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: resolvedNextView } }));
           }, 140);
         }
       } else {
@@ -323,15 +359,20 @@ function AppShell() {
   };
 
   const handleSignOut = async () => {
+    if (user) {
+      localStorage.removeItem(GUEST_SESSION_KEY);
+      setGuestSession(false);
+      await signOut();
+      navigateToPublicRoute('login', { replace: true });
+      return;
+    }
+
     if (guestSession) {
       localStorage.removeItem(GUEST_SESSION_KEY);
       setGuestSession(false);
       navigateToPublicRoute('login', { replace: true });
       return;
     }
-
-    await signOut();
-    navigateToPublicRoute('login', { replace: true });
   };
 
   const openPolicies = () => {
@@ -424,6 +465,13 @@ function AppShell() {
         }}
       />,
       'Loading policies...',
+    );
+  }
+
+  if (locationRoute.kind === 'public-emergency-card') {
+    return renderWithSuspense(
+      <PublicEmergencyShareCard token={locationRoute.token} />,
+      'Loading emergency card...',
     );
   }
 

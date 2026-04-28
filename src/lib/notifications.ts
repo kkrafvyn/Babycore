@@ -26,6 +26,7 @@ export type NotificationType =
   | 'diaper' 
   | 'vaccine' 
   | 'sleep' 
+  | 'medication'
   | 'summary'
   | 'milestone'
   | 'growth';
@@ -47,6 +48,49 @@ export interface BabyLogNotification {
 const NOTIFICATION_HISTORY_KEY = 'babylog_notification_history';
 const NOTIFICATION_HISTORY_LIMIT = 60;
 export const NOTIFICATION_HISTORY_EVENT = 'babylog:notifications-updated';
+
+export interface ReminderPreferences {
+  feeding: boolean;
+  sleep: boolean;
+  diaper: boolean;
+  medication: boolean;
+  vaccine: boolean;
+  growth: boolean;
+  retryMissed: boolean;
+  snoozeMinutes: number;
+  quietHoursEnabled: boolean;
+}
+
+export const DEFAULT_REMINDER_PREFERENCES: ReminderPreferences = {
+  feeding: true,
+  sleep: true,
+  diaper: false,
+  medication: true,
+  vaccine: true,
+  growth: true,
+  retryMissed: true,
+  snoozeMinutes: 30,
+  quietHoursEnabled: true,
+};
+
+export const getReminderPreferences = (
+  settings?: Pick<UserSettings, 'reminderPreferences'> | null,
+): ReminderPreferences => {
+  const raw = settings?.reminderPreferences || {};
+  const parsedSnooze = Number(raw.snoozeMinutes);
+
+  return {
+    feeding: raw.feeding !== false,
+    sleep: raw.sleep !== false,
+    diaper: Boolean(raw.diaper),
+    medication: raw.medication !== false,
+    vaccine: raw.vaccine !== false,
+    growth: raw.growth !== false,
+    retryMissed: raw.retryMissed !== false,
+    snoozeMinutes: Number.isFinite(parsedSnooze) && parsedSnooze > 0 ? Math.floor(parsedSnooze) : 30,
+    quietHoursEnabled: raw.quietHoursEnabled !== false,
+  };
+};
 
 function getDefaultNotificationType(type?: NotificationType): NotificationType {
   return type || 'summary';
@@ -140,6 +184,44 @@ export function markAllNotificationsRead(): void {
   saveNotificationHistoryInternal(next);
 }
 
+export function retryNotificationNow(notificationId: string): boolean {
+  const notifications = readNotificationHistoryInternal();
+  const target = notifications.find((item) => item.id === notificationId);
+  if (!target) return false;
+
+  void NotificationsManager.sendLocalNotification({
+    title: target.title,
+    body: target.body,
+    type: target.type,
+    data: target.data,
+  });
+
+  return true;
+}
+
+export function snoozeNotification(notificationId: string, delayMinutes = 30): boolean {
+  const notifications = readNotificationHistoryInternal();
+  const target = notifications.find((item) => item.id === notificationId);
+  if (!target) return false;
+
+  markNotificationRead(notificationId);
+
+  const normalizedMinutes = Math.max(1, Math.floor(delayMinutes || 30));
+  NotificationsManager.scheduleLocalNotification({
+    title: target.title,
+    body: target.body,
+    type: target.type,
+    data: {
+      ...(target.data || {}),
+      snoozedFromId: target.id,
+      snoozedAt: new Date().toISOString(),
+    },
+    delayMs: normalizedMinutes * 60 * 1000,
+  });
+
+  return true;
+}
+
 interface WebPushSubscriptionPayload {
   endpoint: string;
   expirationTime?: number | null;
@@ -167,8 +249,32 @@ type NativePushBridge = {
   };
 };
 
+type MedicationScheduleReminderRow = {
+  id: string;
+  medication_name: string;
+  reminder_times?: string[] | null;
+  status?: string | null;
+};
+
+type MedicationDoseLogReminderRow = {
+  id: string;
+  schedule_id: string;
+  dose_status: 'taken' | 'missed' | 'skipped';
+  planned_for?: string | null;
+  logged_at: string;
+};
+
 export class NotificationsManager {
   private static nativeBridgePromise: Promise<NativePushBridge | null> | null = null;
+  private static reminderThrottle = new Map<string, number>();
+  private static medicationContextCache = new Map<
+    string,
+    {
+      fetchedAt: number;
+      schedules: MedicationScheduleReminderRow[];
+      doseLogs: MedicationDoseLogReminderRow[];
+    }
+  >();
 
   private static isSupported(): boolean {
     return typeof window !== 'undefined' && 'Notification' in window;
@@ -778,9 +884,16 @@ export class NotificationsManager {
   /**
    * Schedule a notification for later in the current app session.
    */
-  static scheduleLocalNotification(payload: { title: string; body: string; delayMs: number; type?: NotificationType }): number {
+  static scheduleLocalNotification(payload: {
+    title: string;
+    body: string;
+    data?: any;
+    delayMs: number;
+    type?: NotificationType;
+  }): number {
+    if (typeof window === 'undefined') return -1;
     return window.setTimeout(() => {
-      this.sendLocalNotification(payload);
+      void this.sendLocalNotification(payload);
     }, payload.delayMs);
   }
 
@@ -788,7 +901,14 @@ export class NotificationsManager {
    * Check if we are in quiet hours
    */
   static isQuietHours(settings: UserSettings): boolean {
-    if (!settings.notificationsEnabled || !settings.quietHoursStart || !settings.quietHoursEnd) {
+    const reminderPreferences = getReminderPreferences(settings);
+
+    if (
+      !settings.notificationsEnabled ||
+      !reminderPreferences.quietHoursEnabled ||
+      !settings.quietHoursStart ||
+      !settings.quietHoursEnd
+    ) {
       return false;
     }
 
@@ -805,6 +925,129 @@ export class NotificationsManager {
       return currentMin >= startMin || currentMin < endMin;
     }
     return currentMin >= startMin && currentMin < endMin;
+  }
+
+  static getMsUntilQuietHoursEnd(settings: UserSettings): number {
+    const reminderPreferences = getReminderPreferences(settings);
+    if (
+      !reminderPreferences.quietHoursEnabled ||
+      !settings.quietHoursStart ||
+      !settings.quietHoursEnd
+    ) {
+      return 0;
+    }
+
+    const now = new Date();
+    const [endHour, endMinute] = settings.quietHoursEnd.split(':').map(Number);
+    const wakeTime = new Date(now);
+    wakeTime.setHours(endHour, endMinute, 0, 0);
+    if (wakeTime.getTime() <= now.getTime()) {
+      wakeTime.setDate(wakeTime.getDate() + 1);
+    }
+    return Math.max(0, wakeTime.getTime() - now.getTime());
+  }
+
+  static canDispatchReminder(reminderKey: string, cooldownMs: number): boolean {
+    const now = Date.now();
+    const lastSentAt = this.reminderThrottle.get(reminderKey) || 0;
+    if (now - lastSentAt < cooldownMs) {
+      return false;
+    }
+    this.reminderThrottle.set(reminderKey, now);
+    return true;
+  }
+
+  static async sendReminderWithRules(
+    settings: UserSettings,
+    reminderPreferences: ReminderPreferences,
+    payload: { title: string; body: string; data?: any; type?: NotificationType },
+    options?: { cooldownMs?: number; cooldownKey?: string; retryDelayMinutes?: number },
+  ): Promise<void> {
+    const cooldownMs = Math.max(30_000, options?.cooldownMs || 5 * 60 * 1000);
+    const cooldownKey = options?.cooldownKey || `${payload.type || 'summary'}:${payload.title}`;
+    if (!this.canDispatchReminder(cooldownKey, cooldownMs)) {
+      return;
+    }
+
+    if (this.isQuietHours(settings)) {
+      const deferMs = this.getMsUntilQuietHoursEnd(settings) + 60 * 1000;
+      if (deferMs > 0 && deferMs <= 12 * 60 * 60 * 1000) {
+        this.scheduleLocalNotification({
+          ...payload,
+          data: {
+            ...(payload.data || {}),
+            deferredFromQuietHours: true,
+          },
+          delayMs: deferMs,
+        });
+      }
+      return;
+    }
+
+    await this.sendLocalNotification(payload);
+
+    if (reminderPreferences.retryMissed) {
+      const retryDelayMinutes = Math.max(5, options?.retryDelayMinutes || 20);
+      this.scheduleLocalNotification({
+        ...payload,
+        data: {
+          ...(payload.data || {}),
+          retryAttempt: true,
+        },
+        delayMs: retryDelayMinutes * 60 * 1000,
+      });
+    }
+  }
+
+  static async getMedicationReminderContext(
+    babyId: string,
+  ): Promise<{
+    schedules: MedicationScheduleReminderRow[];
+    doseLogs: MedicationDoseLogReminderRow[];
+  }> {
+    const cached = this.medicationContextCache.get(babyId);
+    if (cached && Date.now() - cached.fetchedAt < 5 * 60 * 1000) {
+      return {
+        schedules: cached.schedules,
+        doseLogs: cached.doseLogs,
+      };
+    }
+
+    try {
+      const authClient = supabase.auth as any;
+      const {
+        data: { session },
+      } = await authClient.getSession();
+      const accessToken: string | undefined = session?.access_token;
+      if (!accessToken) {
+        return { schedules: [], doseLogs: [] };
+      }
+
+      const headers = {
+        Authorization: `Bearer ${accessToken}`,
+      };
+
+      const [scheduleResponse, logsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/care/medications/${babyId}/schedules`, { headers }),
+        fetch(`${API_BASE_URL}/care/medications/${babyId}/logs?limit=40`, { headers }),
+      ]);
+
+      const schedulesPayload = scheduleResponse.ok ? await scheduleResponse.json() : null;
+      const logsPayload = logsResponse.ok ? await logsResponse.json() : null;
+      const schedules = Array.isArray(schedulesPayload?.data) ? schedulesPayload.data : [];
+      const doseLogs = Array.isArray(logsPayload?.data) ? logsPayload.data : [];
+
+      this.medicationContextCache.set(babyId, {
+        fetchedAt: Date.now(),
+        schedules,
+        doseLogs,
+      });
+
+      return { schedules, doseLogs };
+    } catch (error) {
+      console.warn('Failed to load medication reminder context:', error);
+      return { schedules: [], doseLogs: [] };
+    }
   }
 
   // Factory methods for specific notification types
@@ -839,21 +1082,77 @@ export class NotificationsManager {
 export const syncNotifications = async (
   babies: Baby[],
   settings: UserSettings,
-  logs: { feedLogs: FeedLog[]; diaperLogs: DiaperLog[]; vaccinationRecords?: VaccinationRecord[] }
+  logs: {
+    feedLogs: FeedLog[];
+    sleepLogs?: SleepLog[];
+    diaperLogs: DiaperLog[];
+    vaccinationRecords?: VaccinationRecord[];
+    medicationSchedules?: MedicationScheduleReminderRow[];
+    medicationDoseLogs?: MedicationDoseLogReminderRow[];
+  },
 ) => {
-  if (!settings.notificationsEnabled || NotificationsManager.isQuietHours(settings)) {
+  if (!settings.notificationsEnabled) {
     return;
   }
+  const reminderPrefs = getReminderPreferences(settings);
 
   const currentBaby = babies[0]; // Logic for primary baby
   if (!currentBaby) return;
 
   // Example: notify if last feed was > 4 hours ago and interval is set
   const lastFeed = logs.feedLogs[0];
-  if (lastFeed && settings.feedingInterval) {
+  if (reminderPrefs.feeding && lastFeed && settings.feedingInterval) {
     const hoursSince = (Date.now() - new Date(lastFeed.timestamp).getTime()) / 3600000;
     if (hoursSince >= settings.feedingInterval) {
-      await NotificationsManager.sendLocalNotification(NotificationsManager.createFeedingAlert(currentBaby.name));
+      await NotificationsManager.sendReminderWithRules(
+        settings,
+        reminderPrefs,
+        NotificationsManager.createFeedingAlert(currentBaby.name),
+        {
+          cooldownKey: `feed:${currentBaby.id}:${settings.feedingInterval}`,
+          cooldownMs: 60 * 60 * 1000,
+          retryDelayMinutes: 30,
+        },
+      );
+    }
+  }
+
+  const lastSleep = logs.sleepLogs?.[0];
+  if (reminderPrefs.sleep && lastSleep?.endTime) {
+    const hoursAwake = (Date.now() - new Date(lastSleep.endTime).getTime()) / 3600000;
+    if (hoursAwake >= 2.5) {
+      await NotificationsManager.sendReminderWithRules(
+        settings,
+        reminderPrefs,
+        {
+          title: `Sleep Window Alert: ${currentBaby.name}`,
+          body: `${currentBaby.name} has been awake for ${hoursAwake.toFixed(1)}h. Consider a nap.`,
+          type: 'sleep',
+          data: { babyId: currentBaby.id, deepLink: 'sleep' },
+        },
+        {
+          cooldownKey: `sleep:${currentBaby.id}`,
+          cooldownMs: 90 * 60 * 1000,
+          retryDelayMinutes: 30,
+        },
+      );
+    }
+  }
+
+  const lastDiaper = logs.diaperLogs[0];
+  if (reminderPrefs.diaper && lastDiaper) {
+    const hoursSinceDiaper = (Date.now() - new Date(lastDiaper.timestamp).getTime()) / 3600000;
+    if (hoursSinceDiaper >= 3) {
+      await NotificationsManager.sendReminderWithRules(
+        settings,
+        reminderPrefs,
+        NotificationsManager.createDiaperAlert(currentBaby.name),
+        {
+          cooldownKey: `diaper:${currentBaby.id}`,
+          cooldownMs: 2 * 60 * 60 * 1000,
+          retryDelayMinutes: 30,
+        },
+      );
     }
   }
 
@@ -864,7 +1163,7 @@ export const syncNotifications = async (
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   const nextVaccine = pendingVaccines[0];
-  if (nextVaccine?.name && nextVaccine?.dueDate) {
+  if (reminderPrefs.vaccine && nextVaccine?.name && nextVaccine?.dueDate) {
     const dueAt = new Date(nextVaccine.dueDate).getTime();
     if (!Number.isNaN(dueAt)) {
       const now = Date.now();
@@ -872,20 +1171,129 @@ export const syncNotifications = async (
       const dueDateLabel = new Date(dueAt).toLocaleDateString();
 
       if (diffMs < 0) {
-        await NotificationsManager.sendLocalNotification({
-          title: `Vaccine Overdue: ${currentBaby.name}`,
-          body: `${nextVaccine.name} is overdue. Check the vaccination calendar.`,
-          type: 'vaccine',
-          data: { babyId: currentBaby.id, deepLink: 'vaccination' },
-        });
+        await NotificationsManager.sendReminderWithRules(
+          settings,
+          reminderPrefs,
+          {
+            title: `Vaccine Overdue: ${currentBaby.name}`,
+            body: `${nextVaccine.name} is overdue. Check the vaccination calendar.`,
+            type: 'vaccine',
+            data: { babyId: currentBaby.id, deepLink: 'vaccination' },
+          },
+          {
+            cooldownKey: `vaccine-overdue:${currentBaby.id}:${nextVaccine.id}`,
+            cooldownMs: 24 * 60 * 60 * 1000,
+            retryDelayMinutes: 60,
+          },
+        );
       } else if (diffMs <= 3 * DAY_MS) {
         const daysLeft = Math.max(1, Math.ceil(diffMs / DAY_MS));
-        await NotificationsManager.sendLocalNotification({
-          title: `Vaccine Due Soon: ${currentBaby.name}`,
-          body: `${nextVaccine.name} is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'} (${dueDateLabel}).`,
-          type: 'vaccine',
-          data: { babyId: currentBaby.id, deepLink: 'vaccination' },
+        await NotificationsManager.sendReminderWithRules(
+          settings,
+          reminderPrefs,
+          {
+            title: `Vaccine Due Soon: ${currentBaby.name}`,
+            body: `${nextVaccine.name} is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'} (${dueDateLabel}).`,
+            type: 'vaccine',
+            data: { babyId: currentBaby.id, deepLink: 'vaccination' },
+          },
+          {
+            cooldownKey: `vaccine-soon:${currentBaby.id}:${nextVaccine.id}`,
+            cooldownMs: 12 * 60 * 60 * 1000,
+            retryDelayMinutes: 60,
+          },
+        );
+      }
+    }
+  }
+
+  // Medication reminders: schedule-based and missed-dose retries.
+  if (reminderPrefs.medication) {
+    const medicationContext =
+      logs.medicationSchedules && logs.medicationDoseLogs
+        ? { schedules: logs.medicationSchedules, doseLogs: logs.medicationDoseLogs }
+        : await NotificationsManager.getMedicationReminderContext(currentBaby.id);
+
+    const schedules = (medicationContext.schedules || []).filter(
+      (entry) => !entry.status || entry.status === 'active',
+    );
+    const doseLogs = medicationContext.doseLogs || [];
+    const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
+
+    for (const schedule of schedules) {
+      const reminderTimes = Array.isArray(schedule.reminder_times) ? schedule.reminder_times : [];
+      for (const reminderTime of reminderTimes) {
+        const [hourString, minuteString] = String(reminderTime || '00:00').split(':');
+        const reminderDate = new Date(now);
+        reminderDate.setHours(Number(hourString || 0), Number(minuteString || 0), 0, 0);
+        const minutesFromReminder = (now.getTime() - reminderDate.getTime()) / 60000;
+
+        if (minutesFromReminder < 0 || minutesFromReminder > 20) {
+          continue;
+        }
+
+        const hasRecentTakenLog = doseLogs.some((log) => {
+          if (log.schedule_id !== schedule.id) return false;
+          if (log.dose_status !== 'taken') return false;
+          const logDate = new Date(log.logged_at);
+          if (logDate.toISOString().slice(0, 10) !== todayKey) return false;
+          return Math.abs(logDate.getTime() - reminderDate.getTime()) <= 90 * 60 * 1000;
         });
+
+        if (!hasRecentTakenLog) {
+          await NotificationsManager.sendReminderWithRules(
+            settings,
+            reminderPrefs,
+            {
+              title: `Medication Reminder: ${currentBaby.name}`,
+              body: `${schedule.medication_name} is due now.`,
+              type: 'medication',
+              data: {
+                babyId: currentBaby.id,
+                deepLink: 'health-records',
+                scheduleId: schedule.id,
+              },
+            },
+            {
+              cooldownKey: `medication-due:${schedule.id}:${todayKey}:${hourString}:${minuteString}`,
+              cooldownMs: 2 * 60 * 60 * 1000,
+              retryDelayMinutes: 25,
+            },
+          );
+        }
+      }
+    }
+
+    if (reminderPrefs.retryMissed) {
+      const missedDose = doseLogs
+        .filter((log) => log.dose_status === 'missed')
+        .sort((a, b) => new Date(b.logged_at).getTime() - new Date(a.logged_at).getTime())[0];
+
+      if (missedDose) {
+        const missedMsAgo = Date.now() - new Date(missedDose.logged_at).getTime();
+        if (missedMsAgo <= 6 * 60 * 60 * 1000) {
+          await NotificationsManager.sendReminderWithRules(
+            settings,
+            reminderPrefs,
+            {
+              title: `Missed Medication: ${currentBaby.name}`,
+              body: `A medication dose was marked missed. Review and retry when possible.`,
+              type: 'medication',
+              data: {
+                babyId: currentBaby.id,
+                deepLink: 'health-records',
+                scheduleId: missedDose.schedule_id,
+                missedDoseId: missedDose.id,
+              },
+            },
+            {
+              cooldownKey: `medication-missed:${missedDose.id}`,
+              cooldownMs: 6 * 60 * 60 * 1000,
+              retryDelayMinutes: 45,
+            },
+          );
+        }
       }
     }
   }

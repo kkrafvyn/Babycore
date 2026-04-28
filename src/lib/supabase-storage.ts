@@ -155,6 +155,39 @@ export const addBaby = async (baby: Baby): Promise<void> => {
   return LocalStorage.addBaby(baby, scopeId);
 };
 
+export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return 0;
+  }
+
+  const targetScopeId = `${STORAGE_SCOPE_PREFIX}${user.id}`;
+  const guestBabies = await LocalStorage.getBabies(GUEST_STORAGE_SCOPE);
+
+  if (guestBabies.length === 0) {
+    return 0;
+  }
+
+  let migratedCount = 0;
+  for (const baby of guestBabies) {
+    try {
+      const migrated = await LocalStorage.transferBabyOwnerScope(
+        baby.id,
+        GUEST_STORAGE_SCOPE,
+        targetScopeId,
+      );
+
+      if (migrated) {
+        migratedCount += 1;
+      }
+    } catch (error) {
+      console.warn(`Failed to migrate guest baby ${baby.id} to account scope:`, error);
+    }
+  }
+
+  return migratedCount;
+};
+
 export const getBabies = async (): Promise<Baby[]> => {
   const scopeId = await resolveStorageScopeId();
   const [localBabies, sharedAssignedBabies] = await Promise.all([

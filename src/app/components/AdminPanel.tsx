@@ -4,15 +4,20 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   deleteAdminUser,
+  exportAdminBillingEvents,
+  fetchAdminBilling,
   demoteAdminUser,
   fetchAdminAuditLogs,
   fetchAdminLogs,
   fetchAdminOverview,
   fetchAdminUsers,
   promoteAdminUser,
+  resolveAdminBillingEvent,
+  retryAdminBillingEvent,
   updateAdminUserRole,
   type AdminUserRecord,
 } from '../../lib/admin-api';
+import type { BillingEventRecord } from '../../lib/payment-api';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -35,6 +40,20 @@ const formatAny = (value: any): string => {
   return JSON.stringify(value);
 };
 
+const getRecoveryClass = (status?: string | null): string => {
+  switch (status) {
+    case 'recovered':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300';
+    case 'retry_scheduled':
+    case 'retrying':
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300';
+    case 'abandoned':
+      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300';
+    default:
+      return 'border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900';
+  }
+};
+
 const ROLE_OPTIONS = ['admin', 'manager', 'user', 'caregiver', 'viewer'] as const;
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
@@ -54,6 +73,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   const [actingUserId, setActingUserId] = useState<string | null>(null);
+  const [billingEvents, setBillingEvents] = useState<BillingEventRecord[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingSearch, setBillingSearch] = useState('');
+  const [billingStatusFilter, setBillingStatusFilter] = useState('failed');
+  const [billingRecoveryFilter, setBillingRecoveryFilter] = useState('');
+  const [billingSummary, setBillingSummary] = useState({
+    total: 0,
+    failed: 0,
+    retrying: 0,
+    recovered: 0,
+    abandoned: 0,
+  });
+  const [billingTotal, setBillingTotal] = useState(0);
+  const [billingActingReference, setBillingActingReference] = useState<string | null>(null);
 
   const loadOverview = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -110,8 +144,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setAuditLogs(audit.success && audit.data ? audit.data.logs || [] : []);
   };
 
+  const loadBilling = async () => {
+    setBillingLoading(true);
+    const response = await fetchAdminBilling({
+      limit: 30,
+      offset: 0,
+      search: billingSearch,
+      status: billingStatusFilter || undefined,
+      recoveryStatus: billingRecoveryFilter || undefined,
+    });
+
+    if (!response.success || !response.data) {
+      setBillingError(response.error || 'Unable to load billing ops data.');
+      setBillingEvents([]);
+      setBillingSummary({
+        total: 0,
+        failed: 0,
+        retrying: 0,
+        recovered: 0,
+        abandoned: 0,
+      });
+      setBillingTotal(0);
+      setBillingLoading(false);
+      return;
+    }
+
+    setBillingError(null);
+    setBillingEvents(response.data.events || []);
+    setBillingSummary(response.data.summary);
+    setBillingTotal(response.data.total || response.data.events.length || 0);
+    setBillingLoading(false);
+  };
+
   const refreshAll = async (isRefresh = false) => {
-    await Promise.all([loadOverview(isRefresh), loadUsers(), loadAdminLogs()]);
+    await Promise.all([loadOverview(isRefresh), loadUsers(), loadAdminLogs(), loadBilling()]);
   };
 
   const handleApplyRole = async (user: AdminUserRecord) => {
@@ -186,9 +252,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
   };
 
+  const handleRetryBilling = async (reference: string) => {
+    setBillingActingReference(reference);
+    const result = await retryAdminBillingEvent(reference);
+    setBillingActingReference(null);
+
+    if (!result.success) {
+      toast.error(result.error || `Failed to retry ${reference}.`);
+      return;
+    }
+
+    toast.success(result.message || `Retry requested for ${reference}.`);
+    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
+  };
+
+  const handleResolveBilling = async (
+    reference: string,
+    status: 'reconciled' | 'cancelled',
+  ) => {
+    const notes = window.prompt(
+      status === 'reconciled'
+        ? 'Optional notes for marking this payment reconciled:'
+        : 'Optional notes for marking this payment cancelled:',
+      '',
+    );
+
+    setBillingActingReference(reference);
+    const result = await resolveAdminBillingEvent({
+      reference,
+      status,
+      notes: notes || undefined,
+    });
+    setBillingActingReference(null);
+
+    if (!result.success) {
+      toast.error(result.error || `Failed to update ${reference}.`);
+      return;
+    }
+
+    toast.success(result.message || `${reference} updated.`);
+    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
+  };
+
+  const handleExportBilling = async () => {
+    try {
+      await exportAdminBillingEvents({
+        search: billingSearch,
+        status: billingStatusFilter || undefined,
+        recoveryStatus: billingRecoveryFilter || undefined,
+      });
+      toast.success('Billing export downloaded.');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to export billing events.');
+    }
+  };
+
   useEffect(() => {
     refreshAll();
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadBilling();
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [billingSearch, billingStatusFilter, billingRecoveryFilter]);
 
   const countEntries = useMemo(
     () =>
@@ -484,6 +613,183 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           </p>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1 gap-3">
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Billing Ops
+                  </h3>
+                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                    {billingEvents.length}/{billingTotal}
+                  </span>
+                </div>
+
+                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {[
+                      { label: 'Failed', value: billingSummary.failed },
+                      { label: 'Retrying', value: billingSummary.retrying },
+                      { label: 'Recovered', value: billingSummary.recovered },
+                      { label: 'Abandoned', value: billingSummary.abandoned },
+                      { label: 'Visible', value: billingSummary.total },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
+                      >
+                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-lg font-headline font-black text-foreground">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      value={billingSearch}
+                      onChange={(event) => setBillingSearch(event.target.value)}
+                      placeholder="Search reference, email, or plan"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={billingStatusFilter}
+                        onChange={(event) => setBillingStatusFilter(event.target.value)}
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                      >
+                        <option value="">All status</option>
+                        <option value="failed">Failed</option>
+                        <option value="reconciled">Reconciled</option>
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                      <select
+                        value={billingRecoveryFilter}
+                        onChange={(event) => setBillingRecoveryFilter(event.target.value)}
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                      >
+                        <option value="">All recovery</option>
+                        <option value="eligible">Eligible</option>
+                        <option value="retry_scheduled">Retry scheduled</option>
+                        <option value="retrying">Retrying</option>
+                        <option value="recovered">Recovered</option>
+                        <option value="abandoned">Abandoned</option>
+                      </select>
+                      <button
+                        onClick={() => void handleExportBilling()}
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-foreground"
+                      >
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {billingLoading && (
+                    <p className="text-sm font-bold text-text-light">Loading billing operations data...</p>
+                  )}
+
+                  {!billingLoading && billingError && (
+                    <p className="text-sm font-bold text-red-500">{billingError}</p>
+                  )}
+
+                  {!billingLoading && !billingError && billingEvents.length === 0 && (
+                    <p className="text-sm font-bold text-text-light">No billing events match these filters.</p>
+                  )}
+
+                  {!billingLoading && !billingError && billingEvents.length > 0 && (
+                    <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
+                      {billingEvents.map((entry) => {
+                        const isActing = billingActingReference === entry.reference;
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-black text-foreground truncate">
+                                  {entry.plan_name || 'Premium Access'}
+                                </p>
+                                <p className="text-[10px] font-semibold text-text-light break-all">
+                                  {entry.reference}
+                                </p>
+                                <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                                  {entry.status} | {entry.currency || 'USD'} {Number(entry.amount || 0).toFixed(2)}
+                                </p>
+                              </div>
+                              <span
+                                className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryClass(
+                                  entry.recovery_status,
+                                )}`}
+                              >
+                                {entry.recovery_status || 'not_needed'}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1 text-[10px] font-semibold text-text-dim">
+                              <p>Email: {entry.customer_email || '-'}</p>
+                              <p>Attempted: {formatDateTime(entry.attempted_at || undefined)}</p>
+                              <p>
+                                Retries: {entry.retry_count || 0}
+                                {entry.next_retry_at ? ` | Next ${formatDateTime(entry.next_retry_at)}` : ''}
+                              </p>
+                              {(entry.failure_code || entry.failure_source) && (
+                                <p>
+                                  Failure: {entry.failure_code || '-'} | {entry.failure_source || '-'}
+                                </p>
+                              )}
+                              {entry.error_message && <p className="text-rose-500">{entry.error_message}</p>}
+                            </div>
+
+                            {entry.payment_event_transitions?.length ? (
+                              <div className="rounded-lg border border-border-gray dark:border-zinc-800 bg-background dark:bg-zinc-950 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                                  Recent Timeline
+                                </p>
+                                {entry.payment_event_transitions.slice(0, 3).map((transition) => (
+                                  <p key={transition.id} className="mt-1 text-[10px] font-semibold text-text-dim">
+                                    {transition.event_type}
+                                    {' -> '}
+                                    {transition.new_status}
+                                    {' | '}
+                                    {formatDateTime(transition.created_at)}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            <div className="grid grid-cols-3 gap-2">
+                              <button
+                                onClick={() => void handleRetryBilling(entry.reference)}
+                                disabled={isActing || entry.provider !== 'paystack'}
+                                className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                              >
+                                Retry Now
+                              </button>
+                              <button
+                                onClick={() => void handleResolveBilling(entry.reference, 'reconciled')}
+                                disabled={isActing}
+                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                              >
+                                Mark Reconciled
+                              </button>
+                              <button
+                                onClick={() => void handleResolveBilling(entry.reference, 'cancelled')}
+                                disabled={isActing}
+                                className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                              >
+                                Mark Cancelled
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

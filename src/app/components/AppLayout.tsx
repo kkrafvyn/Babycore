@@ -3,12 +3,16 @@ import { Home, ClipboardList, TrendingUp, Settings, Bell, Book, Sun, Moon, X } f
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  getReminderPreferences,
   getNotificationHistory,
   markAllNotificationsRead,
   markNotificationRead,
   NOTIFICATION_HISTORY_EVENT,
+  retryNotificationNow,
+  snoozeNotification,
   type BabyLogNotification,
 } from '../../lib/notifications';
+import { useAuthStore } from '@/app/AppContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -25,6 +29,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNavChange,
   showTopHeader = true,
 }) => {
+  const { settings } = useAuthStore();
+  const reminderPreferences = React.useMemo(() => getReminderPreferences(settings), [settings]);
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [notifications, setNotifications] = React.useState<BabyLogNotification[]>(
@@ -82,6 +88,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     if (deepLink) {
       window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: deepLink } }));
     }
+  };
+
+  const handleNotificationSnooze = (notificationId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const snoozed = snoozeNotification(notificationId, reminderPreferences.snoozeMinutes);
+    if (!snoozed) return;
+    setNotifications(getNotificationHistory());
+  };
+
+  const handleNotificationRetry = (notificationId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    retryNotificationNow(notificationId);
   };
 
   return (
@@ -177,6 +195,20 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                             <p className="text-[10px] text-text-light mt-2 uppercase tracking-widest">
                               {relativeTime(notification.timestamp)}
                             </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <button
+                                onClick={(event) => handleNotificationSnooze(notification.id, event)}
+                                className="rounded-full bg-surface px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-text-light border border-border-gray dark:border-zinc-700"
+                              >
+                                Snooze {reminderPreferences.snoozeMinutes}m
+                              </button>
+                              <button
+                                onClick={(event) => handleNotificationRetry(notification.id, event)}
+                                className="rounded-full bg-secondary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-secondary border border-secondary/30"
+                              >
+                                Retry
+                              </button>
+                            </div>
                           </div>
                         </button>
                       ))

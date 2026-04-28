@@ -5,6 +5,16 @@
   "installCommand": "npm install --legacy-peer-deps --no-fund --no-audit",
   "devCommand": "npm run dev",
   "outputDirectory": "dist",
+  "crons": [
+    {
+      "path": "/api/cron/maintenance",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/payment-retries",
+      "schedule": "30 3 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

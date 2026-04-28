@@ -25,10 +25,14 @@ export interface SyncState {
   isSyncing: boolean;
   lastSyncTime?: Date;
   pendingChanges: number;
+  syncError?: string | null;
+  conflicts: SyncConflict[];
 }
 
 export interface SyncConflict {
   id: string;
+  dataset?: string;
+  recordId?: string;
   type: 'local' | 'remote';
   data: any;
   remoteData?: any;
@@ -39,6 +43,9 @@ class CloudSyncManager {
   private isOnline = navigator.onLine;
   private isSyncing = false;
   private pendingChanges = 0;
+  private syncError: string | null = null;
+  private conflicts: SyncConflict[] = [];
+  private resolvedConflictKeys: Set<string> = new Set();
   private syncQueue: Map<string, any> = new Map();
   private lastSyncTime: Date | null = null;
   private syncInterval: number | null = null;
@@ -105,6 +112,8 @@ class CloudSyncManager {
       isSyncing: this.isSyncing,
       lastSyncTime: this.lastSyncTime || undefined,
       pendingChanges: this.pendingChanges,
+      syncError: this.syncError,
+      conflicts: this.conflicts,
     };
   }
 
@@ -117,7 +126,7 @@ class CloudSyncManager {
       type,
       timestamp: new Date().toISOString(),
     });
-    this.pendingChanges = this.syncQueue.size;
+    this.pendingChanges = this.syncQueue.size + this.conflicts.length;
     this.dispatchSyncStateChange();
 
     // Try to sync immediately if online
@@ -133,6 +142,7 @@ class CloudSyncManager {
     if (this.isSyncing || !this.isOnline) return;
 
     this.isSyncing = true;
+    this.syncError = null;
     this.dispatchSyncStateChange();
 
     try {
@@ -141,18 +151,33 @@ class CloudSyncManager {
         throw new Error('Unable to build local snapshot');
       }
 
+      const remoteSnapshot = await pullFromCloud().catch(() => null);
+      if (remoteSnapshot) {
+        this.conflicts = this.detectConflicts(localSnapshot, remoteSnapshot);
+        if (this.conflicts.length > 0) {
+          this.syncError = 'Conflicts detected. Resolve conflicts before syncing.';
+          this.pendingChanges = this.syncQueue.size + this.conflicts.length;
+          this.dispatchSyncStateChange();
+          return;
+        }
+      } else {
+        this.conflicts = [];
+      }
+
       const synced = await performCloudSync(localSnapshot);
       if (!synced) {
         throw new Error('Cloud sync rejected by backend');
       }
 
       this.syncQueue.clear();
+      this.conflicts = [];
       this.lastSyncTime = new Date();
       this.pendingChanges = this.syncQueue.size;
 
       console.log('Sync completed');
     } catch (error) {
       console.error('Sync failed:', error);
+      this.syncError = error instanceof Error ? error.message : String(error);
     } finally {
       this.isSyncing = false;
       this.dispatchSyncStateChange();
@@ -218,6 +243,108 @@ class CloudSyncManager {
     };
   }
 
+  private stableStringify(value: any): string {
+    if (value === null || value === undefined) return String(value);
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableStringify(item)).join(',')}]`;
+    }
+    if (typeof value === 'object') {
+      const keys = Object.keys(value).sort();
+      return `{${keys
+        .map((key) => `${JSON.stringify(key)}:${this.stableStringify((value as Record<string, any>)[key])}`)
+        .join(',')}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  private recordsEqual(left: any, right: any): boolean {
+    return this.stableStringify(left) === this.stableStringify(right);
+  }
+
+  private extractRecordTimestamp(record: any): number {
+    const candidates = [
+      record?.updatedAt,
+      record?.updated_at,
+      record?.logged_at,
+      record?.timestamp,
+      record?.date,
+      record?.createdAt,
+      record?.created_at,
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const parsed = Date.parse(String(candidate));
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+
+    return 0;
+  }
+
+  private detectConflicts(localSnapshot: any, remoteSnapshot: any): SyncConflict[] {
+    const datasets = [
+      'babies',
+      'sleepLogs',
+      'feedLogs',
+      'diaperLogs',
+      'growthMeasurements',
+      'vaccinationRecords',
+      'milestones',
+      'memories',
+    ] as const;
+
+    const conflicts: SyncConflict[] = [];
+
+    for (const dataset of datasets) {
+      const localRows = Array.isArray(localSnapshot?.[dataset]) ? localSnapshot[dataset] : [];
+      const remoteRows = Array.isArray(remoteSnapshot?.[dataset]) ? remoteSnapshot[dataset] : [];
+      const remoteMap = new Map<string, any>();
+
+      for (const row of remoteRows) {
+        if (!row?.id) continue;
+        remoteMap.set(String(row.id), row);
+      }
+
+      for (const localRow of localRows) {
+        const recordId = String(localRow?.id || '');
+        if (!recordId) continue;
+        const remoteRow = remoteMap.get(recordId);
+        if (!remoteRow) continue;
+
+        const localTimestamp = this.extractRecordTimestamp(localRow);
+        const remoteTimestamp = this.extractRecordTimestamp(remoteRow);
+        if (localTimestamp === 0 || remoteTimestamp === 0) {
+          continue;
+        }
+
+        if (Math.abs(localTimestamp - remoteTimestamp) < 1000) {
+          continue;
+        }
+
+        if (this.recordsEqual(localRow, remoteRow)) {
+          continue;
+        }
+
+        const conflictKey = `${dataset}:${recordId}:${localTimestamp}:${remoteTimestamp}`;
+        if (this.resolvedConflictKeys.has(conflictKey)) {
+          continue;
+        }
+
+        conflicts.push({
+          id: conflictKey,
+          dataset,
+          recordId,
+          type: localTimestamp >= remoteTimestamp ? 'local' : 'remote',
+          data: localRow,
+          remoteData: remoteRow,
+          timestamp: new Date(Math.max(localTimestamp, remoteTimestamp)),
+        });
+      }
+    }
+
+    return conflicts.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+
   /**
    * Pull remote changes from cloud
    */
@@ -253,15 +380,23 @@ class CloudSyncManager {
     if (resolution === 'local') {
       // Queue local change again
       this.queueChange(conflict.id, conflict.data, 'update');
-      return;
-    }
-
-    if (resolution === 'merge') {
+    } else if (resolution === 'merge') {
       const merged = mergeConflictData(conflict.data, conflict.remoteData || {});
       this.queueChange(conflict.id, merged, 'update');
-      return;
     }
-    // If remote, ignore local version.
+
+    // If resolution is remote, we intentionally skip local re-queue and trust cloud copy.
+    this.resolvedConflictKeys.add(conflict.id);
+    this.conflicts = this.conflicts.filter((entry) => entry.id !== conflict.id);
+    this.pendingChanges = this.syncQueue.size + this.conflicts.length;
+    if (this.conflicts.length === 0) {
+      this.syncError = null;
+    }
+    this.dispatchSyncStateChange();
+
+    if (this.isOnline && !this.isSyncing && this.conflicts.length === 0) {
+      await this.syncAll();
+    }
   }
 
   /**
@@ -281,12 +416,16 @@ class CloudSyncManager {
     return this.pendingChanges;
   }
 
+  getConflicts(): SyncConflict[] {
+    return [...this.conflicts];
+  }
+
   /**
    * Clear sync queue (use with caution)
    */
   clearSyncQueue(): void {
     this.syncQueue.clear();
-    this.pendingChanges = 0;
+    this.pendingChanges = this.conflicts.length;
     this.dispatchSyncStateChange();
   }
 

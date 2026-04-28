@@ -1,5 +1,9 @@
 import { getApiBaseUrl } from './api-base-url';
 import { supabase } from './supabase';
+import type {
+  EmergencySharePresetKey,
+  EmergencyShareRiskLevel,
+} from './emergency-share-utils';
 
 export interface MedicationSchedule {
   id: string;
@@ -95,6 +99,7 @@ export interface ClinicPanelPayload {
   }>;
   stats: {
     totalPatients: number;
+    filteredPatients?: number;
     pendingApprovals: number;
     overdueVaccines: number;
   };
@@ -127,6 +132,146 @@ export interface EmergencyShareCardResponse {
   doctorContacts: Array<Record<string, unknown>>;
   text: string;
   qrCodeDataUrl: string;
+}
+
+export type EmergencyShareSection =
+  | 'demographics'
+  | 'allergies'
+  | 'medications'
+  | 'growth'
+  | 'vaccines'
+  | 'doctor_contacts';
+
+export interface CreateEmergencyShareLinkInput {
+  ttlMinutes: number;
+  presetKey?: EmergencySharePresetKey;
+  maxViews?: number | null;
+  requiresPin?: boolean;
+  accessPin?: string;
+  allowedSections?: EmergencyShareSection[];
+}
+
+export interface EmergencyShareLinkResponse {
+  token: string;
+  shareUrl: string;
+  apiUrl: string;
+  qrCodeDataUrl: string;
+  expiresAt: string;
+  ttlMinutes: number;
+  presetKey?: EmergencySharePresetKey;
+  maxViews?: number | null;
+  viewCount?: number;
+  remainingViews?: number | null;
+  requiresPin?: boolean;
+  allowedSections?: EmergencyShareSection[];
+}
+
+export type EmergencyShareLinkStatus =
+  | 'active'
+  | 'expired'
+  | 'revoked'
+  | 'view_limit_reached';
+
+export interface EmergencyShareLinkAccessLogSummary {
+  id: string;
+  accessedAt: string;
+  result:
+    | 'success'
+    | 'not_found'
+    | 'expired'
+    | 'revoked'
+    | 'pin_required'
+    | 'pin_failed'
+    | 'view_limit_reached'
+    | 'pending';
+  viewerLabel?: string | null;
+  requestPath?: string | null;
+  deviceSummary?: string | null;
+  countryCode?: string | null;
+  region?: string | null;
+  city?: string | null;
+  locationSummary?: string;
+  riskLevel?: EmergencyShareRiskLevel;
+  riskReason?: string | null;
+}
+
+export interface EmergencyShareLinkSummary {
+  id: string;
+  tokenPrefix: string;
+  presetKey?: EmergencySharePresetKey;
+  expiresAt: string;
+  revokedAt?: string | null;
+  revokedReason?: string | null;
+  createdAt: string;
+  ttlMinutes?: number | null;
+  lastAccessedAt?: string | null;
+  lastAccessResult: string;
+  viewCount: number;
+  maxViews?: number | null;
+  remainingViews?: number | null;
+  requiresPin: boolean;
+  allowedSections: EmergencyShareSection[];
+  status: EmergencyShareLinkStatus;
+  accessLogs: EmergencyShareLinkAccessLogSummary[];
+}
+
+export interface PublicEmergencyShareCardResponse extends EmergencyShareCardResponse {
+  shareToken: string;
+  expiresAt: string;
+  maxViews?: number | null;
+  viewCount?: number;
+  remainingViews?: number | null;
+  requiresPin?: boolean;
+  allowedSections?: EmergencyShareSection[];
+}
+
+export interface CareApprovalTimelineEvent {
+  id: string;
+  approvalRequestId: string;
+  action: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+  requestType?: string | null;
+  requestStatus?: string | null;
+}
+
+export type ActivityCenterCategory = 'care' | 'sharing' | 'billing';
+export type ActivityCenterTone = 'info' | 'success' | 'warning' | 'critical';
+export type ActivityCenterEventKind =
+  | 'care_approval'
+  | 'medication_dose'
+  | 'emergency_share_access'
+  | 'payment'
+  | 'family_invite';
+
+export interface ActivityCenterEvent {
+  id: string;
+  kind: ActivityCenterEventKind;
+  category: ActivityCenterCategory;
+  tone: ActivityCenterTone;
+  title: string;
+  summary: string;
+  occurredAt: string;
+  deepLink?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ActivityCenterFeedResponse {
+  babyId: string;
+  babyName?: string | null;
+  role: string;
+  generatedAt: string;
+  summary: {
+    total: number;
+    urgent: number;
+    actionRequired: number;
+    care: number;
+    sharing: number;
+    billing: number;
+  };
+  items: ActivityCenterEvent[];
 }
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
@@ -167,12 +312,34 @@ export const getMedicationSchedules = async (babyId: string): Promise<Medication
   return payload.data || [];
 };
 
-export const saveMedicationSchedule = async (input: Record<string, unknown>): Promise<MedicationSchedule> => {
-  const payload = await requestJson<{ success: boolean; data: MedicationSchedule }>(`/care/medications/schedules`, {
+export const saveMedicationSchedule = async (
+  input: Record<string, unknown>,
+): Promise<{
+  data?: MedicationSchedule;
+  mode?: 'created' | 'updated';
+  requiresApproval?: boolean;
+  approvalRequest?: CareApprovalRequest;
+  message?: string;
+}> => {
+  const payload = await requestJson<{
+    success: boolean;
+    data?: MedicationSchedule;
+    mode?: 'created' | 'updated';
+    requiresApproval?: boolean;
+    approvalRequest?: CareApprovalRequest;
+    message?: string;
+  }>(`/care/medications/schedules`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
-  return payload.data;
+
+  return {
+    data: payload.data,
+    mode: payload.mode,
+    requiresApproval: payload.requiresApproval,
+    approvalRequest: payload.approvalRequest,
+    message: payload.message,
+  };
 };
 
 export const logMedicationDoseAdvanced = async (
@@ -251,9 +418,58 @@ export const decideCareApprovalRequest = async (
   return payload.data;
 };
 
-export const getClinicPatientQueue = async (): Promise<ClinicPanelPayload> => {
-  const payload = await requestJson<{ success: boolean; data: ClinicPanelPayload }>(`/care/clinic/patient-queue`);
+export const getClinicPatientQueue = async (filters?: {
+  search?: string;
+  pendingOnly?: boolean;
+  overdueOnly?: boolean;
+  sortBy?: 'priority' | 'appointments';
+}): Promise<ClinicPanelPayload> => {
+  const searchParams = new URLSearchParams();
+  if (filters?.search) searchParams.set('search', filters.search);
+  if (filters?.pendingOnly) searchParams.set('pendingOnly', 'true');
+  if (filters?.overdueOnly) searchParams.set('overdueOnly', 'true');
+  if (filters?.sortBy) searchParams.set('sortBy', filters.sortBy);
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+  const payload = await requestJson<{ success: boolean; data: ClinicPanelPayload }>(
+    `/care/clinic/patient-queue${suffix}`,
+  );
   return payload.data;
+};
+
+export const exportClinicPatientQueue = async (filters?: {
+  search?: string;
+  pendingOnly?: boolean;
+  overdueOnly?: boolean;
+  sortBy?: 'priority' | 'appointments';
+}): Promise<void> => {
+  const headers = await getAuthHeaders();
+  const searchParams = new URLSearchParams();
+  if (filters?.search) searchParams.set('search', filters.search);
+  if (filters?.pendingOnly) searchParams.set('pendingOnly', 'true');
+  if (filters?.overdueOnly) searchParams.set('overdueOnly', 'true');
+  if (filters?.sortBy) searchParams.set('sortBy', filters.sortBy);
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+  const response = await fetch(`${getApiBaseUrl()}/care/clinic/patient-queue/export${suffix}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || `Failed to export queue (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'clinic-patient-queue.csv';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 export const getClinicReportTemplates = async (): Promise<ClinicReportTemplate[]> => {
@@ -289,6 +505,108 @@ export const getEmergencyShareCard = async (babyId: string): Promise<EmergencySh
   return payload.data;
 };
 
+export const getActivityCenterFeed = async (
+  babyId: string,
+  limit = 40,
+): Promise<ActivityCenterFeedResponse> => {
+  const payload = await requestJson<{ success: boolean; data: ActivityCenterFeedResponse }>(
+    `/care/activity-feed/${babyId}?limit=${Math.max(1, Math.min(80, limit))}`,
+  );
+  return payload.data;
+};
+
+export const createEmergencyShareLink = async (
+  babyId: string,
+  input: number | CreateEmergencyShareLinkInput,
+): Promise<EmergencyShareLinkResponse> => {
+  const payloadBody: CreateEmergencyShareLinkInput =
+    typeof input === 'number'
+      ? { ttlMinutes: input }
+      : {
+          ttlMinutes: input.ttlMinutes,
+          presetKey: input.presetKey || 'custom',
+          maxViews: input.maxViews ?? null,
+          requiresPin: Boolean(input.requiresPin),
+          accessPin: input.accessPin || '',
+          allowedSections: input.allowedSections || [],
+        };
+
+  const payload = await requestJson<{ success: boolean; data: EmergencyShareLinkResponse }>(
+    `/care/emergency-card/${babyId}/share-link`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payloadBody),
+    },
+  );
+  return payload.data;
+};
+
+export const getEmergencyShareLinks = async (
+  babyId: string,
+): Promise<EmergencyShareLinkSummary[]> => {
+  const payload = await requestJson<{ success: boolean; data: EmergencyShareLinkSummary[] }>(
+    `/care/emergency-card/${babyId}/share-links`,
+  );
+  return payload.data || [];
+};
+
+export const revokeEmergencyShareLink = async (
+  babyId: string,
+  linkId: string,
+  reason?: string,
+): Promise<EmergencyShareLinkSummary> => {
+  const payload = await requestJson<{ success: boolean; data: EmergencyShareLinkSummary }>(
+    `/care/emergency-card/${babyId}/share-links/${linkId}/revoke`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        reason: reason || 'revoked_by_owner',
+      }),
+    },
+  );
+  return payload.data;
+};
+
+export const getPublicEmergencyShareCard = async (
+  token: string,
+  options?: { pin?: string; viewer?: string },
+): Promise<PublicEmergencyShareCardResponse> => {
+  const url = new URL(`${getApiBaseUrl()}/care/public/emergency-card/${token}`);
+  if (options?.pin) {
+    url.searchParams.set('pin', options.pin);
+  }
+  if (options?.viewer?.trim()) {
+    url.searchParams.set('viewer', options.viewer.trim());
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.success === false) {
+    const error = new Error(payload?.error || `Failed to load public emergency card (${response.status})`) as Error & {
+      pinRequired?: boolean;
+      status?: number;
+    };
+    error.pinRequired = Boolean(payload?.pinRequired);
+    error.status = response.status;
+    throw error;
+  }
+
+  return payload.data as PublicEmergencyShareCardResponse;
+};
+
+export const getCareApprovalTimeline = async (
+  babyId: string,
+  limit = 150,
+): Promise<CareApprovalTimelineEvent[]> => {
+  const payload = await requestJson<{ success: boolean; data: CareApprovalTimelineEvent[] }>(
+    `/care/approvals/${babyId}/timeline?limit=${Math.max(1, Math.min(400, limit))}`,
+  );
+  return payload.data || [];
+};
+
 export const downloadEmergencyShareCardPdf = async (babyId: string): Promise<void> => {
   const headers = await getAuthHeaders();
   const response = await fetch(`${getApiBaseUrl()}/care/emergency-card/${babyId}/pdf`, {
@@ -312,3 +630,40 @@ export const downloadEmergencyShareCardPdf = async (babyId: string): Promise<voi
   URL.revokeObjectURL(url);
 };
 
+export const downloadPublicEmergencyShareCardPdf = async (
+  token: string,
+  options?: { pin?: string; viewer?: string },
+): Promise<void> => {
+  const requestUrl = new URL(`${getApiBaseUrl()}/care/public/emergency-card/${token}/pdf`);
+  if (options?.pin) {
+    requestUrl.searchParams.set('pin', options.pin);
+  }
+  if (options?.viewer?.trim()) {
+    requestUrl.searchParams.set('viewer', options.viewer.trim());
+  }
+
+  const response = await fetch(requestUrl.toString(), {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(payload?.error || `Failed to download public emergency PDF (${response.status})`) as Error & {
+      pinRequired?: boolean;
+      status?: number;
+    };
+    error.pinRequired = Boolean(payload?.pinRequired);
+    error.status = response.status;
+    throw error;
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = 'emergency-share-card.pdf';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+};

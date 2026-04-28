@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { ChevronLeft, Mail, Plus, Users } from 'lucide-react';
+import { ChevronLeft, Mail, MessageCircle, Plus, Users } from 'lucide-react';
 import {
   type FamilySharingRole,
   sendFamilySharingInvite,
@@ -12,6 +12,7 @@ import {
   updateFamilyMemberRole,
 } from '@/lib/family-sharing-service';
 import { useAuthStore } from '@/app/AppContext';
+import { CareTeamChat } from './CareTeamChat';
 
 interface FamilySharingProps {
   babyId?: string;
@@ -167,9 +168,10 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="accepted" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="accepted">Accepted ({acceptedMembers.length})</TabsTrigger>
               <TabsTrigger value="pending">Pending ({pendingMembers.length})</TabsTrigger>
+              <TabsTrigger value="chat">Chat</TabsTrigger>
             </TabsList>
 
             <TabsContent value="accepted" className="space-y-2 mt-3">
@@ -238,6 +240,32 @@ export function FamilySharing({ babyId, babyName, onBack }: FamilySharingProps) 
                   </Card>
                 ))
               )}
+            </TabsContent>
+
+            <TabsContent value="chat" className="space-y-3 mt-3">
+              <Card className="border border-dashed border-border-gray dark:border-zinc-800">
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-2xl bg-secondary/10 p-2 text-secondary">
+                      <MessageCircle className="h-4 w-4" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Shared care thread for {resolvedBabyName}</p>
+                      <p className="text-xs text-text-light">
+                        Leave updates, reminders, and care instructions here for everyone who has access to this baby
+                        profile.
+                      </p>
+                      <p className="text-xs text-text-light">
+                        {acceptedMembers.length > 0
+                          ? `${acceptedMembers.length} accepted team member${acceptedMembers.length === 1 ? '' : 's'} can read this thread now.`
+                          : 'No invite has been accepted yet, but messages you post will be ready once a care team member joins.'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {resolvedBabyId ? <CareTeamChat babyId={resolvedBabyId} babyName={resolvedBabyName} /> : null}
             </TabsContent>
           </Tabs>
         </CardContent>

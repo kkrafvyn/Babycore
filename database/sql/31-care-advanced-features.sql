@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS public.care_approval_requests (
   request_type TEXT NOT NULL CHECK (
     request_type IN (
       'medication_edit',
+      'medication_schedule_edit',
       'medication_log',
       'health_record_edit',
       'growth_edit',
@@ -560,4 +561,3 @@ ON public.clinic_report_templates
 FOR ALL
 USING (doctor_id = auth.uid())
 WITH CHECK (doctor_id = auth.uid());
-

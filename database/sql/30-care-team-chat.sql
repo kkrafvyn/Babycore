@@ -18,6 +18,26 @@ CREATE INDEX IF NOT EXISTS idx_care_team_messages_created_at ON public.care_team
 
 ALTER TABLE public.care_team_messages ENABLE ROW LEVEL SECURITY;
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_publication
+    WHERE pubname = 'supabase_realtime'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_rel pr
+    JOIN pg_publication p ON p.oid = pr.prpubid
+    JOIN pg_class c ON c.oid = pr.prrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE p.pubname = 'supabase_realtime'
+      AND n.nspname = 'public'
+      AND c.relname = 'care_team_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.care_team_messages;
+  END IF;
+END $$;
+
 DROP POLICY IF EXISTS "Care team members can read chat" ON public.care_team_messages;
 CREATE POLICY "Care team members can read chat"
 ON public.care_team_messages

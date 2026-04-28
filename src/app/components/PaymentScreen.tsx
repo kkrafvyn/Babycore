@@ -10,7 +10,13 @@ import {
 } from '../../lib/payment-manager';
 import { initializePaystack } from '../../lib/paystack';
 import { i18nT } from '../../lib/i18n';
-import { finalizePremiumPayment } from '../../lib/payment-api';
+import {
+  finalizePremiumPayment,
+  getBillingHistory,
+  recoverFailedPayment,
+  savePaymentEvent,
+  type BillingEventRecord,
+} from '../../lib/payment-api';
 
 const MotionDiv = motion.div as any;
 const MotionButton = motion.button as any;
@@ -19,6 +25,43 @@ interface PaymentScreenProps {
   onBack: () => void;
   onSuccess?: () => void;
 }
+
+const formatTimestamp = (value?: string | null): string => {
+  if (!value) return 'Unknown time';
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? 'Unknown time' : timestamp.toLocaleString();
+};
+
+const formatBillingAmount = (entry: BillingEventRecord, fallbackCurrency: string): string => {
+  const amount = Number(entry.amount || 0);
+  return `${entry.currency || fallbackCurrency} ${amount.toFixed(2)}`;
+};
+
+const getRecoveryBadgeClass = (status?: string | null): string => {
+  switch (status) {
+    case 'recovered':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300';
+    case 'retry_scheduled':
+    case 'retrying':
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300';
+    case 'abandoned':
+      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300';
+    default:
+      return 'border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900';
+  }
+};
+
+const getStatusToneClass = (status?: string | null): string => {
+  switch (status) {
+    case 'reconciled':
+    case 'success':
+      return 'text-emerald-600 dark:text-emerald-300';
+    case 'failed':
+      return 'text-rose-600 dark:text-rose-300';
+    default:
+      return 'text-text-dim';
+  }
+};
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess }) => {
   const { user, currentBaby, updateSettings } = useAppContext();
@@ -34,6 +77,30 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [billingHistory, setBillingHistory] = useState<BillingEventRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [recoveringRef, setRecoveringRef] = useState<string | null>(null);
+  const billingSummary = useMemo(
+    () =>
+      billingHistory.reduce(
+        (acc, entry) => {
+          acc.total += 1;
+          if (entry.status === 'failed') acc.failed += 1;
+          if (entry.recovery_status === 'retry_scheduled' || entry.recovery_status === 'retrying') acc.retrying += 1;
+          if (entry.recovery_status === 'recovered') acc.recovered += 1;
+          if (entry.recovery_status === 'abandoned') acc.abandoned += 1;
+          return acc;
+        },
+        {
+          total: 0,
+          failed: 0,
+          retrying: 0,
+          recovered: 0,
+          abandoned: 0,
+        },
+      ),
+    [billingHistory],
+  );
 
   const selectedPlanData = useMemo(
     () => paystackPlans.find((plan) => plan.id === selectedPlan) || paystackPlans[0],
@@ -69,6 +136,22 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     }
   }, [paystackPublicKey]);
 
+  const loadBillingHistoryData = React.useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const history = await getBillingHistory(20);
+      setBillingHistory(history);
+    } catch (err) {
+      console.warn('Failed to load billing history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadBillingHistoryData();
+  }, [loadBillingHistoryData]);
+
   const handlePayment = async () => {
     if (!user?.email || !selectedPlanData || !firstName.trim() || !lastName.trim()) {
       setError(i18nT('payment.fillRequired', 'Please fill in all required fields'));
@@ -77,6 +160,17 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
     setLoading(true);
     setError(null);
+    let processedPayment:
+      | {
+          reference: string;
+          provider?: string;
+          amount: number;
+          currency: any;
+          planId: string;
+          planName: string;
+          countryCode?: string;
+        }
+      | null = null;
 
     try {
       const plan = selectedPlanData;
@@ -91,6 +185,20 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
         user.id,
         amount,
       );
+      processedPayment = paymentResult;
+
+      await savePaymentEvent({
+        reference: paymentResult.reference,
+        provider: paymentResult.provider,
+        eventType: 'client_checkout_success',
+        status: 'pending',
+        amount: paymentResult.amount,
+        currency: paymentResult.currency,
+        planId: paymentResult.planId,
+        planName: paymentResult.planName,
+        countryCode: paymentResult.countryCode,
+        customerEmail: user.email,
+      });
 
       await finalizePremiumPayment({
         reference: paymentResult.reference,
@@ -108,47 +216,104 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
         subscriptionStartDate: new Date().toISOString(),
       });
 
+      await savePaymentEvent({
+        reference: paymentResult.reference,
+        provider: paymentResult.provider,
+        eventType: 'client_finalize_success',
+        status: 'success',
+        amount: paymentResult.amount,
+        currency: paymentResult.currency,
+        planId: paymentResult.planId,
+        planName: paymentResult.planName,
+        countryCode: paymentResult.countryCode,
+        customerEmail: user.email,
+        verifiedAt: new Date().toISOString(),
+        recoveryStatus: 'not_needed',
+      });
+
       onSuccess?.();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Payment failed. Please try again.';
       setError(errorMessage);
       console.error('Payment error:', err);
+
+      if (processedPayment?.reference) {
+        try {
+          await savePaymentEvent({
+            reference: processedPayment.reference,
+            provider: processedPayment.provider || 'paystack',
+            eventType: 'client_finalize_failed',
+            status: 'failed',
+            amount: processedPayment.amount,
+            currency: processedPayment.currency,
+            planId: processedPayment.planId,
+            planName: processedPayment.planName,
+            countryCode: processedPayment.countryCode,
+            customerEmail: user.email,
+            errorMessage,
+            failureSource: 'client_finalize',
+            recoveryStatus: 'eligible',
+          });
+        } catch (saveErr) {
+          console.warn('Failed to persist failed payment event:', saveErr);
+        }
+      }
     } finally {
       setLoading(false);
+      void loadBillingHistoryData();
+    }
+  };
+
+  const handleRecoverPayment = async (reference: string) => {
+    setRecoveringRef(reference);
+    try {
+      const result = await recoverFailedPayment(reference);
+      if (result.recovered) {
+        await updateSettings({
+          subscriptionStatus: 'active',
+          subscriptionStartDate: new Date().toISOString(),
+        });
+      }
+      alert(result.message || 'Recovery request completed.');
+      await loadBillingHistoryData();
+    } catch (err: any) {
+      alert(err?.message || 'Recovery failed.');
+    } finally {
+      setRecoveringRef(null);
     }
   };
 
   return (
     <div className="fit-screen bg-background">
-      <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl h-20 px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
+      <header className="fixed top-0 z-50 flex h-20 w-full items-center justify-between border-b border-border-gray bg-background/80 px-8 backdrop-blur-xl dark:border-zinc-800/50">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 -ml-2 text-primary dark:text-zinc-400 hover:scale-110 active:scale-95 transition-all"
+            className="p-2 -ml-2 text-primary transition-all hover:scale-110 active:scale-95 dark:text-zinc-400"
           >
             <ChevronLeft size={24} />
           </button>
-          <span className="text-xl font-headline font-black text-foreground tracking-tight">
+          <span className="text-xl font-headline font-black tracking-tight text-foreground">
             {i18nT('payment.title')}
           </span>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-32">
-        <div className="max-w-md mx-auto w-full space-y-10">
+      <main className="flex-1 overflow-y-auto no-scrollbar px-6 pb-32 pt-24">
+        <div className="mx-auto w-full max-w-md space-y-10">
           {error && (
             <MotionDiv
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-6 bg-error/10 border border-error/20 rounded-[2rem] flex items-start gap-4"
+              className="flex items-start gap-4 rounded-[2rem] border border-error/20 bg-error/10 p-6"
             >
-              <AlertCircle className="text-error shrink-0" size={20} />
-              <p className="text-xs font-bold text-error leading-relaxed">{error}</p>
+              <AlertCircle className="shrink-0 text-error" size={20} />
+              <p className="text-xs font-bold leading-relaxed text-error">{error}</p>
             </MotionDiv>
           )}
 
           <div className="space-y-6">
-            <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-2">
+            <h3 className="px-2 text-[10px] font-black uppercase tracking-[0.3em] text-text-light">
               Access Architecture
             </h3>
             <div className="space-y-4">
@@ -156,31 +321,33 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 <MotionButton
                   key={plan.id}
                   onClick={() => setSelectedPlan(plan.id)}
-                  className={`w-full p-8 rounded-[3rem] border transition-all text-left relative overflow-hidden group ${
+                  className={`group relative w-full overflow-hidden rounded-[3rem] border p-8 text-left transition-all ${
                     selectedPlan === plan.id
-                      ? 'bg-surface border-secondary shadow-xl'
-                      : 'bg-surface border-border-gray dark:border-zinc-800 hover:border-text-light/30'
+                      ? 'border-secondary bg-surface shadow-xl'
+                      : 'border-border-gray bg-surface hover:border-text-light/30 dark:border-zinc-800'
                   }`}
                 >
-                  <div className="flex items-start justify-between relative z-10">
+                  <div className="relative z-10 flex items-start justify-between">
                     <div className="space-y-1">
                       <h3
-                        className={`font-headline font-black text-xl tracking-tight ${
+                        className={`text-xl font-headline font-black tracking-tight ${
                           selectedPlan === plan.id ? 'text-foreground' : 'text-text-light'
                         }`}
                       >
                         {plan.name}
                       </h3>
-                      <p className="text-[11px] font-bold text-text-dim leading-tight">{plan.description}</p>
+                      <p className="text-[11px] font-bold leading-tight text-text-dim">
+                        {plan.description}
+                      </p>
                     </div>
                     {selectedPlan === plan.id && (
-                      <div className="w-10 h-10 rounded-full bg-secondary text-white flex items-center justify-center shadow-lg">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-white shadow-lg">
                         <Check size={18} strokeWidth={3} />
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-8 flex items-baseline gap-2 relative z-10">
+                  <div className="relative z-10 mt-8 flex items-baseline gap-2">
                     <span
                       className={`text-4xl font-headline font-black tracking-tighter ${
                         selectedPlan === plan.id ? 'text-foreground' : 'text-text-light'
@@ -193,11 +360,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                     </span>
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-border-gray dark:border-zinc-800/50 flex gap-3 overflow-x-auto pb-1 no-scrollbar relative z-10">
+                  <div className="relative z-10 mt-8 flex gap-3 overflow-x-auto border-t border-border-gray pb-1 pt-6 no-scrollbar dark:border-zinc-800/50">
                     {plan.features.slice(0, 3).map((feature, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-2 flex-shrink-0 bg-surface-gray dark:bg-zinc-800/50 px-4 py-2 rounded-full border border-border-gray/30"
+                        className="flex shrink-0 items-center gap-2 rounded-full border border-border-gray/30 bg-surface-gray px-4 py-2 dark:bg-zinc-800/50"
                       >
                         <Check size={10} className="text-secondary" strokeWidth={4} />
                         <span className="text-[9px] font-black uppercase tracking-widest text-text-dim">
@@ -211,15 +378,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             </div>
           </div>
 
-
           <div className="space-y-6">
-            <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-2">
+            <h3 className="px-2 text-[10px] font-black uppercase tracking-[0.3em] text-text-light">
               Patron Identity
             </h3>
-            <div className="bg-surface rounded-[3rem] p-10 border border-border-gray dark:border-zinc-800 shadow-sm space-y-8">
+            <div className="space-y-8 rounded-[3rem] border border-border-gray bg-surface p-10 shadow-sm dark:border-zinc-800">
               <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-text-dim uppercase tracking-[0.2em] px-2">
+                  <label className="px-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-dim">
                     First Name
                   </label>
                   <input
@@ -231,7 +397,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-text-dim uppercase tracking-[0.2em] px-2">
+                  <label className="px-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-dim">
                     Last Name
                   </label>
                   <input
@@ -243,7 +409,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-text-dim uppercase tracking-[0.2em] px-2">
+                  <label className="px-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-dim">
                     Channel Contact
                   </label>
                   <input
@@ -255,44 +421,175 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-text-dim uppercase tracking-[0.2em] px-2">
+                  <label className="px-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-dim">
                     Encrypted Vault Email
                   </label>
-                  <input type="email" value={user?.email || ''} disabled className="input-onboarding opacity-40 cursor-not-allowed" />
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="input-onboarding cursor-not-allowed opacity-40"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-secondary p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[3rem] bg-secondary p-10 text-white shadow-2xl">
+            <div className="absolute right-0 top-0 h-48 w-48 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
             <div className="relative z-10 space-y-6">
-              <div className="flex justify-between items-end">
+              <div className="flex items-end justify-between">
                 <div className="space-y-1">
                   <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-50">Grand Total</p>
-                  <h4 className="text-2xl font-headline font-black tracking-tight">{selectedPlanData?.name}</h4>
+                  <h4 className="text-2xl font-headline font-black tracking-tight">
+                    {selectedPlanData?.name}
+                  </h4>
                 </div>
                 <p className="text-4xl font-headline font-black tracking-tighter">
                   {paystackLocationConfig.currency} {formatAmount(amount)}
                 </p>
               </div>
-              <div className="h-px bg-white/10 w-full" />
-              <p className="text-[10px] font-bold text-white/70 leading-relaxed italic">
+              <div className="h-px w-full bg-white/10" />
+              <p className="text-[10px] font-bold italic leading-relaxed text-white/70">
                 Secure Paystack checkout with location-aware card and mobile money channels.
               </p>
             </div>
           </div>
+
+          <div className="space-y-3 rounded-[2rem] border border-border-gray bg-surface p-5 dark:border-zinc-800">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                Billing History
+              </p>
+              <span className="text-[10px] font-bold text-text-dim">
+                {loadingHistory ? 'Loading...' : `${billingHistory.length} records`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { label: 'Failed', value: billingSummary.failed },
+                { label: 'Retrying', value: billingSummary.retrying },
+                { label: 'Recovered', value: billingSummary.recovered },
+                { label: 'Abandoned', value: billingSummary.abandoned },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-border-gray bg-surface-gray px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  <p className="text-[9px] font-black uppercase tracking-widest text-text-light">{item.label}</p>
+                  <p className="mt-1 text-lg font-headline font-black text-foreground">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {(billingHistory || []).slice(0, 8).map((entry) => (
+              <div key={entry.id} className="rounded-xl border border-border-gray p-3 dark:border-zinc-700">
+                <p className="text-xs font-black text-foreground">{entry.plan_name || 'Premium Access'}</p>
+                <p className={`mt-1 text-[11px] font-semibold ${getStatusToneClass(entry.status)}`}>
+                  {formatBillingAmount(entry, paystackLocationConfig.currency)} | {entry.status}
+                </p>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryBadgeClass(
+                      entry.recovery_status,
+                    )}`}
+                  >
+                    {entry.recovery_status || 'not_needed'}
+                  </span>
+                  {typeof entry.retry_count === 'number' && entry.retry_count > 0 && (
+                    <span className="rounded-full bg-surface-gray px-2 py-1 text-[10px] font-black uppercase tracking-wider text-text-dim dark:bg-zinc-900">
+                      {entry.retry_count} retries
+                    </span>
+                  )}
+                  {entry.provider && (
+                    <span className="rounded-full bg-surface-gray px-2 py-1 text-[10px] font-black uppercase tracking-wider text-text-dim dark:bg-zinc-900">
+                      {entry.provider}
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-1 text-[10px] font-semibold text-text-dim">
+                  {entry.reference} | {formatTimestamp(entry.attempted_at)}
+                </p>
+
+                {entry.error_message && (
+                  <p className="mt-2 text-[10px] font-semibold text-rose-600 dark:text-rose-300">
+                    {entry.error_message}
+                  </p>
+                )}
+
+                {(entry.failure_code || entry.failure_source) && (
+                  <p className="mt-1 text-[10px] font-semibold text-text-dim">
+                    {entry.failure_code || 'failure'} | {entry.failure_source || 'gateway'}
+                  </p>
+                )}
+
+                {(entry.verified_at || entry.recovered_at || entry.next_retry_at) && (
+                  <div className="mt-2 space-y-1">
+                    {entry.verified_at && (
+                      <p className="text-[10px] font-semibold text-text-dim">
+                        Verified {formatTimestamp(entry.verified_at)}
+                      </p>
+                    )}
+                    {entry.recovered_at && (
+                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
+                        Recovered {formatTimestamp(entry.recovered_at)}
+                      </p>
+                    )}
+                    {entry.next_retry_at && entry.status === 'failed' && (
+                      <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                        Next retry {formatTimestamp(entry.next_retry_at)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {entry.payment_event_transitions?.length ? (
+                  <div className="mt-2 rounded-lg border border-border-gray bg-surface-gray p-2 dark:border-zinc-700 dark:bg-zinc-900">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-text-light">
+                      Recovery Timeline
+                    </p>
+                    {entry.payment_event_transitions.slice(0, 3).map((transition) => (
+                      <p key={transition.id} className="mt-1 text-[10px] font-semibold text-text-dim">
+                        {transition.event_type}
+                        {' -> '}
+                        {transition.new_status}
+                        {' | '}
+                        {formatTimestamp(transition.created_at)}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                {entry.status === 'failed' && entry.recovery_status !== 'abandoned' && (
+                  <button
+                    onClick={() => handleRecoverPayment(entry.reference)}
+                    disabled={recoveringRef === entry.reference}
+                    className="mt-2 h-8 rounded-lg bg-secondary px-3 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
+                  >
+                    {recoveringRef === entry.reference ? 'Recovering...' : 'Recover Payment'}
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {!loadingHistory && billingHistory.length === 0 && (
+              <p className="text-xs font-semibold text-text-dim">No billing events yet.</p>
+            )}
+          </div>
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-xl border-t border-border-gray dark:border-zinc-800 p-8 z-50">
-        <div className="max-w-md mx-auto">
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border-gray bg-background/80 p-8 backdrop-blur-xl dark:border-zinc-800">
+        <div className="mx-auto max-w-md">
           <MotionButton
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handlePayment}
             disabled={loading || !selectedPlanData}
-            className="w-full h-20 bg-secondary text-white py-6 rounded-full font-headline font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-secondary/30 transition-all disabled:opacity-50 flex items-center justify-center gap-4"
+            className="flex h-20 w-full items-center justify-center gap-4 rounded-full bg-secondary py-6 font-headline text-xs font-black uppercase tracking-[0.3em] text-white shadow-2xl shadow-secondary/30 transition-all disabled:opacity-50"
           >
             {loading ? (
               <>
@@ -302,7 +599,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             ) : (
               <>
                 <span>{i18nT('payment.payNow')}</span>
-                <div className="w-px h-4 bg-white/20" />
+                <div className="h-4 w-px bg-white/20" />
                 <span>
                   {paystackLocationConfig.currency} {formatAmount(amount)}
                 </span>
