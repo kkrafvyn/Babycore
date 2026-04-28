@@ -262,3 +262,56 @@
     letter-spacing: 0.12em !important;
   }
 }
+
+/* Desktop web refinement: avoid "stretched phone" look on large screens */
+@media (min-width: 1024px) {
+  .fit-screen {
+    background-image:
+      radial-gradient(1200px 520px at 8% -10%, rgba(69, 98, 125, 0.12), transparent 58%),
+      radial-gradient(900px 420px at 100% -5%, rgba(94, 95, 97, 0.08), transparent 62%);
+    background-attachment: fixed;
+  }
+
+  .dark .fit-screen {
+    background-image:
+      radial-gradient(1200px 520px at 8% -10%, rgba(69, 98, 125, 0.22), transparent 58%),
+      radial-gradient(900px 420px at 100% -5%, rgba(255, 255, 255, 0.04), transparent 62%);
+  }
+
+  .fit-screen > main {
+    padding-left: clamp(1.25rem, 2.2vw, 2.5rem) !important;
+    padding-right: clamp(1.25rem, 2.2vw, 2.5rem) !important;
+  }
+
+  .fit-screen > main > .max-w-sm {
+    max-width: min(40rem, 100%) !important;
+  }
+
+  .fit-screen > main > .max-w-md {
+    max-width: min(56rem, 100%) !important;
+  }
+
+  .fit-screen > main > .max-w-xl {
+    max-width: min(70rem, 100%) !important;
+  }
+
+  .fit-screen > main > .max-w-2xl {
+    max-width: min(76rem, 100%) !important;
+  }
+
+  .fit-screen > main > .max-w-3xl {
+    max-width: min(82rem, 100%) !important;
+  }
+
+  .fit-screen > main > .max-w-4xl {
+    max-width: min(88rem, 100%) !important;
+  }
+
+  .fit-screen > main .rounded-\[3\.5rem\] {
+    border-radius: 2.25rem !important;
+  }
+
+  .fit-screen > main .rounded-\[3rem\] {
+    border-radius: 2rem !important;
+  }
+}

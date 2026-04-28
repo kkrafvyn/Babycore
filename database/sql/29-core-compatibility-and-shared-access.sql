@@ -9,6 +9,79 @@
 -- ----------------------------------------------------------------------------
 -- Missing core data tables used by sync/export/journal features
 -- ----------------------------------------------------------------------------
+-- Ensure base core tables exist even if DATABASE_SCHEMA.sql was skipped after a reset.
+CREATE TABLE IF NOT EXISTS public.sleep_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  duration INTEGER NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.feed_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('breast', 'bottle', 'solids')),
+  left_duration INTEGER,
+  right_duration INTEGER,
+  amount NUMERIC,
+  milk_type TEXT CHECK (milk_type IN ('breast', 'formula', 'other')),
+  food_description TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.diaper_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('wet', 'dirty', 'both')),
+  color TEXT,
+  consistency TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.growth_measurements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  weight NUMERIC,
+  height NUMERIC,
+  head_circumference NUMERIC,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.vaccination_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  vaccine_name TEXT NOT NULL,
+  due_date DATE NOT NULL,
+  given_date DATE,
+  status TEXT NOT NULL CHECK (status IN ('scheduled', 'given', 'overdue', 'skipped')),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sleep_logs_baby_id ON public.sleep_logs(baby_id);
+CREATE INDEX IF NOT EXISTS idx_sleep_logs_start_time ON public.sleep_logs(start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_logs_baby_id ON public.feed_logs(baby_id);
+CREATE INDEX IF NOT EXISTS idx_feed_logs_timestamp ON public.feed_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_diaper_logs_baby_id ON public.diaper_logs(baby_id);
+CREATE INDEX IF NOT EXISTS idx_diaper_logs_timestamp ON public.diaper_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_growth_measurements_baby_id ON public.growth_measurements(baby_id);
+CREATE INDEX IF NOT EXISTS idx_growth_measurements_date ON public.growth_measurements(date DESC);
+CREATE INDEX IF NOT EXISTS idx_vaccination_records_baby_id ON public.vaccination_records(baby_id);
+CREATE INDEX IF NOT EXISTS idx_vaccination_records_due_date ON public.vaccination_records(due_date);
+
 CREATE TABLE IF NOT EXISTS public.milestones (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
@@ -216,6 +289,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Shared users can insert sleep logs" ON public.sleep_logs;
 CREATE POLICY "Shared users can insert sleep logs"
 ON public.sleep_logs
 FOR INSERT
@@ -240,6 +314,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Shared users can view sleep logs" ON public.sleep_logs;
 CREATE POLICY "Shared users can view sleep logs"
 ON public.sleep_logs
 FOR SELECT
@@ -263,6 +338,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Shared users can update sleep logs" ON public.sleep_logs;
 CREATE POLICY "Shared users can update sleep logs"
 ON public.sleep_logs
 FOR UPDATE
@@ -287,6 +363,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Shared users can delete sleep logs" ON public.sleep_logs;
 CREATE POLICY "Shared users can delete sleep logs"
 ON public.sleep_logs
 FOR DELETE

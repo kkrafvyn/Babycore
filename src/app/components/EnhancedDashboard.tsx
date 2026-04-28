@@ -165,6 +165,31 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'voice-logging',
     'doctor-reports',
   ]);
+  const viewsWithEmbeddedHeader = new Set<ViewMode>([
+    'journal',
+    'growth',
+    'settings',
+    'logs',
+    'partner-sync',
+    'health',
+    'memories',
+    'timeline',
+    'insights',
+    'predictor',
+    'tips',
+    'photos',
+    'baby-journal',
+    'report',
+    'sleep-training',
+    'white-noise',
+    'achievements',
+    'reminders',
+    'compare',
+    'scrapbook',
+    'payment',
+    'admin',
+  ]);
+  const showShellHeader = !viewsWithEmbeddedHeader.has(activeView);
 
   const openView = (view: ViewMode, label?: string) => {
     const premiumFeature = PREMIUM_FEATURE_BY_VIEW[view];
@@ -725,7 +750,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
   return (
     <>
-      <AppLayout activeNav={viewToNav[activeView] ?? 'home'} onNavChange={handleNavChange}>
+      <AppLayout
+        activeNav={viewToNav[activeView] ?? 'home'}
+        onNavChange={handleNavChange}
+        showTopHeader={showShellHeader}
+      >
         <React.Suspense fallback={<ViewLoader />}>{renderContent()}</React.Suspense>
       </AppLayout>
       {paywallFeature && (

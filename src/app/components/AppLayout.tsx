@@ -14,6 +14,7 @@ interface AppLayoutProps {
   children: React.ReactNode;
   activeNav?: 'home' | 'logs' | 'growth' | 'settings' | 'journal';
   onNavChange?: (navId: string) => void;
+  showTopHeader?: boolean;
 }
 
 const MotionDiv = motion.div as any;
@@ -22,6 +23,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   activeNav = 'home',
   onNavChange,
+  showTopHeader = true,
 }) => {
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = React.useState(false);
@@ -85,43 +87,49 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <div className="fit-screen bg-background">
       {/* Top Header */}
-      <header className="fixed top-0 w-full z-50 bg-background/85 backdrop-blur-xl h-16 sm:h-20 px-3 sm:px-6 md:px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-gray dark:bg-zinc-800 flex items-center justify-center overflow-hidden border border-border-gray dark:border-zinc-700 shadow-inner shrink-0">
-             <img src="/logo.png" alt="BabyLog" className="w-full h-full object-contain" />
-          </div>
-          <span className="text-lg sm:text-xl font-headline font-black text-foreground tracking-tight truncate">BabyLog</span>
-        </div>
-        
-        <div className="flex items-center gap-2 sm:gap-5">
-           {/* Theme Toggle */}
-           <button
-             onClick={toggleTheme}
-             aria-label="Toggle theme"
-             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-gray dark:bg-zinc-800 flex items-center justify-center border border-border-gray dark:border-zinc-700 hover:scale-105 active:scale-90 transition-all shadow-sm"
-           >
-             {isDark
-               ? <Sun size={16} className="text-amber-400 sm:h-[18px] sm:w-[18px]" />
-               : <Moon size={16} className="text-secondary sm:h-[18px] sm:w-[18px]" />
-             }
-           </button>
+      {showTopHeader && (
+        <header className="fixed top-0 w-full z-50 h-16 sm:h-20 border-b border-border-gray bg-background/85 backdrop-blur-xl dark:border-zinc-800/50">
+          <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-3 sm:px-6 md:px-12 lg:px-16 lg:pl-28">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-gray bg-surface-gray shadow-inner dark:border-zinc-700 dark:bg-zinc-800 sm:h-10 sm:w-10">
+                <img src="/logo.png" alt="BabyLog" className="h-full w-full object-contain" />
+              </div>
+              <span className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">BabyLog</span>
+            </div>
 
-           {/* Notification Bell */}
-           <button 
-             onClick={handleOpenNotifications}
-             className="relative p-1.5 sm:p-2 sm:-mr-1 hover:scale-105 active:scale-90 transition-all group"
-           >
-              <Bell size={20} className="text-foreground group-hover:text-secondary sm:h-6 sm:w-6" />
-              {unreadCount > 0 && (
-                <div className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 bg-error rounded-full border-2 border-white dark:border-background flex items-center justify-center">
-                   <span className="text-[8px] font-black text-white leading-none">
-                     {unreadCount > 99 ? '99+' : unreadCount}
-                   </span>
-                </div>
-              )}
-           </button>
-        </div>
-      </header>
+            <div className="flex items-center gap-2 sm:gap-5">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+                className="h-9 w-9 rounded-full border border-border-gray bg-surface-gray shadow-sm transition-all hover:scale-105 active:scale-90 dark:border-zinc-700 dark:bg-zinc-800 sm:h-10 sm:w-10"
+              >
+                <span className="flex h-full w-full items-center justify-center">
+                  {isDark
+                    ? <Sun size={16} className="text-amber-400 sm:h-[18px] sm:w-[18px]" />
+                    : <Moon size={16} className="text-secondary sm:h-[18px] sm:w-[18px]" />
+                  }
+                </span>
+              </button>
+
+              {/* Notification Bell */}
+              <button
+                onClick={handleOpenNotifications}
+                className="group relative p-1.5 transition-all hover:scale-105 active:scale-90 sm:-mr-1 sm:p-2"
+              >
+                <Bell size={20} className="text-foreground group-hover:text-secondary sm:h-6 sm:w-6" />
+                {unreadCount > 0 && (
+                  <div className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full border-2 border-white bg-error px-1 dark:border-background">
+                    <span className="text-[8px] font-black leading-none text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
 
       {/* Notification Drawer */}
       <AnimatePresence>
@@ -191,14 +199,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-16 sm:pt-20 pb-24 sm:pb-28">
-        <div className="max-w-4xl mx-auto px-3 sm:px-6 md:px-12 py-5 sm:py-8">
+      <main
+        className={`flex-1 overflow-y-auto no-scrollbar pb-24 sm:pb-28 lg:pb-10 ${
+          showTopHeader ? 'pt-16 sm:pt-20' : 'pt-0'
+        }`}
+      >
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 md:px-12 lg:px-16 py-5 sm:py-8 lg:py-10 lg:pl-28">
            {children}
         </div>
       </main>
 
       {/* Floating Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-[max(0.6rem,env(safe-area-inset-bottom))] px-2 sm:px-4 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-[max(0.6rem,env(safe-area-inset-bottom))] px-2 sm:px-4 flex justify-center lg:hidden">
          <nav className="pointer-events-auto h-16 sm:h-20 bg-[#1a1a1a]/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-[1.9rem] sm:rounded-[2.5rem] flex items-center justify-between gap-1 px-2 sm:px-3 shadow-2xl border border-white/10 max-w-lg w-full">
            {navItems.map((item) => (
              <button
@@ -216,6 +228,36 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
            ))}
          </nav>
       </div>
+
+      {/* Desktop Side Navigation */}
+      <aside className="fixed left-6 top-1/2 z-40 hidden -translate-y-1/2 lg:block">
+        <nav className="w-20 rounded-[2rem] border border-border-gray bg-surface/90 p-2 backdrop-blur-xl shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/90">
+          <div className="flex flex-col gap-2">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onNavChange?.(item.id)}
+                className={`group flex h-14 w-full flex-col items-center justify-center rounded-2xl transition-all ${
+                  activeNav === item.id
+                    ? 'bg-secondary text-white shadow-lg shadow-secondary/25'
+                    : 'text-text-dim hover:bg-surface-gray dark:hover:bg-zinc-800'
+                }`}
+                aria-label={item.label}
+                title={item.label}
+              >
+                <item.icon size={18} strokeWidth={activeNav === item.id ? 2.5 : 2} />
+                <span
+                  className={`mt-1 text-[9px] font-black tracking-[0.14em] ${
+                    activeNav === item.id ? 'text-white' : 'text-text-light group-hover:text-foreground'
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      </aside>
     </div>
   );
 };
