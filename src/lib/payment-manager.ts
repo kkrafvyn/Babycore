@@ -24,6 +24,22 @@ export interface SubscriptionPlan {
   planCode?: string; // For subscription plans
 }
 
+export const resolveSubscriptionPlanAmount = (plan?: SubscriptionPlan): number => {
+  if (!plan) return 0;
+
+  const planId = String(plan.id || '').toLowerCase();
+  const monthly = Number(plan.monthlyPrice || 0);
+  const yearly = Number(plan.yearlyPrice || 0);
+
+  if (planId.includes('year')) return yearly > 0 ? yearly : monthly;
+  if (planId.includes('month')) return monthly > 0 ? monthly : yearly;
+
+  if (monthly > 0 && yearly === 0) return monthly;
+  if (yearly > 0 && monthly === 0) return yearly;
+
+  return monthly > 0 ? monthly : yearly;
+};
+
 export interface PaymentOptions {
   provider: PaymentProvider;
   amount: number;
@@ -273,8 +289,13 @@ export class UnifiedPaymentManager {
     phoneNumber?: string,
     countryCode?: string,
     userId?: string,
+    amountOverride?: number,
   ): Promise<ProcessedSubscription> {
-    const amount = plan.monthlyPrice || plan.yearlyPrice;
+    const computedAmount = resolveSubscriptionPlanAmount(plan);
+    const amount =
+      typeof amountOverride === 'number' && Number.isFinite(amountOverride) && amountOverride > 0
+        ? amountOverride
+        : computedAmount;
     const paystackLocationConfig = getPaystackLocationConfig(countryCode);
     const currency: Currency =
       plan.provider === 'paystack' ? paystackLocationConfig.currency : 'USD';

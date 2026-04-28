@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAppContext } from '../AppContext';
 import {
   getPaystackLocationConfig,
+  resolveSubscriptionPlanAmount,
   SUBSCRIPTION_PLANS,
   usePaymentManager,
 } from '../../lib/payment-manager';
@@ -35,14 +36,21 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   const [phoneNumber, setPhoneNumber] = useState('');
 
   const selectedPlanData = useMemo(
-    () => paymentManager.getSubscriptionPlan(selectedPlan),
-    [selectedPlan, paymentManager],
+    () => paystackPlans.find((plan) => plan.id === selectedPlan) || paystackPlans[0],
+    [paystackPlans, selectedPlan],
   );
   const paystackLocationConfig = useMemo(
     () => getPaystackLocationConfig(currentBaby?.country),
     [currentBaby?.country],
   );
-  const amount = selectedPlanData?.monthlyPrice || selectedPlanData?.yearlyPrice || 0;
+  const amount = useMemo(
+    () => resolveSubscriptionPlanAmount(selectedPlanData),
+    [selectedPlanData],
+  );
+  const formatAmount = (value: number): string => {
+    if (!Number.isFinite(value)) return '0';
+    return value % 1 === 0 ? value.toFixed(0) : value.toFixed(2);
+  };
   const paystackPublicKey =
     import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || import.meta.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY || '';
 
@@ -81,6 +89,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
         phoneNumber,
         currentBaby?.country,
         user.id,
+        amount,
       );
 
       await finalizePremiumPayment({
@@ -177,7 +186,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                         selectedPlan === plan.id ? 'text-foreground' : 'text-text-light'
                       }`}
                     >
-                      {paystackLocationConfig.currency} {plan.monthlyPrice || plan.yearlyPrice}
+                      {paystackLocationConfig.currency} {formatAmount(resolveSubscriptionPlanAmount(plan))}
                     </span>
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-dim">
                       /{plan.monthlyPrice ? 'mo' : 'yr'}
@@ -264,7 +273,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                   <h4 className="text-2xl font-headline font-black tracking-tight">{selectedPlanData?.name}</h4>
                 </div>
                 <p className="text-4xl font-headline font-black tracking-tighter">
-                  {paystackLocationConfig.currency} {amount}
+                  {paystackLocationConfig.currency} {formatAmount(amount)}
                 </p>
               </div>
               <div className="h-px bg-white/10 w-full" />
@@ -295,7 +304,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 <span>{i18nT('payment.payNow')}</span>
                 <div className="w-px h-4 bg-white/20" />
                 <span>
-                  {paystackLocationConfig.currency} {amount}
+                  {paystackLocationConfig.currency} {formatAmount(amount)}
                 </span>
               </>
             )}
