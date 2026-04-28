@@ -19,45 +19,78 @@ import {
 } from './lib/onboarding-storage';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { signOut } from './lib/supabase';
+import {
+  type AppView,
+  type PublicRoute,
+  getAppViewFromPathname,
+  getAppViewPath,
+  getPublicRouteFromPathname,
+  getPublicRoutePath,
+  isAppView,
+  normalizePathname,
+} from './lib/app-routing';
 
-type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies';
+type LocationRoute =
+  | {
+      kind: 'public';
+      publicRoute: PublicRoute;
+    }
+  | {
+      kind: 'app';
+      appView: AppView;
+    };
 
 const GUEST_SESSION_KEY = 'babylog_guest_session';
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
 const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
 
-const routeHashes: Record<PublicRoute, string> = {
-  welcome: '#welcome',
-  onboarding: '#onboarding',
-  login: '#login',
-  policies: '#policies',
-};
-
-const getPublicRouteFromHash = (): PublicRoute => {
+const getLegacyRouteFromHash = (): LocationRoute | null => {
   const hash = window.location.hash.toLowerCase();
 
-  switch (hash) {
-    case '#onboarding':
-      return 'onboarding';
-    case '#login':
-      return 'login';
-    case '#policies':
-      return 'policies';
-    default:
-      return 'welcome';
-  }
-};
-
-const navigateToPublicRoute = (route: PublicRoute) => {
-  const nextHash = routeHashes[route];
-
-  if (window.location.hash === nextHash) {
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    return;
+  if (hash === '#onboarding') {
+    return { kind: 'public', publicRoute: 'onboarding' };
   }
 
-  window.location.hash = nextHash;
+  if (hash === '#login') {
+    return { kind: 'public', publicRoute: 'login' };
+  }
+
+  if (hash === '#policies') {
+    return { kind: 'public', publicRoute: 'policies' };
+  }
+
+  if (hash === '#app') {
+    const queryView = new URLSearchParams(window.location.search).get('view');
+    if (queryView && isAppView(queryView)) {
+      return { kind: 'app', appView: queryView };
+    }
+    return { kind: 'app', appView: 'dashboard' };
+  }
+
+  return null;
 };
+
+const getLocationRoute = (): LocationRoute => {
+  const appView = getAppViewFromPathname(window.location.pathname);
+  if (appView) {
+    return { kind: 'app', appView };
+  }
+
+  const publicRoute = getPublicRouteFromPathname(window.location.pathname);
+  if (publicRoute) {
+    return { kind: 'public', publicRoute };
+  }
+
+  const legacyRoute = getLegacyRouteFromHash();
+  if (legacyRoute) {
+    return legacyRoute;
+  }
+
+  return { kind: 'public', publicRoute: 'welcome' };
+};
+
+const getCanonicalPathForRoute = (route: LocationRoute): string =>
+  route.kind === 'app' ? getAppViewPath(route.appView) : getPublicRoutePath(route.publicRoute);
 
 const setAuthModeHint = (mode: 'signin' | 'signup') => {
   if (typeof window === 'undefined') {
@@ -90,29 +123,87 @@ const FullScreenLoader = ({ label }: { label: string }) => (
 function AppShell() {
   const { user, babies, isLoading, refreshBabies } = useAppContext();
   const handledInviteTokenRef = React.useRef<string | null>(null);
+  const [locationRoute, setLocationRoute] = React.useState<LocationRoute>(() => getLocationRoute());
   const [guestSession, setGuestSession] = React.useState(
     () => localStorage.getItem(GUEST_SESSION_KEY) === 'true',
   );
-  const [publicRoute, setPublicRoute] = React.useState<PublicRoute>(() => getPublicRouteFromHash());
   const [isGuestHydrating, setIsGuestHydrating] = React.useState(guestSession);
   const [showMobileSplash, setShowMobileSplash] = React.useState(() => shouldShowMobileSplash());
   const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
 
   const hasSession = Boolean(user) || guestSession;
+  const publicRoute = locationRoute.kind === 'public' ? locationRoute.publicRoute : 'welcome';
+  const appRouteView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
+  const effectivePublicRoute = !hasSession && locationRoute.kind === 'app' ? 'login' : publicRoute;
+
   const cachedOnboardingProfileType = React.useMemo(
     () => getOnboardingCache().profileType,
-    [publicRoute, user?.id, guestSession],
+    [effectivePublicRoute, user?.id, guestSession, appRouteView],
   );
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     cachedOnboardingProfileType;
 
-  React.useEffect(() => {
-    const handleHashChange = () => setPublicRoute(getPublicRouteFromHash());
+  const navigateToPath = React.useCallback(
+    (path: string, options?: { replace?: boolean; preserveSearch?: boolean }) => {
+      const normalizedPath = normalizePathname(path);
+      const nextSearch = options?.preserveSearch ? window.location.search : '';
+      const nextUrl = `${normalizedPath}${nextSearch}`;
+      const currentUrl = `${normalizePathname(window.location.pathname)}${window.location.search}`;
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+      if (nextUrl !== currentUrl) {
+        if (options?.replace) {
+          window.history.replaceState(null, '', nextUrl);
+        } else {
+          window.history.pushState(null, '', nextUrl);
+        }
+      }
+
+      setLocationRoute(getLocationRoute());
+    },
+    [],
+  );
+
+  const navigateToPublicRoute = React.useCallback(
+    (route: PublicRoute, options?: { replace?: boolean; preserveSearch?: boolean }) => {
+      navigateToPath(getPublicRoutePath(route), options);
+    },
+    [navigateToPath],
+  );
+
+  const navigateToAppView = React.useCallback(
+    (view: AppView, options?: { replace?: boolean; preserveSearch?: boolean }) => {
+      navigateToPath(getAppViewPath(view), options);
+    },
+    [navigateToPath],
+  );
+
+  React.useEffect(() => {
+    const handlePopState = () => setLocationRoute(getLocationRoute());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  React.useEffect(() => {
+    if (!window.location.hash) {
+      return;
+    }
+
+    const canonicalPath = getCanonicalPathForRoute(getLocationRoute());
+    const nextUrl = `${canonicalPath}${window.location.search}`;
+    window.history.replaceState(null, '', nextUrl);
+    setLocationRoute(getLocationRoute());
+  }, []);
+
+  React.useEffect(() => {
+    if (!hasSession) {
+      return;
+    }
+
+    if (locationRoute.kind === 'public' && locationRoute.publicRoute !== 'policies') {
+      navigateToAppView('dashboard', { replace: true, preserveSearch: true });
+    }
+  }, [hasSession, locationRoute.kind, locationRoute.kind === 'public' ? locationRoute.publicRoute : null]);
 
   React.useEffect(() => {
     if (!guestSession) {
@@ -140,8 +231,7 @@ function AppShell() {
     }
 
     const view = new URLSearchParams(window.location.search).get('view');
-
-    if (!view) {
+    if (!view || !isAppView(view)) {
       return;
     }
 
@@ -150,7 +240,7 @@ function AppShell() {
     }, 150);
 
     return () => window.clearTimeout(timeoutId);
-  }, [hasSession, user, guestSession]);
+  }, [hasSession, user?.id, guestSession]);
 
   React.useEffect(() => {
     if (!user?.id) {
@@ -171,19 +261,23 @@ function AppShell() {
 
       if (invite) {
         toast.success('Invite accepted. Baby profile added to your list.');
+        await refreshBabies();
 
-        const nextView = params.get('view') || 'patients';
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: nextView } }));
-        }, 140);
+        const nextView = params.get('view');
+        if (nextView && isAppView(nextView)) {
+          window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('nav_deep_link', { detail: { view: nextView } }));
+          }, 140);
+        }
       } else {
         toast.error('This invite link is invalid, expired, or already used.');
       }
 
       params.delete('invite');
       const nextQuery = params.toString();
-      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || '#app'}`;
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`;
       window.history.replaceState(null, '', nextUrl);
+      setLocationRoute(getLocationRoute());
     };
 
     completeInviteAcceptance();
@@ -206,23 +300,23 @@ function AppShell() {
   const handleGuestMode = () => {
     localStorage.setItem(GUEST_SESSION_KEY, 'true');
     setGuestSession(true);
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`);
+    navigateToAppView(appRouteView, { replace: true, preserveSearch: true });
   };
 
   const handleSignOut = async () => {
     if (guestSession) {
       localStorage.removeItem(GUEST_SESSION_KEY);
       setGuestSession(false);
-      navigateToPublicRoute('login');
+      navigateToPublicRoute('login', { replace: true });
       return;
     }
 
     await signOut();
-    navigateToPublicRoute('login');
+    navigateToPublicRoute('login', { replace: true });
   };
 
   const openPolicies = () => {
-    const returnRoute = publicRoute === 'policies' ? 'welcome' : publicRoute;
+    const returnRoute = effectivePublicRoute === 'policies' ? 'welcome' : effectivePublicRoute;
     setPolicyReturnRoute(returnRoute);
     navigateToPublicRoute('policies');
   };
@@ -301,10 +395,10 @@ function AppShell() {
       <LegalPolicies
         onBack={() => {
           if (hasSession) {
-            window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`);
+            navigateToAppView(appRouteView, { replace: true, preserveSearch: true });
             return;
           }
-          navigateToPublicRoute(policyReturnRoute);
+          navigateToPublicRoute(policyReturnRoute, { replace: true });
         }}
       />
     );
@@ -315,17 +409,25 @@ function AppShell() {
       babies.length === 0 && accountProfileType !== 'doctor' && accountProfileType !== 'caregiver';
 
     if (shouldForceBabySetup) {
-      return <Material3AddBaby onBabyAdded={() => window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`)} />;
+      return (
+        <Material3AddBaby
+          onBabyAdded={() => navigateToAppView(appRouteView, { replace: true, preserveSearch: true })}
+        />
+      );
     }
 
     return (
       <PrivacyLock>
-        <EnhancedDashboard onSignOut={handleSignOut} />
+        <EnhancedDashboard
+          requestedView={appRouteView}
+          onViewChange={(view) => navigateToAppView(view, { preserveSearch: true })}
+          onSignOut={handleSignOut}
+        />
       </PrivacyLock>
     );
   }
 
-  if (publicRoute === 'onboarding') {
+  if (effectivePublicRoute === 'onboarding') {
     return (
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
@@ -338,11 +440,12 @@ function AppShell() {
     );
   }
 
-  if (publicRoute === 'login') {
+  if (effectivePublicRoute === 'login') {
     return (
       <AuthScreen
         onSuccess={() => {
-          window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#app`);
+          const nextView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
+          navigateToAppView(nextView, { replace: true, preserveSearch: true });
         }}
         onGuestMode={handleGuestMode}
         onViewPolicies={openPolicies}

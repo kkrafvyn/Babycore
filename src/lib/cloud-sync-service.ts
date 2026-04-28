@@ -172,22 +172,52 @@ export async function pullFromCloud(): Promise<any> {
     const user = await getAuthenticatedUser();
     if (!user) throw new Error('User not authenticated');
 
-    const fetchTable = (table: string, filter?: any) => {
-       let query = supabase.from(table).select('*');
-       if (filter) query = query.match(filter);
-       return query;
-    };
+    const babies = await supabase.from('babies').select('*').match({ user_id: user.id });
+    if (babies.error) {
+      throw babies.error;
+    }
 
-    const [babies, sleepLogs, feedLogs, diaperLogs, growth, vaccine, milestones, memories] = await Promise.all([
-      fetchTable('babies', { user_id: user.id }),
-      fetchTable('sleep_logs'),
-      fetchTable('feed_logs'),
-      fetchTable('diaper_logs'),
-      fetchTable('growth_measurements'),
-      fetchTable('vaccination_records'),
-      fetchTable('milestones'),
-      fetchTable('memories'),
+    const babyIds = (babies.data || []).map((baby: any) => baby.id);
+
+    if (babyIds.length === 0) {
+      return {
+        babies: [],
+        sleepLogs: [],
+        feedLogs: [],
+        diaperLogs: [],
+        growthMeasurements: [],
+        vaccinationRecords: [],
+        milestones: [],
+        memories: [],
+      };
+    }
+
+    const fetchByBabyIds = (table: string) =>
+      supabase.from(table).select('*').in('baby_id', babyIds);
+
+    const [sleepLogs, feedLogs, diaperLogs, growth, vaccine, milestones, memories] = await Promise.all([
+      fetchByBabyIds('sleep_logs'),
+      fetchByBabyIds('feed_logs'),
+      fetchByBabyIds('diaper_logs'),
+      fetchByBabyIds('growth_measurements'),
+      fetchByBabyIds('vaccination_records'),
+      fetchByBabyIds('milestones'),
+      fetchByBabyIds('memories'),
     ]);
+
+    const queryErrors = [
+      sleepLogs.error,
+      feedLogs.error,
+      diaperLogs.error,
+      growth.error,
+      vaccine.error,
+      milestones.error,
+      memories.error,
+    ].filter(Boolean);
+
+    if (queryErrors.length > 0) {
+      throw queryErrors[0];
+    }
 
     return {
       babies: (babies.data || []).map(b => ({
@@ -279,12 +309,15 @@ export async function pullFromCloud(): Promise<any> {
  * Set up real-time sync listener
  */
 export function setupRealtimeSync(callback: (change: any) => void) {
+  const channels: any[] = [];
+  let isDisposed = false;
+
   try {
     getAuthenticatedUser().then((user) => {
-      if (!user) return;
+      if (!user || isDisposed) return;
 
       // Listen to babies changes
-      supabase
+      const babiesChannel = supabase
         .channel('public:babies')
         .on(
           'postgres_changes',
@@ -303,6 +336,7 @@ export function setupRealtimeSync(callback: (change: any) => void) {
           }
         )
         .subscribe();
+      channels.push(babiesChannel);
 
       // Listen to other tables
       const tables = [
@@ -316,7 +350,7 @@ export function setupRealtimeSync(callback: (change: any) => void) {
       ];
 
       tables.forEach((table) => {
-        supabase
+        const tableChannel = supabase
           .channel(`public:${table}`)
           .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
             callback({
@@ -326,9 +360,21 @@ export function setupRealtimeSync(callback: (change: any) => void) {
             });
           })
           .subscribe();
+        channels.push(tableChannel);
       });
     });
   } catch (error) {
     console.error('Error setting up real-time sync:', error);
   }
+
+  return () => {
+    isDisposed = true;
+    channels.forEach((channel) => {
+      try {
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.warn('Failed to remove realtime channel:', error);
+      }
+    });
+  };
 }

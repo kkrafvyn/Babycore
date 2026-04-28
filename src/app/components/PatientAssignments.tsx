@@ -34,7 +34,7 @@ const resolveBabyName = (invite: FamilySharingInvite) =>
   invite.baby_name_snapshot?.trim() || `Baby ${invite.baby_id.slice(0, 8)}`;
 
 export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
-  const { user } = useAuthStore();
+  const { user, refreshBabies } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [pendingInvites, setPendingInvites] = useState<FamilySharingInvite[]>([]);
   const [assignedInvites, setAssignedInvites] = useState<FamilySharingInvite[]>([]);
@@ -70,6 +70,7 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
   const handleAcceptInvite = async (inviteId: string) => {
     setAcceptingInviteId(inviteId);
     await acceptIncomingSharingInvite(inviteId);
+    await refreshBabies();
     await loadInvites();
     setAcceptingInviteId(null);
   };

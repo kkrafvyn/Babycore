@@ -585,7 +585,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                  </div>
                  <button
                    onClick={() => {
-                     window.location.hash = '#policies';
+                     window.history.pushState(null, '', '/policies');
+                     window.dispatchEvent(new PopStateEvent('popstate'));
                    }}
                    className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
                  >

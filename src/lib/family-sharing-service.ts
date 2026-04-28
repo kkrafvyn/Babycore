@@ -365,10 +365,9 @@ export function buildInviteLink(inviteToken: string, view: 'patients' | 'family-
     return `/`;
   }
 
-  const inviteUrl = new URL(window.location.pathname || '/', window.location.origin);
+  const inviteUrl = new URL('/login', window.location.origin);
   inviteUrl.searchParams.set('invite', inviteToken);
   inviteUrl.searchParams.set('view', view);
-  inviteUrl.hash = '#login';
 
   return inviteUrl.toString();
 }
@@ -556,26 +555,71 @@ export async function getIncomingSharingInvites(
 ): Promise<FamilySharingInvite[]> {
   try {
     const userEmail = await getCurrentUserEmail();
-    if (!userEmail) return [];
+    const userId = await getCurrentUserId();
 
-    let query = supabase
-      .from('family_sharing_invites')
-      .select('*')
-      .ilike('invited_email', userEmail)
-      .order('created_at', { ascending: false });
+    if (!userEmail && !userId) return [];
 
-    if (status === 'pending') {
-      query = query.is('accepted_at', null);
+    const queries: any[] = [];
+
+    if (userEmail) {
+      let emailQuery = supabase
+        .from('family_sharing_invites')
+        .select('*')
+        .ilike('invited_email', userEmail)
+        .order('created_at', { ascending: false });
+
+      if (status === 'pending') {
+        emailQuery = emailQuery.is('accepted_at', null);
+      }
+
+      if (status === 'accepted') {
+        emailQuery = emailQuery.not('accepted_at', 'is', null);
+      }
+
+      queries.push(emailQuery);
     }
 
-    if (status === 'accepted') {
-      query = query.not('accepted_at', 'is', null);
+    // Public invite links and accepted shares may not match invited_email,
+    // so include invites accepted by the current account as well.
+    if (userId && status !== 'pending') {
+      let acceptedByQuery = supabase
+        .from('family_sharing_invites')
+        .select('*')
+        .eq('accepted_by', userId)
+        .order('created_at', { ascending: false });
+
+      if (status === 'accepted') {
+        acceptedByQuery = acceptedByQuery.not('accepted_at', 'is', null);
+      }
+
+      if (status === 'all') {
+        acceptedByQuery = acceptedByQuery.not('accepted_at', 'is', null);
+      }
+
+      queries.push(acceptedByQuery);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    const results = await Promise.all(queries);
 
-    return (data || []).map((invite) => ({
+    const combinedRows: any[] = [];
+    for (const result of results) {
+      if (result.error) {
+        console.error('Error fetching incoming sharing invites:', result.error);
+        continue;
+      }
+      combinedRows.push(...(result.data || []));
+    }
+
+    const dedupedById = new Map<string, any>();
+    for (const invite of combinedRows) {
+      dedupedById.set(invite.id, invite);
+    }
+
+    const dedupedRows = Array.from(dedupedById.values()).sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return dedupedRows.map((invite) => ({
       ...invite,
       status: invite.accepted_at ? 'accepted' : 'pending',
     }));

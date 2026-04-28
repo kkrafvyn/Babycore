@@ -55,8 +55,9 @@ import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 import { getCurrentUserRole } from '../../lib/admin-api';
+import type { AppView } from '../../lib/app-routing';
 
-type ViewMode = 'dashboard' | 'journal' | 'logs' | 'growth' | 'settings' | 'feeding' | 'sleep' | 'diaper' | 'vaccination' | 'export' | 'partner-sync' | 'health' | 'memories' | 'timeline' | 'insights' | 'predictor' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'sleep-training' | 'white-noise' | 'achievements' | 'reminders' | 'compare' | 'scrapbook' | 'health-alerts' | 'photo-gallery' | 'advanced-analytics' | 'ai-insights' | 'subscriptions' | 'health-records' | 'community' | 'content-library' | 'wearable' | 'family-sharing' | 'patients' | 'voice-logging' | 'doctor-reports' | 'payment' | 'admin';
+type ViewMode = AppView;
 
 const MotionDiv = motion.div as any;
 
@@ -75,9 +76,11 @@ const PREMIUM_FEATURE_BY_VIEW: Partial<Record<ViewMode, keyof PremiumFeatures>> 
 
 interface EnhancedDashboardProps {
   onSignOut?: () => void;
+  requestedView?: ViewMode;
+  onViewChange?: (view: ViewMode) => void;
 }
 
-export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
+export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onViewChange }: EnhancedDashboardProps) {
   const { 
     currentBaby, 
     setCurrentBaby, 
@@ -91,7 +94,7 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
     refreshAllLogs
   } = useAppContext();
 
-  const [activeView, setActiveView] = useState<ViewMode>('dashboard');
+  const [activeView, setActiveView] = useState<ViewMode>(requestedView);
   const [showBabySwitcher, setShowBabySwitcher] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
@@ -159,6 +162,16 @@ export function EnhancedDashboard({ onSignOut }: EnhancedDashboardProps) {
   };
 
   const backToDashboard = () => setActiveView('dashboard');
+
+  useEffect(() => {
+    if (requestedView !== activeView) {
+      setActiveView(requestedView);
+    }
+  }, [requestedView]);
+
+  useEffect(() => {
+    onViewChange?.(activeView);
+  }, [activeView, onViewChange]);
 
   useEffect(() => {
     if (!currentBaby) return;

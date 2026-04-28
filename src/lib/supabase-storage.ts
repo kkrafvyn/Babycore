@@ -17,7 +17,7 @@ import {
 } from "../types/index";
 
 import * as LocalStorage from "./storage";
-import { getCurrentUser } from "./supabase";
+import { getCurrentUser, supabase } from "./supabase";
 
 const STORAGE_SCOPE_PREFIX = 'user:';
 const GUEST_STORAGE_SCOPE = 'guest';
@@ -31,6 +31,124 @@ const resolveStorageScopeId = async (): Promise<string> => {
   return `${STORAGE_SCOPE_PREFIX}${user.id}`;
 };
 
+const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const getAcceptedInviteRowsForCurrentUser = async () => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return [] as any[];
+  }
+
+  const userEmail = normalizeEmail(user.email);
+
+  const queries = [
+    supabase
+      .from('family_sharing_invites')
+      .select(
+        'id,baby_id,baby_name_snapshot,baby_photo_url_snapshot,created_at,accepted_at,accepted_by,invited_email',
+      )
+      .eq('accepted_by', user.id)
+      .not('accepted_at', 'is', null),
+  ];
+
+  if (userEmail) {
+    queries.push(
+      supabase
+        .from('family_sharing_invites')
+        .select(
+          'id,baby_id,baby_name_snapshot,baby_photo_url_snapshot,created_at,accepted_at,accepted_by,invited_email',
+        )
+        .ilike('invited_email', userEmail)
+        .not('accepted_at', 'is', null),
+    );
+  }
+
+  const results = await Promise.all(queries as any[]);
+  const rows: any[] = [];
+
+  for (const result of results) {
+    if (result.error) {
+      console.warn('Failed to fetch sharing invites for current user:', result.error);
+      continue;
+    }
+
+    rows.push(...(result.data || []));
+  }
+
+  const dedupedById = new Map<string, any>();
+  for (const row of rows) {
+    dedupedById.set(row.id, row);
+  }
+
+  return Array.from(dedupedById.values());
+};
+
+const getAssignedSharedBabies = async (): Promise<Baby[]> => {
+  const acceptedInvites = await getAcceptedInviteRowsForCurrentUser();
+  if (acceptedInvites.length === 0) {
+    return [];
+  }
+
+  const babyIds = Array.from(
+    new Set(
+      acceptedInvites
+        .map((invite) => String(invite.baby_id || '').trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (babyIds.length === 0) {
+    return [];
+  }
+
+  const { data: babyRows, error: babyRowsError } = await supabase
+    .from('babies')
+    .select('id,name,date_of_birth,gender,photo_url,country,created_at')
+    .in('id', babyIds);
+
+  if (babyRowsError) {
+    console.warn('Failed to fetch shared babies from cloud:', babyRowsError);
+  }
+
+  const cloudBabiesById = new Map<string, Baby>();
+  for (const row of babyRows || []) {
+    cloudBabiesById.set(row.id, {
+      id: row.id,
+      name: row.name,
+      dateOfBirth: row.date_of_birth,
+      gender: row.gender,
+      photoUrl: row.photo_url || undefined,
+      country: row.country || 'US',
+      createdAt: row.created_at || new Date().toISOString(),
+    });
+  }
+
+  const fallbackBabies: Baby[] = acceptedInvites.map((invite) => {
+    const inviteBabyId = String(invite.baby_id || '');
+    const cloudBaby = cloudBabiesById.get(inviteBabyId);
+    if (cloudBaby) {
+      return cloudBaby;
+    }
+
+    return {
+      id: inviteBabyId,
+      name: invite.baby_name_snapshot?.trim() || `Baby ${inviteBabyId.slice(0, 8)}`,
+      dateOfBirth: invite.created_at || new Date().toISOString(),
+      gender: 'other',
+      photoUrl: invite.baby_photo_url_snapshot || undefined,
+      country: 'US',
+      createdAt: invite.created_at || new Date().toISOString(),
+    };
+  });
+
+  const merged = new Map<string, Baby>();
+  for (const baby of fallbackBabies) {
+    merged.set(baby.id, baby);
+  }
+
+  return Array.from(merged.values());
+};
+
 // Baby operations
 export const addBaby = async (baby: Baby): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
@@ -39,12 +157,31 @@ export const addBaby = async (baby: Baby): Promise<void> => {
 
 export const getBabies = async (): Promise<Baby[]> => {
   const scopeId = await resolveStorageScopeId();
-  return LocalStorage.getBabies(scopeId);
+  const [localBabies, sharedAssignedBabies] = await Promise.all([
+    LocalStorage.getBabies(scopeId),
+    getAssignedSharedBabies(),
+  ]);
+
+  const merged = new Map<string, Baby>();
+  for (const baby of localBabies) {
+    merged.set(baby.id, baby);
+  }
+  for (const baby of sharedAssignedBabies) {
+    merged.set(baby.id, baby);
+  }
+
+  return Array.from(merged.values());
 };
 
 export const getBaby = async (id: string): Promise<Baby | undefined> => {
   const scopeId = await resolveStorageScopeId();
-  return LocalStorage.getBaby(id, scopeId);
+  const localBaby = await LocalStorage.getBaby(id, scopeId);
+  if (localBaby) {
+    return localBaby;
+  }
+
+  const sharedAssignedBabies = await getAssignedSharedBabies();
+  return sharedAssignedBabies.find((baby) => baby.id === id);
 };
 
 export const updateBaby = async (baby: Baby): Promise<void> => {

@@ -6,14 +6,22 @@ import {
   saveUserSettings,
   setUserSettings,
   addBaby,
+  updateBaby,
   getMemoryLogsByBaby,
+  updateMemoryLog,
   getHealthLogsByBaby,
   getMilestonesByBaby,
+  updateMilestone,
   getFeedLogsByBaby,
+  updateFeedLog,
   getSleepLogsByBaby,
+  updateSleepLog,
   getDiaperLogsByBaby,
+  updateDiaperLog,
   getGrowthMeasurementsByBaby,
+  updateGrowthMeasurement,
   getVaccinationRecordsByBaby,
+  updateVaccinationRecord,
 } from '../lib/supabase-storage';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase';
 import {
@@ -25,7 +33,7 @@ import { getApiBaseUrl } from '../lib/api-base-url';
 import { supabase } from '../lib/supabase';
 import { subscriptionManager } from '../lib/premium';
 import { useTheme } from 'next-themes';
-import { setupRealtimeSync, performFullSync } from '../lib/cloud-sync-service';
+import { setupRealtimeSync, performFullSync, pullFromCloud } from '../lib/cloud-sync-service';
 
 type AuthUser = Awaited<ReturnType<typeof getCurrentUser>>;
 
@@ -99,6 +107,86 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   const [vaccinationRecords, setVaccinationRecords] = useState<VaccinationRecord[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
 
+  const mergeRemoteSnapshotIntoLocal = async () => {
+    try {
+      const remoteSnapshot = await pullFromCloud();
+
+      await Promise.all([
+        ...(remoteSnapshot?.babies || []).map((baby: Baby) => updateBaby(baby)),
+        ...(remoteSnapshot?.sleepLogs || []).map((log: SleepLog) => updateSleepLog(log)),
+        ...(remoteSnapshot?.feedLogs || []).map((log: FeedLog) => updateFeedLog(log)),
+        ...(remoteSnapshot?.diaperLogs || []).map((log: DiaperLog) => updateDiaperLog(log)),
+        ...(remoteSnapshot?.growthMeasurements || []).map((measurement: GrowthMeasurement) =>
+          updateGrowthMeasurement(measurement),
+        ),
+        ...(remoteSnapshot?.vaccinationRecords || []).map((record: VaccinationRecord) =>
+          updateVaccinationRecord(record),
+        ),
+        ...(remoteSnapshot?.milestones || []).map((milestone: Milestone) => updateMilestone(milestone)),
+        ...(remoteSnapshot?.memories || []).map((memory: MemoryLog) => updateMemoryLog(memory)),
+      ]);
+    } catch (error) {
+      console.warn('Remote hydration skipped due to sync error:', error);
+    }
+  };
+
+  const syncLocalSnapshotToCloud = async (userId: string) => {
+    if (!navigator.onLine) {
+      return;
+    }
+
+    try {
+      const localBabies = await getBabies();
+
+      const aggregate = {
+        sleepLogs: [] as SleepLog[],
+        feedLogs: [] as FeedLog[],
+        diaperLogs: [] as DiaperLog[],
+        growthMeasurements: [] as GrowthMeasurement[],
+        vaccinationRecords: [] as VaccinationRecord[],
+        milestones: [] as Milestone[],
+        memories: [] as MemoryLog[],
+      };
+
+      for (const baby of localBabies) {
+        const [sleepEntries, feedEntries, diaperEntries, growthEntries, vaccineEntries, milestoneEntries, memoryEntries] =
+          await Promise.all([
+            getSleepLogsByBaby(baby.id),
+            getFeedLogsByBaby(baby.id),
+            getDiaperLogsByBaby(baby.id),
+            getGrowthMeasurementsByBaby(baby.id),
+            getVaccinationRecordsByBaby(baby.id),
+            getMilestonesByBaby(baby.id),
+            getMemoryLogsByBaby(baby.id),
+          ]);
+
+        aggregate.sleepLogs.push(...sleepEntries);
+        aggregate.feedLogs.push(...feedEntries);
+        aggregate.diaperLogs.push(...diaperEntries);
+        aggregate.growthMeasurements.push(...growthEntries);
+        aggregate.vaccinationRecords.push(...vaccineEntries);
+        aggregate.milestones.push(...milestoneEntries);
+        aggregate.memories.push(...memoryEntries);
+      }
+
+      const latestSettings = await getUserSettings(userId);
+
+      await performFullSync({
+        babies: localBabies,
+        sleepLogs: aggregate.sleepLogs,
+        feedLogs: aggregate.feedLogs,
+        diaperLogs: aggregate.diaperLogs,
+        growthMeasurements: aggregate.growthMeasurements,
+        vaccinationRecords: aggregate.vaccinationRecords,
+        milestones: aggregate.milestones,
+        memories: aggregate.memories,
+        userSettings: latestSettings || null,
+      });
+    } catch (error) {
+      console.warn('Cloud sync push failed:', error);
+    }
+  };
+
   // Listen for auth state changes
   useEffect(() => {
     let isMounted = true;
@@ -142,6 +230,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     if (!user) return;
 
     let syncInterval: any;
+    let realtimeUnsubscribe: (() => void) | null = null;
 
     const initialize = async () => {
       try {
@@ -158,6 +247,9 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             console.error('Failed to sync onboarding baby data:', err);
           }
         }
+
+        // Pull latest cloud snapshot for this account on every login/device.
+        await mergeRemoteSnapshotIntoLocal();
         
         // Load babies
         await refreshBabies();
@@ -191,30 +283,20 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         await syncSubscriptionStatusFromBackend(user.id);
 
         // Setup Real-time Sync (Connectivity)
-        setupRealtimeSync((change: any) => {
+        realtimeUnsubscribe = setupRealtimeSync((change: any) => {
           console.log('Connectivity: Remote change detected', change);
           refreshBabies();
+          if (currentBaby?.id) {
+            refreshAllLogs();
+          }
         });
 
-        // Background Sync Connection
+        // Push latest local snapshot once on initialization.
+        await syncLocalSnapshotToCloud(user.id);
+
+        // Background sync keeps cloud current for multi-device access.
         syncInterval = setInterval(async () => {
-          if (navigator.onLine && user && currentBaby) {
-             const [memories, milestones] = await Promise.all([
-                getMemoryLogsByBaby(currentBaby.id),
-                getMilestonesByBaby(currentBaby.id)
-             ]);
-             await performFullSync({
-                babies,
-                sleepLogs,
-                feedLogs,
-                diaperLogs: [],
-                growthMeasurements: [],
-                vaccinationRecords: [],
-                milestones,
-                memories,
-                userSettings: settings
-             });
-          }
+          await syncLocalSnapshotToCloud(user.id);
         }, 60000);
         
         setError(null);
@@ -227,7 +309,10 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     };
 
     initialize();
-    return () => clearInterval(syncInterval);
+    return () => {
+      clearInterval(syncInterval);
+      realtimeUnsubscribe?.();
+    };
   }, [user]);
 
   const syncSubscriptionStatusFromBackend = async (userId: string) => {
@@ -289,6 +374,30 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       refreshAllLogs();
     }
   }, [currentBaby?.id]);
+
+  // Near-real-time cloud push so other devices see changes quickly.
+  useEffect(() => {
+    if (!user?.id || !navigator.onLine) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void syncLocalSnapshotToCloud(user.id);
+    }, 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    user?.id,
+    babies,
+    feedLogs,
+    sleepLogs,
+    diaperLogs,
+    growthMeasurements,
+    vaccinationRecords,
+    milestones,
+    memories,
+    settings?.updatedAt,
+  ]);
 
   const refreshAllLogs = async () => {
     if (!currentBaby) return;
