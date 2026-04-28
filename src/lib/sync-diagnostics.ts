@@ -7,6 +7,7 @@ export interface SyncSnapshotLike {
   vaccinationRecords?: unknown[];
   milestones?: unknown[];
   memories?: unknown[];
+  journalEntries?: unknown[];
 }
 
 export interface SyncSnapshotSummary {
@@ -18,6 +19,7 @@ export interface SyncSnapshotSummary {
   vaccinationRecordCount: number;
   milestoneCount: number;
   memoryCount: number;
+  journalEntryCount: number;
   totalRecordCount: number;
 }
 
@@ -32,6 +34,7 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
   const vaccinationRecordCount = getCollectionSize(snapshot?.vaccinationRecords);
   const milestoneCount = getCollectionSize(snapshot?.milestones);
   const memoryCount = getCollectionSize(snapshot?.memories);
+  const journalEntryCount = getCollectionSize(snapshot?.journalEntries);
 
   return {
     babyCount,
@@ -42,6 +45,7 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
     vaccinationRecordCount,
     milestoneCount,
     memoryCount,
+    journalEntryCount,
     totalRecordCount:
       sleepLogCount +
       feedLogCount +
@@ -49,7 +53,8 @@ export function summarizeSyncSnapshot(snapshot?: SyncSnapshotLike | null): SyncS
       growthMeasurementCount +
       vaccinationRecordCount +
       milestoneCount +
-      memoryCount,
+      memoryCount +
+      journalEntryCount,
   };
 }
 

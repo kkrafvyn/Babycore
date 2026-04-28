@@ -41,7 +41,7 @@ import { VaccinationCalendar } from './VaccinationCalendar';
 import { SettingsScreen } from './SettingsScreen';
 import { ActivityTracker } from './ActivityTracker';
 import { MilestonesTracker } from './MilestonesTracker';
-import { MedicalRecords } from './MedicalRecords';
+import { HealthRecords } from './HealthRecords';
 import { FamilySharing } from './FamilySharing';
 import { DataBackup } from './DataBackup';
 
@@ -270,7 +270,7 @@ function WebLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEntryM
       case 'milestones':
         return <MilestonesTracker onBack={handleBack} />;
       case 'medical':
-        return <MedicalRecords onBack={handleBack} />;
+        return currentBaby ? <HealthRecords babyId={currentBaby.id} babyName={currentBaby.name} /> : <HomeContent setActiveTab={setActiveTab} />;
       case 'family':
         return <FamilySharing onBack={handleBack} />;
       case 'backup':
@@ -516,7 +516,7 @@ function MobileLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEnt
       case 'milestones':
         return <MilestonesTracker onBack={handleBack} />;
       case 'medical':
-        return <MedicalRecords onBack={handleBack} />;
+        return currentBaby ? <HealthRecords babyId={currentBaby.id} babyName={currentBaby.name} /> : <HomeContent setActiveTab={setActiveTab} />;
       case 'family':
         return <FamilySharing onBack={handleBack} />;
       case 'backup':

@@ -96,6 +96,7 @@ export const syncGrowthMeasurements = (measurements: any[]) => genericSync('grow
 export const syncVaccinationRecords = (records: any[]) => genericSync('vaccination_records', records);
 export const syncMilestones = (milestones: any[]) => genericSync('milestones', milestones);
 export const syncMemories = (memories: any[]) => genericSync('memories', memories);
+export const syncJournalEntries = (entries: any[]) => genericSync('journal_entries', entries);
 
 export async function performFullSync(localData: {
   babies: any[];
@@ -106,6 +107,7 @@ export async function performFullSync(localData: {
   vaccinationRecords: any[];
   milestones: any[];
   memories: any[];
+  journalEntries?: any[];
   userSettings: any;
 }): Promise<boolean> {
   const user = await getAuthenticatedUser();
@@ -201,6 +203,15 @@ export async function performFullSync(localData: {
         is_milestone: m.isMilestone,
         created_at: m.createdAt
       }))),
+      syncJournalEntries((localData.journalEntries || []).map((entry) => ({
+        id: entry.id,
+        baby_id: entry.babyId,
+        date: entry.date,
+        prompt: entry.prompt,
+        text: entry.text,
+        mood: entry.mood,
+        created_at: entry.createdAt,
+      }))),
     ]);
 
     const allSuccess = results.every(r => r === true);
@@ -235,6 +246,7 @@ export async function pullFromCloud(): Promise<any> {
         vaccinationRecords: [],
         milestones: [],
         memories: [],
+        journalEntries: [],
       };
     }
 
@@ -248,7 +260,7 @@ export async function pullFromCloud(): Promise<any> {
     const fetchByBabyIds = (table: string) =>
       supabase.from(table).select('*').in('baby_id', babyIds);
 
-    const [sleepLogs, feedLogs, diaperLogs, growth, vaccine, milestones, memories] = await Promise.all([
+    const [sleepLogs, feedLogs, diaperLogs, growth, vaccine, milestones, memories, journalEntries] = await Promise.all([
       fetchByBabyIds('sleep_logs'),
       fetchByBabyIds('feed_logs'),
       fetchByBabyIds('diaper_logs'),
@@ -256,6 +268,7 @@ export async function pullFromCloud(): Promise<any> {
       fetchByBabyIds('vaccination_records'),
       fetchByBabyIds('milestones'),
       fetchByBabyIds('memories'),
+      fetchByBabyIds('journal_entries'),
     ]);
 
     const queryErrors = [
@@ -266,6 +279,7 @@ export async function pullFromCloud(): Promise<any> {
       vaccine.error,
       milestones.error,
       memories.error,
+      journalEntries.error,
     ].filter(Boolean);
 
     if (queryErrors.length > 0) {
@@ -351,6 +365,15 @@ export async function pullFromCloud(): Promise<any> {
         isMilestone: m.is_milestone,
         createdAt: m.created_at
       })),
+      journalEntries: (journalEntries.data || []).map((entry) => ({
+        id: entry.id,
+        babyId: entry.baby_id,
+        date: entry.date,
+        prompt: entry.prompt,
+        text: entry.text,
+        mood: entry.mood,
+        createdAt: entry.created_at,
+      })),
     };
   } catch (error) {
     console.error('Error pulling from cloud:', error);
@@ -398,7 +421,8 @@ export function setupRealtimeSync(callback: (change: any) => void) {
         'growth_measurements', 
         'vaccination_records',
         'milestones',
-        'memories'
+        'memories',
+        'journal_entries',
       ];
 
       tables.forEach((table) => {

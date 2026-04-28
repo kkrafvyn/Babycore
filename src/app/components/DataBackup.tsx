@@ -13,6 +13,7 @@ import {
 import { useAppContext } from '../AppContext';
 import { motion } from 'motion/react';
 import { performFullSync } from '../../lib/cloud-sync-service';
+import { getJournalEntriesByBaby } from '../../lib/supabase-storage';
 
 interface DataBackupProps {
   onBack: () => void;
@@ -99,7 +100,22 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     setLastBackup(createdAt);
   };
 
-  const buildBackupPayload = () => {
+  const collectJournalEntries = async () => {
+    const entries = await Promise.all(
+      babies.map((baby) =>
+        getJournalEntriesByBaby(baby.id).catch((error) => {
+          console.warn(`Unable to load journal entries for backup for baby ${baby.id}:`, error);
+          return [];
+        }),
+      ),
+    );
+
+    return entries.flat();
+  };
+
+  const buildBackupPayload = async () => {
+    const journalEntries = await collectJournalEntries();
+
     return {
       exportedAt: new Date().toISOString(),
       user: user ? { id: user.id, email: user.email } : null,
@@ -115,6 +131,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
         healthLogs,
         memories,
         milestones,
+        journalEntries,
       },
     };
   };
@@ -130,7 +147,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     return blob.size;
   };
 
-  const toCsv = (payload: ReturnType<typeof buildBackupPayload>): string => {
+  const toCsv = (payload: Awaited<ReturnType<typeof buildBackupPayload>>): string => {
     const rows: string[] = [];
     rows.push('Section,Field,Value');
     rows.push(`Meta,Exported At,${payload.exportedAt}`);
@@ -150,6 +167,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     rows.push(`Summary,Health Logs,${payload.records.healthLogs.length}`);
     rows.push(`Summary,Memories,${payload.records.memories.length}`);
     rows.push(`Summary,Milestones,${payload.records.milestones.length}`);
+    rows.push(`Summary,Journal Entries,${payload.records.journalEntries.length}`);
     return rows.join('\n');
   };
 
@@ -158,7 +176,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     setExporting(true);
     setErrorMessage(null);
     try {
-      const payload = buildBackupPayload();
+      const payload = await buildBackupPayload();
       const content = JSON.stringify(payload, null, 2);
       const size = downloadFile(
         `${currentBaby.name}-backup-${todayStamp}.json`,
@@ -179,7 +197,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     setExporting(true);
     setErrorMessage(null);
     try {
-      const payload = buildBackupPayload();
+      const payload = await buildBackupPayload();
       const csv = toCsv(payload);
       const size = downloadFile(
         `${currentBaby.name}-backup-${todayStamp}.csv`,
@@ -200,6 +218,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     setLoading(true);
     setErrorMessage(null);
     try {
+      const journalEntries = await collectJournalEntries();
       const synced = await performFullSync({
         babies,
         sleepLogs,
@@ -209,6 +228,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
         vaccinationRecords,
         milestones,
         memories,
+        journalEntries,
         userSettings: settings,
       });
 
@@ -216,7 +236,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
         throw new Error('Cloud sync failed');
       }
 
-      const payloadSize = new Blob([JSON.stringify(buildBackupPayload())]).size;
+      const payloadSize = new Blob([JSON.stringify(await buildBackupPayload())]).size;
       appendBackupHistory('json', 'cloud', payloadSize);
     } catch (error) {
       console.error('Failed to create cloud backup:', error);

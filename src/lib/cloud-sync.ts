@@ -5,12 +5,13 @@
  */
 
 import React from 'react';
-import { Baby, SleepLog, FeedLog, DiaperLog, GrowthMeasurement, VaccinationRecord } from '../types/index';
+import { Baby, SleepLog, FeedLog, DiaperLog, GrowthMeasurement, VaccinationRecord, JournalEntry } from '../types/index';
 import {
   getBabies,
   getDiaperLogsByBaby,
   getFeedLogsByBaby,
   getGrowthMeasurementsByBaby,
+  getJournalEntriesByBaby,
   getMemoryLogsByBaby,
   getMilestonesByBaby,
   getSleepLogsByBaby,
@@ -209,6 +210,7 @@ class CloudSyncManager {
     vaccinationRecords: any[];
     milestones: any[];
     memories: any[];
+    journalEntries: any[];
     userSettings: any;
   }): void {
     this.localSummary = summarizeSyncSnapshot(snapshot);
@@ -243,6 +245,7 @@ class CloudSyncManager {
     vaccinationRecords: any[];
     milestones: any[];
     memories: any[];
+    journalEntries: any[];
     userSettings: any;
   } | null> {
     const babies = await getBabies();
@@ -254,10 +257,11 @@ class CloudSyncManager {
       vaccinationRecords: [] as any[],
       milestones: [] as any[],
       memories: [] as any[],
+      journalEntries: [] as any[],
     };
 
     for (const baby of babies) {
-      const [sleepLogs, feedLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories] =
+      const [sleepLogs, feedLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories, journalEntries] =
         await Promise.all([
           getSleepLogsByBaby(baby.id),
           getFeedLogsByBaby(baby.id),
@@ -266,6 +270,7 @@ class CloudSyncManager {
           getVaccinationRecordsByBaby(baby.id),
           getMilestonesByBaby(baby.id),
           getMemoryLogsByBaby(baby.id),
+          getJournalEntriesByBaby(baby.id),
         ]);
 
       aggregate.sleepLogs.push(...sleepLogs);
@@ -275,6 +280,7 @@ class CloudSyncManager {
       aggregate.vaccinationRecords.push(...vaccinationRecords);
       aggregate.milestones.push(...milestones);
       aggregate.memories.push(...memories);
+      aggregate.journalEntries.push(...journalEntries);
     }
 
     const user = await getCurrentUser();
@@ -289,6 +295,7 @@ class CloudSyncManager {
       vaccinationRecords: aggregate.vaccinationRecords,
       milestones: aggregate.milestones,
       memories: aggregate.memories,
+      journalEntries: aggregate.journalEntries,
       userSettings,
     };
   }
@@ -341,6 +348,7 @@ class CloudSyncManager {
       'vaccinationRecords',
       'milestones',
       'memories',
+      'journalEntries',
     ] as const;
 
     const conflicts: SyncConflict[] = [];
@@ -405,6 +413,7 @@ class CloudSyncManager {
     diaperLogs: DiaperLog[];
     growthMeasurements: GrowthMeasurement[];
     vaccinationRecords: VaccinationRecord[];
+    journalEntries: JournalEntry[];
   }> {
     if (!this.isOnline) {
       throw new Error('Cannot pull changes while offline');
@@ -418,6 +427,7 @@ class CloudSyncManager {
       diaperLogs: remote?.diaperLogs || [],
       growthMeasurements: remote?.growthMeasurements || [],
       vaccinationRecords: remote?.vaccinationRecords || [],
+      journalEntries: remote?.journalEntries || [],
     };
   }
 

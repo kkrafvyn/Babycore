@@ -149,6 +149,94 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
   return Array.from(merged.values());
 };
 
+const upsertMemoryLogToCloud = async (log: MemoryLog): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('memories').upsert(
+      {
+        id: log.id,
+        baby_id: log.babyId,
+        timestamp: log.timestamp,
+        text: log.text,
+        photo_url: log.photoUrl,
+        is_milestone: log.isMilestone,
+        created_at: log.createdAt,
+      },
+      { onConflict: 'id' },
+    );
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to sync memory log directly to cloud:', error);
+  }
+};
+
+const deleteMemoryLogFromCloud = async (id: string): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('memories').delete().eq('id', id);
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to delete memory log from cloud:', error);
+  }
+};
+
+const upsertJournalEntryToCloud = async (entry: JournalEntry): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('journal_entries').upsert(
+      {
+        id: entry.id,
+        baby_id: entry.babyId,
+        date: entry.date,
+        prompt: entry.prompt,
+        text: entry.text,
+        mood: entry.mood,
+        created_at: entry.createdAt,
+      },
+      { onConflict: 'id' },
+    );
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to sync journal entry directly to cloud:', error);
+  }
+};
+
+const deleteJournalEntryFromCloud = async (id: string): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('journal_entries').delete().eq('id', id);
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to delete journal entry from cloud:', error);
+  }
+};
+
 // Baby operations
 export const addBaby = async (baby: Baby): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
@@ -263,11 +351,30 @@ export const getMilestonesByBaby = async (babyId: string): Promise<Milestone[]> 
 export const updateMilestone = async (milestone: Milestone): Promise<void> => LocalStorage.updateMilestone(milestone);
 export const deleteMilestone = async (id: string): Promise<void> => LocalStorage.deleteMilestone(id);
 
+type SyncWriteOptions = {
+  skipCloudSync?: boolean;
+};
+
 // Memory log operations
-export const addMemoryLog = async (log: MemoryLog): Promise<void> => LocalStorage.addMemoryLog(log);
+export const addMemoryLog = async (log: MemoryLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addMemoryLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertMemoryLogToCloud(log);
+  }
+};
 export const getMemoryLogsByBaby = async (babyId: string): Promise<MemoryLog[]> => LocalStorage.getMemoryLogsByBaby(babyId);
-export const updateMemoryLog = async (log: MemoryLog): Promise<void> => LocalStorage.updateMemoryLog(log);
-export const deleteMemoryLog = async (id: string): Promise<void> => LocalStorage.deleteMemoryLog(id);
+export const updateMemoryLog = async (log: MemoryLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateMemoryLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertMemoryLogToCloud(log);
+  }
+};
+export const deleteMemoryLog = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteMemoryLog(id);
+  if (!options?.skipCloudSync) {
+    await deleteMemoryLogFromCloud(id);
+  }
+};
 
 // Health log operations
 export const addHealthLog = async (log: HealthLog): Promise<void> => LocalStorage.addHealthLog(log);
@@ -276,10 +383,26 @@ export const updateHealthLog = async (log: HealthLog): Promise<void> => LocalSto
 export const deleteHealthLog = async (id: string): Promise<void> => LocalStorage.deleteHealthLog(id);
 
 // Journal entry operations
-export const addJournalEntry = async (entry: JournalEntry): Promise<void> => LocalStorage.addJournalEntry(entry);
+export const addJournalEntry = async (entry: JournalEntry, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addJournalEntry(entry);
+  // Baby Journal writes directly to storage, so we sync it immediately for cross-device visibility.
+  if (!options?.skipCloudSync) {
+    await upsertJournalEntryToCloud(entry);
+  }
+};
 export const getJournalEntriesByBaby = async (babyId: string): Promise<JournalEntry[]> => LocalStorage.getJournalEntriesByBaby(babyId);
-export const updateJournalEntry = async (entry: JournalEntry): Promise<void> => LocalStorage.updateJournalEntry(entry);
-export const deleteJournalEntry = async (id: string): Promise<void> => LocalStorage.deleteJournalEntry(id);
+export const updateJournalEntry = async (entry: JournalEntry, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateJournalEntry(entry);
+  if (!options?.skipCloudSync) {
+    await upsertJournalEntryToCloud(entry);
+  }
+};
+export const deleteJournalEntry = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteJournalEntry(id);
+  if (!options?.skipCloudSync) {
+    await deleteJournalEntryFromCloud(id);
+  }
+};
 
 // Achievement operations
 export const addAchievement = async (achievement: Achievement): Promise<void> => LocalStorage.addAchievement(achievement);

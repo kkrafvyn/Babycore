@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Baby, UserSettings, View, FeedLog, SleepLog, HealthLog, MemoryLog, DiaperLog, GrowthMeasurement, VaccinationRecord, Milestone } from '../types/index';
 import {
   getBabies,
@@ -23,6 +23,8 @@ import {
   updateGrowthMeasurement,
   getVaccinationRecordsByBaby,
   updateVaccinationRecord,
+  getJournalEntriesByBaby,
+  updateJournalEntry,
 } from '../lib/supabase-storage';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase';
 import {
@@ -107,6 +109,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   const [growthMeasurements, setGrowthMeasurements] = useState<GrowthMeasurement[]>([]);
   const [vaccinationRecords, setVaccinationRecords] = useState<VaccinationRecord[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const currentBabyRef = useRef<Baby | null>(null);
+
+  useEffect(() => {
+    currentBabyRef.current = currentBaby;
+  }, [currentBaby]);
 
   const mergeRemoteSnapshotIntoLocal = async () => {
     try {
@@ -124,7 +131,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           updateVaccinationRecord(record),
         ),
         ...(remoteSnapshot?.milestones || []).map((milestone: Milestone) => updateMilestone(milestone)),
-        ...(remoteSnapshot?.memories || []).map((memory: MemoryLog) => updateMemoryLog(memory)),
+        ...(remoteSnapshot?.memories || []).map((memory: MemoryLog) =>
+          updateMemoryLog(memory, { skipCloudSync: true }),
+        ),
+        ...(remoteSnapshot?.journalEntries || []).map((entry: any) =>
+          updateJournalEntry(entry, { skipCloudSync: true }),
+        ),
       ]);
     } catch (error) {
       console.warn('Remote hydration skipped due to sync error:', error);
@@ -182,10 +194,20 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         vaccinationRecords: [] as VaccinationRecord[],
         milestones: [] as Milestone[],
         memories: [] as MemoryLog[],
+        journalEntries: [] as any[],
       };
 
       for (const baby of ownedLocalBabies) {
-        const [sleepEntries, feedEntries, diaperEntries, growthEntries, vaccineEntries, milestoneEntries, memoryEntries] =
+        const [
+          sleepEntries,
+          feedEntries,
+          diaperEntries,
+          growthEntries,
+          vaccineEntries,
+          milestoneEntries,
+          memoryEntries,
+          journalEntries,
+        ] =
           await Promise.all([
             getSleepLogsByBaby(baby.id),
             getFeedLogsByBaby(baby.id),
@@ -194,6 +216,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             getVaccinationRecordsByBaby(baby.id),
             getMilestonesByBaby(baby.id),
             getMemoryLogsByBaby(baby.id),
+            getJournalEntriesByBaby(baby.id),
           ]);
 
         aggregate.sleepLogs.push(...sleepEntries);
@@ -203,6 +226,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         aggregate.vaccinationRecords.push(...vaccineEntries);
         aggregate.milestones.push(...milestoneEntries);
         aggregate.memories.push(...memoryEntries);
+        aggregate.journalEntries.push(...journalEntries);
       }
 
       const latestSettings = await getUserSettings(userId);
@@ -216,6 +240,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         vaccinationRecords: aggregate.vaccinationRecords,
         milestones: aggregate.milestones,
         memories: aggregate.memories,
+        journalEntries: aggregate.journalEntries,
         userSettings: latestSettings || null,
       });
     } catch (error) {
@@ -347,10 +372,14 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         // Setup Real-time Sync (Connectivity)
         realtimeUnsubscribe = setupRealtimeSync((change: any) => {
           console.log('Connectivity: Remote change detected', change);
-          refreshBabies();
-          if (currentBaby?.id) {
-            refreshAllLogs();
-          }
+          void (async () => {
+            await mergeRemoteSnapshotIntoLocal();
+            await refreshBabies();
+            const selectedBabyId = currentBabyRef.current?.id;
+            if (selectedBabyId) {
+              await refreshLogsForBaby(selectedBabyId);
+            }
+          })();
         });
 
         // Push latest local snapshot once on initialization.
@@ -432,8 +461,8 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
   // Refresh all logs when current baby changes
   useEffect(() => {
-    if (currentBaby) {
-      refreshAllLogs();
+    if (currentBaby?.id) {
+      void refreshLogsForBaby(currentBaby.id);
     }
   }, [currentBaby?.id]);
 
@@ -461,18 +490,17 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     settings?.updatedAt,
   ]);
 
-  const refreshAllLogs = async () => {
-    if (!currentBaby) return;
+  const refreshLogsForBaby = async (babyId: string) => {
     try {
       const [feeds, sleeps, diapers, health, mems, growth, vaccines, nextMilestones] = await Promise.all([
-        getFeedLogsByBaby(currentBaby.id),
-        getSleepLogsByBaby(currentBaby.id),
-        getDiaperLogsByBaby(currentBaby.id),
-        getHealthLogsByBaby(currentBaby.id),
-        getMemoryLogsByBaby(currentBaby.id),
-        getGrowthMeasurementsByBaby(currentBaby.id),
-        getVaccinationRecordsByBaby(currentBaby.id),
-        getMilestonesByBaby(currentBaby.id),
+        getFeedLogsByBaby(babyId),
+        getSleepLogsByBaby(babyId),
+        getDiaperLogsByBaby(babyId),
+        getHealthLogsByBaby(babyId),
+        getMemoryLogsByBaby(babyId),
+        getGrowthMeasurementsByBaby(babyId),
+        getVaccinationRecordsByBaby(babyId),
+        getMilestonesByBaby(babyId),
       ]);
       setFeedLogs(feeds);
       setSleepLogs(sleeps);
@@ -485,6 +513,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     } catch (err) {
       console.error('Failed to refresh all logs:', err);
     }
+  };
+
+  const refreshAllLogs = async () => {
+    const babyId = currentBabyRef.current?.id;
+    if (!babyId) return;
+    await refreshLogsForBaby(babyId);
   };
 
   const refreshBabies = async () => {

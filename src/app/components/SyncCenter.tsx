@@ -76,7 +76,8 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
         (snapshot.feedLogs?.length || 0) +
         (snapshot.diaperLogs?.length || 0) +
         (snapshot.growthMeasurements?.length || 0) +
-        (snapshot.vaccinationRecords?.length || 0);
+        (snapshot.vaccinationRecords?.length || 0) +
+        (snapshot.journalEntries?.length || 0);
       setPullSummary(`Pulled latest cloud snapshot (${total} records).`);
     } catch (error: any) {
       setPullSummary(error?.message || 'Unable to pull cloud snapshot.');
@@ -159,7 +160,7 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
               </p>
               <p className="text-[11px] font-semibold text-text-dim mt-2">
                 Sleep {syncState.localSummary.sleepLogCount}, Feed {syncState.localSummary.feedLogCount}, Diaper{' '}
-                {syncState.localSummary.diaperLogCount}
+                {syncState.localSummary.diaperLogCount}, Journal {syncState.localSummary.journalEntryCount}
               </p>
             </div>
           </div>
