@@ -212,6 +212,8 @@ export interface WHODataPoint {
   p97: number;
 }
 
+export type GrowthStandard = 'WHO' | 'CDC';
+
 export const WHO_WEIGHT_BOYS: WHODataPoint[] = [
   { ageMonths: 0, p3: 2.5, p15: 2.9, p50: 3.3, p85: 3.9, p97: 4.3 },
   { ageMonths: 1, p3: 3.2, p15: 3.8, p50: 4.5, p85: 5.1, p97: 5.7 },
@@ -300,14 +302,43 @@ export const WHO_HEAD_GIRLS: WHODataPoint[] = [
   { ageMonths: 24, p3: 45.2, p15: 46.2, p50: 47.6, p85: 48.8, p97: 49.8 },
 ];
 
-export function getWHOData(metric: 'weight' | 'height' | 'head', gender?: string): WHODataPoint[] {
+// CDC placeholders currently mirror WHO percentiles until validated CDC LMS tables are imported.
+// This avoids shipping fabricated curve transformations.
+export const CDC_WEIGHT_BOYS: WHODataPoint[] = [...WHO_WEIGHT_BOYS];
+export const CDC_WEIGHT_GIRLS: WHODataPoint[] = [...WHO_WEIGHT_GIRLS];
+export const CDC_LENGTH_BOYS: WHODataPoint[] = [...WHO_LENGTH_BOYS];
+export const CDC_LENGTH_GIRLS: WHODataPoint[] = [...WHO_LENGTH_GIRLS];
+export const CDC_HEAD_BOYS: WHODataPoint[] = [...WHO_HEAD_BOYS];
+export const CDC_HEAD_GIRLS: WHODataPoint[] = [...WHO_HEAD_GIRLS];
+
+export function getGrowthStandardData(
+  metric: 'weight' | 'height' | 'head',
+  gender?: string,
+  standard: GrowthStandard = 'WHO',
+): WHODataPoint[] {
+  if (standard === 'CDC') {
+    if (metric === 'weight') return gender === 'girl' ? CDC_WEIGHT_GIRLS : CDC_WEIGHT_BOYS;
+    if (metric === 'height') return gender === 'girl' ? CDC_LENGTH_GIRLS : CDC_LENGTH_BOYS;
+    return gender === 'girl' ? CDC_HEAD_GIRLS : CDC_HEAD_BOYS;
+  }
+
   if (metric === 'weight') return gender === 'girl' ? WHO_WEIGHT_GIRLS : WHO_WEIGHT_BOYS;
   if (metric === 'height') return gender === 'girl' ? WHO_LENGTH_GIRLS : WHO_LENGTH_BOYS;
   return gender === 'girl' ? WHO_HEAD_GIRLS : WHO_HEAD_BOYS;
 }
 
-export function getPercentile(value: number, ageMonths: number, metric: 'weight' | 'height' | 'head', gender?: string): string {
-  const data = getWHOData(metric, gender);
+export function getWHOData(metric: 'weight' | 'height' | 'head', gender?: string): WHODataPoint[] {
+  return getGrowthStandardData(metric, gender, 'WHO');
+}
+
+export function getPercentile(
+  value: number,
+  ageMonths: number,
+  metric: 'weight' | 'height' | 'head',
+  gender?: string,
+  standard: GrowthStandard = 'WHO',
+): string {
+  const data = getGrowthStandardData(metric, gender, standard);
   // Find closest age bracket
   let closest = data[0];
   for (const dp of data) {
@@ -316,10 +347,10 @@ export function getPercentile(value: number, ageMonths: number, metric: 'weight'
     }
   }
   if (value <= closest.p3) return '<3rd';
-  if (value <= closest.p15) return '3rd–15th';
-  if (value <= closest.p50) return '15th–50th';
-  if (value <= closest.p85) return '50th–85th';
-  if (value <= closest.p97) return '85th–97th';
+  if (value <= closest.p15) return '3rd-15th';
+  if (value <= closest.p50) return '15th-50th';
+  if (value <= closest.p85) return '50th-85th';
+  if (value <= closest.p97) return '85th-97th';
   return '>97th';
 }
 

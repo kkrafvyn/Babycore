@@ -19,6 +19,8 @@ import { COUNTRIES } from '../../lib/countries';
 import { resolveVaccinationSchedule } from '../../lib/vaccination-schedule-resolver';
 import type { VaccinationRecord } from '../../types';
 import type { VaccineSchedule } from '../../lib/vaccination-data';
+import { createCareApprovalRequest } from '@/lib/care-advanced-api';
+import { getCurrentUser } from '@/lib/supabase';
 
 interface VaccinationCalendarProps {
   babyId?: string;
@@ -78,6 +80,10 @@ function startOfTodayMs(): number {
 function addDays(isoDate: string, days: number): string {
   const date = new Date(isoDate);
   return new Date(date.getTime() + days * DAY_MS).toISOString();
+}
+
+function toWholeDays(value: number): number {
+  return Math.max(0, Math.floor(value / DAY_MS));
 }
 
 function resolveStatus(record: VaccinationRecord): ResolvedVaccineStatus {
@@ -146,6 +152,12 @@ function getCountryName(countryCode?: string): string {
     (country) => country.code === countryCode,
   );
   return decodeLegacyUtf8(matched?.name || countryCode);
+}
+
+async function shouldRequireParentApprovalForVaccinationEdit(): Promise<boolean> {
+  const user = await getCurrentUser();
+  const profileType = String(user?.user_metadata?.onboarding_profile_type || '').toLowerCase();
+  return profileType === 'doctor' || profileType === 'caregiver';
 }
 
 export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack }) => {
@@ -254,6 +266,25 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
     .filter((record) => record.resolvedStatus === 'scheduled' || record.resolvedStatus === 'overdue')
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
+  const babyAgeDays = currentBaby
+    ? toWholeDays(Date.now() - new Date(currentBaby.dateOfBirth).getTime())
+    : 0;
+
+  const catchUpPlan = resolved
+    .filter((record) => record.resolvedStatus === 'overdue')
+    .slice(0, 6)
+    .map((record, index) => {
+      const overdueDays = toWholeDays(Date.now() - new Date(record.dueDate).getTime());
+      const suggestedDate = new Date(Date.now() + index * 14 * DAY_MS).toISOString();
+      const priority = overdueDays > 120 ? 'high' : overdueDays > 45 ? 'medium' : 'normal';
+      return {
+        record,
+        overdueDays,
+        suggestedDate,
+        priority,
+      };
+    });
+
   const openAddModal = () => {
     setEditingRecord(null);
     setSelectedTemplateTag(undefined);
@@ -301,6 +332,33 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
       return;
     }
 
+    const needsApproval = await shouldRequireParentApprovalForVaccinationEdit();
+    if (needsApproval) {
+      try {
+        await createCareApprovalRequest({
+          babyId: currentBaby.id,
+          requestType: 'vaccination_edit',
+          targetTable: 'vaccination_records',
+          targetRecordId: editingRecord?.id || null,
+          requestedPayload: {
+            name: name.trim(),
+            dueDate: due.toISOString(),
+            status,
+            givenDate: status === 'given' ? given.toISOString() : null,
+            notes,
+            scheduleTag: selectedTemplateTag || null,
+          },
+          reason: 'Care team requested vaccine schedule update',
+        });
+        closeEditor();
+        alert('Request submitted for parent approval.');
+      } catch (error) {
+        console.error('Failed to submit approval request:', error);
+        alert('Failed to submit approval request.');
+      }
+      return;
+    }
+
     const nextNotes = selectedTemplateTag ? withScheduleTag(notes, selectedTemplateTag) : notes.trim();
 
     const payload: VaccinationRecord = {
@@ -333,6 +391,30 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
 
   const markGiven = async (record: VaccineRecordWithMeta) => {
     if (!currentBaby) return;
+
+    const needsApproval = await shouldRequireParentApprovalForVaccinationEdit();
+    if (needsApproval) {
+      try {
+        await createCareApprovalRequest({
+          babyId: currentBaby.id,
+          requestType: 'vaccination_edit',
+          targetTable: 'vaccination_records',
+          targetRecordId: record.isVirtual ? null : record.id,
+          requestedPayload: {
+            action: 'mark_given',
+            name: record.name,
+            dueDate: record.dueDate,
+            scheduleTag: record.scheduleTag || null,
+          },
+          reason: 'Care team requested to mark vaccine as given',
+        });
+        alert('Marked as request. Parent approval is required.');
+      } catch (error) {
+        console.error('Failed to submit approval request:', error);
+        alert('Failed to submit approval request.');
+      }
+      return;
+    }
 
     const nextNotes = record.scheduleTag
       ? withScheduleTag(record.notes, record.scheduleTag)
@@ -447,6 +529,47 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
                 </>
               ) : (
                 <p className="text-sm font-bold text-text-dim mt-1">No upcoming vaccines.</p>
+              )}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-border-gray dark:border-zinc-800 bg-surface-gray dark:bg-zinc-900 p-4 space-y-2">
+              <p className="text-[9px] font-black text-text-light uppercase tracking-widest">Country Catch-up Plan</p>
+              <p className="text-[11px] font-bold text-text-dim">
+                Baby age: {Math.floor(babyAgeDays / 30)} months ({babyAgeDays} days)
+              </p>
+              {catchUpPlan.length === 0 ? (
+                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  Great progress. No overdue vaccines detected.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {catchUpPlan.map((item) => (
+                    <div
+                      key={item.record.id}
+                      className="rounded-xl border border-border-gray dark:border-zinc-800 bg-surface dark:bg-zinc-950 p-3"
+                    >
+                      <p className="text-xs font-black text-foreground">{item.record.name}</p>
+                      <p className="text-[10px] font-bold text-text-dim mt-1">
+                        {item.overdueDays} days overdue - Suggested catch-up by{' '}
+                        {new Date(item.suggestedDate).toLocaleDateString()}
+                      </p>
+                      <p
+                        className={`text-[9px] font-black uppercase tracking-widest mt-1 ${
+                          item.priority === 'high'
+                            ? 'text-red-600 dark:text-red-400'
+                            : item.priority === 'medium'
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        Priority: {item.priority}
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-[10px] font-bold text-text-dim">
+                    Confirm exact spacing with your local pediatrician or immunization clinic.
+                  </p>
+                </div>
               )}
             </div>
           </div>

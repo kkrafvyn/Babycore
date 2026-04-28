@@ -6,7 +6,6 @@
 import express, { Express, Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
 import authMiddleware from './middleware/auth.js';
 import babiesRoutes from './routes/babies.js';
 import feedingRoutes from './routes/feeding.js';
@@ -34,10 +33,14 @@ import paymentsRoutes, {
 import adminRoutes from './routes/admin.js';
 import managerRoutes from './routes/manager.js';
 import doctorRoutes from './routes/doctor.js';
+import careAdvancedRoutes from './routes/care-advanced.js';
 
-dotenv.config({
-  path: process.env.NODE_ENV === 'production' ? '.env' : '.env.local',
-});
+// Load baseline environment values from .env in every runtime.
+dotenv.config({ path: '.env' });
+// In development, allow .env.local to override .env if present.
+if ((process.env.NODE_ENV || 'development') !== 'production') {
+  dotenv.config({ path: '.env.local', override: true });
+}
 
 const app: Express = express();
 
@@ -173,6 +176,9 @@ apiRouter.use('/manager', managerRoutes);
 
 // Doctor Routes
 apiRouter.use('/doctor', doctorRoutes);
+
+// Advanced care features (med tracker, approvals, clinic tools, emergency card)
+apiRouter.use('/care', careAdvancedRoutes);
 
 app.use('/api', apiRouter);
 

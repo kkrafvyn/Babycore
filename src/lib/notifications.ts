@@ -839,7 +839,7 @@ export class NotificationsManager {
 export const syncNotifications = async (
   babies: Baby[],
   settings: UserSettings,
-  logs: { feedLogs: FeedLog[]; diaperLogs: DiaperLog[] }
+  logs: { feedLogs: FeedLog[]; diaperLogs: DiaperLog[]; vaccinationRecords?: VaccinationRecord[] }
 ) => {
   if (!settings.notificationsEnabled || NotificationsManager.isQuietHours(settings)) {
     return;
@@ -854,6 +854,39 @@ export const syncNotifications = async (
     const hoursSince = (Date.now() - new Date(lastFeed.timestamp).getTime()) / 3600000;
     if (hoursSince >= settings.feedingInterval) {
       await NotificationsManager.sendLocalNotification(NotificationsManager.createFeedingAlert(currentBaby.name));
+    }
+  }
+
+  // Vaccine reminders: notify for overdue or due-soon vaccines (next 3 days).
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const pendingVaccines = (logs.vaccinationRecords || [])
+    .filter((record) => record.status === 'scheduled' || record.status === 'overdue')
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  const nextVaccine = pendingVaccines[0];
+  if (nextVaccine?.name && nextVaccine?.dueDate) {
+    const dueAt = new Date(nextVaccine.dueDate).getTime();
+    if (!Number.isNaN(dueAt)) {
+      const now = Date.now();
+      const diffMs = dueAt - now;
+      const dueDateLabel = new Date(dueAt).toLocaleDateString();
+
+      if (diffMs < 0) {
+        await NotificationsManager.sendLocalNotification({
+          title: `Vaccine Overdue: ${currentBaby.name}`,
+          body: `${nextVaccine.name} is overdue. Check the vaccination calendar.`,
+          type: 'vaccine',
+          data: { babyId: currentBaby.id, deepLink: 'vaccination' },
+        });
+      } else if (diffMs <= 3 * DAY_MS) {
+        const daysLeft = Math.max(1, Math.ceil(diffMs / DAY_MS));
+        await NotificationsManager.sendLocalNotification({
+          title: `Vaccine Due Soon: ${currentBaby.name}`,
+          body: `${nextVaccine.name} is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'} (${dueDateLabel}).`,
+          type: 'vaccine',
+          data: { babyId: currentBaby.id, deepLink: 'vaccination' },
+        });
+      }
     }
   }
 };

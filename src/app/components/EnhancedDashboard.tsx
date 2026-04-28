@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
-import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield } from 'lucide-react';
+import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield, Stethoscope, AlertTriangle } from 'lucide-react';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 import { SerenityAI } from './SerenityAI';
 import { FeedingTimer } from './FeedingTimer';
@@ -68,6 +68,9 @@ const FamilySharing = lazyNamed(() => import('./FamilySharing'), 'FamilySharing'
 const PatientAssignments = lazyNamed(() => import('./PatientAssignments'), 'PatientAssignments');
 const VoiceLogging = lazyNamed(() => import('./VoiceLogging'), 'VoiceLogging');
 const DoctorReportGenerator = lazyNamed(() => import('./DoctorReportGenerator'), 'DoctorReportGenerator');
+const CarePriorityBoard = lazyNamed(() => import('./CarePriorityBoard'), 'CarePriorityBoard');
+const EmergencyShareCard = lazyNamed(() => import('./EmergencyShareCard'), 'EmergencyShareCard');
+const ClinicDoctorPanel = lazyNamed(() => import('./ClinicDoctorPanel'), 'ClinicDoctorPanel');
 const PaymentScreen = lazyNamed(() => import('./PaymentScreen'), 'PaymentScreen');
 const AdminPanel = lazyNamed(() => import('./AdminPanel'), 'AdminPanel');
 
@@ -87,6 +90,7 @@ const PREMIUM_FEATURE_BY_VIEW: Partial<Record<ViewMode, keyof PremiumFeatures>> 
   'wearable': 'wearableIntegration',
   'voice-logging': 'voiceLogging',
   'doctor-reports': 'doctorAccess',
+  'clinic-panel': 'doctorAccess',
   'family-sharing': 'familySharing',
   'community': 'communityAccess',
   'content-library': 'contentLibrary',
@@ -164,6 +168,9 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'patients',
     'voice-logging',
     'doctor-reports',
+    'care-priority',
+    'emergency-card',
+    'clinic-panel',
   ]);
   const viewsWithEmbeddedHeader = new Set<ViewMode>([
     'journal',
@@ -251,15 +258,23 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     if (!babies.length || !settings || !latestFeed || !latestDiaper) return;
     
     // Initial sync
-    syncNotifications(babies, settings, { feedLogs: [latestFeed], diaperLogs: [latestDiaper] });
+    syncNotifications(babies, settings, {
+      feedLogs: [latestFeed],
+      diaperLogs: [latestDiaper],
+      vaccinationRecords,
+    });
 
     // Periodic sync every 30 seconds
     const interval = setInterval(() => {
-      syncNotifications(babies, settings, { feedLogs: [latestFeed], diaperLogs: [latestDiaper] });
+      syncNotifications(babies, settings, {
+        feedLogs: [latestFeed],
+        diaperLogs: [latestDiaper],
+        vaccinationRecords,
+      });
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [babies, settings, latestFeed, latestDiaper]);
+  }, [babies, settings, latestFeed, latestDiaper, vaccinationRecords]);
 
   useEffect(() => {
     const handleDeepLink = (e: any) => {
@@ -534,6 +549,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'wearable', label: 'Wearables', icon: <Activity size={20} />, bg: 'bg-violet-50 dark:bg-violet-900/20 text-violet-500' },
               { id: 'voice-logging', label: 'Voice Logs', icon: <Mic size={20} />, bg: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500' },
               { id: 'doctor-reports', label: 'Doctor Reports', icon: <FileText size={20} />, bg: 'bg-teal-50 dark:bg-teal-900/20 text-teal-500' },
+              { id: 'care-priority', label: 'Priority Board', icon: <AlertTriangle size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
+              { id: 'emergency-card', label: 'Emergency Card', icon: <Shield size={20} />, bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' },
+              ...(accountProfileType === 'doctor'
+                ? [{ id: 'clinic-panel', label: 'Clinic Panel', icon: <Stethoscope size={20} />, bg: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500' }]
+                : []),
               ...(isCareTeamProfile
                 ? [{ id: 'patients', label: 'My Patients', icon: <Users size={20} />, bg: 'bg-sky-50 dark:bg-sky-900/20 text-sky-500' }]
                 : []),
@@ -744,6 +764,18 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       case 'patients': return <PatientAssignments onBack={backToDashboard} />;
       case 'voice-logging': return currentBaby ? <VoiceLogging babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'doctor-reports': return currentBaby ? <DoctorReportGenerator babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
+      case 'care-priority':
+        return currentBaby ? (
+          <CarePriorityBoard
+            babyId={currentBaby.id}
+            babyName={currentBaby.name}
+            onBack={backToDashboard}
+            onOpenVaccines={() => setActiveView('vaccination')}
+            onOpenHealthRecords={() => setActiveView('health-records')}
+          />
+        ) : null;
+      case 'emergency-card': return currentBaby ? <EmergencyShareCard babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
+      case 'clinic-panel': return accountProfileType === 'doctor' ? <ClinicDoctorPanel onBack={backToDashboard} /> : null;
       default: return renderDashboard();
     }
   };

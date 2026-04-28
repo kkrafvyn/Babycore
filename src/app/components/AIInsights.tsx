@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
 import { Lightbulb, TrendingUp, AlertTriangle, Zap } from 'lucide-react';
 import {
   analyzeSleepPatterns,
+  askCareCopilot,
+  CareCopilotMessage,
   detectAnomalies,
   getSleepRecommendations,
   AIInsight,
@@ -17,6 +21,16 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [anomalies, setAnomalies] = useState<AIInsight[]>([]);
   const [recommendations, setRecommendations] = useState<AIInsight[]>([]);
+  const [copilotPrompt, setCopilotPrompt] = useState('');
+  const [copilotHistory, setCopilotHistory] = useState<CareCopilotMessage[]>([
+    {
+      role: 'assistant',
+      content:
+        'Hi! I am your BabyCore care copilot. Ask about sleep, feeding, vaccine timing, or growth trends.',
+    },
+  ]);
+  const [copilotModel, setCopilotModel] = useState<string>('fallback-rules');
+  const [copilotLoading, setCopilotLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +54,34 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
   if (loading) {
     return <div className="text-center py-8">Analyzing patterns...</div>;
   }
+
+  const handleAskCopilot = async () => {
+    const question = copilotPrompt.trim();
+    if (!question) return;
+
+    const nextHistory: CareCopilotMessage[] = [...copilotHistory, { role: 'user', content: question }];
+    setCopilotHistory(nextHistory);
+    setCopilotPrompt('');
+    setCopilotLoading(true);
+
+    const answer = await askCareCopilot(babyId, question, nextHistory);
+    setCopilotLoading(false);
+
+    if (!answer) {
+      setCopilotHistory((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            'I could not generate a response right now. Please try again in a moment, and contact your pediatrician for urgent concerns.',
+        },
+      ]);
+      return;
+    }
+
+    setCopilotModel(answer.usedModel || 'fallback-rules');
+    setCopilotHistory((prev) => [...prev, { role: 'assistant', content: answer.response }]);
+  };
 
   const renderInsightCard = (insight: AIInsight) => {
     const confidencePercentage = Math.round((insight.confidence ?? 0) * 100);
@@ -140,6 +182,46 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Care Copilot</CardTitle>
+          <CardDescription>
+            Ask questions about {babyName}'s logs. Model: {copilotModel}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="max-h-64 overflow-y-auto rounded-xl border border-border-gray dark:border-zinc-800 p-3 space-y-2">
+            {copilotHistory.map((entry, index) => (
+              <div
+                key={`${entry.role}-${index}`}
+                className={`rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                  entry.role === 'user'
+                    ? 'bg-secondary text-white ml-8'
+                    : 'bg-surface-gray dark:bg-zinc-900 text-foreground mr-8'
+                }`}
+              >
+                {entry.content}
+              </div>
+            ))}
+            {copilotLoading && (
+              <div className="rounded-xl px-3 py-2 text-sm bg-surface-gray dark:bg-zinc-900 text-foreground mr-8">
+                Thinking...
+              </div>
+            )}
+          </div>
+
+          <Textarea
+            value={copilotPrompt}
+            onChange={(event) => setCopilotPrompt(event.target.value)}
+            rows={3}
+            placeholder="Ask something like: Should we adjust bedtime this week?"
+          />
+          <Button onClick={handleAskCopilot} disabled={copilotLoading || !copilotPrompt.trim()} className="w-full">
+            {copilotLoading ? 'Generating...' : 'Ask Copilot'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

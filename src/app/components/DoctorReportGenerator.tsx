@@ -9,6 +9,16 @@ import {
   emailReportToDoctor,
   DoctorReport,
 } from '@/lib/doctor-integration-service';
+import {
+  buildEmergencyHealthCard,
+  formatEmergencyHealthCard,
+  type EmergencyHealthCard,
+} from '@/lib/emergency-health-card-service';
+import {
+  downloadEmergencyShareCardPdf,
+  getEmergencyShareCard,
+  type EmergencyShareCardResponse,
+} from '@/lib/care-advanced-api';
 
 interface DoctorReportGeneratorProps {
   babyId: string;
@@ -23,6 +33,10 @@ export function DoctorReportGenerator({ babyId, babyName, onReportGenerated }: D
   const [selectedReport, setSelectedReport] = useState<DoctorReport | null>(null);
   const [sharingUrl, setSharingUrl] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [emergencyCard, setEmergencyCard] = useState<EmergencyHealthCard | null>(null);
+  const [emergencyShareCard, setEmergencyShareCard] = useState<EmergencyShareCardResponse | null>(null);
+  const [buildingEmergencyCard, setBuildingEmergencyCard] = useState(false);
+  const [downloadingEmergencyPdf, setDownloadingEmergencyPdf] = useState(false);
 
   const handleGenerateReport = async () => {
     setGenerating(true);
@@ -57,6 +71,41 @@ export function DoctorReportGenerator({ babyId, babyName, onReportGenerated }: D
     }
   };
 
+  const handleGenerateEmergencyCard = async () => {
+    setBuildingEmergencyCard(true);
+    try {
+      const card = await getEmergencyShareCard(babyId);
+      setEmergencyShareCard(card);
+    } catch (error) {
+      console.warn('Falling back to local emergency card generator:', error);
+    }
+    const fallbackCard = await buildEmergencyHealthCard(babyId, babyName);
+    setEmergencyCard(fallbackCard);
+    setBuildingEmergencyCard(false);
+  };
+
+  const handleCopyEmergencyCard = async () => {
+    if (emergencyShareCard?.text) {
+      await navigator.clipboard.writeText(emergencyShareCard.text);
+      alert('Emergency card copied to clipboard.');
+      return;
+    }
+    if (!emergencyCard) return;
+    await navigator.clipboard.writeText(formatEmergencyHealthCard(emergencyCard));
+    alert('Emergency card copied to clipboard.');
+  };
+
+  const handleDownloadEmergencyCardPdf = async () => {
+    setDownloadingEmergencyPdf(true);
+    try {
+      await downloadEmergencyShareCardPdf(babyId);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to download emergency card PDF.');
+    } finally {
+      setDownloadingEmergencyPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -85,6 +134,83 @@ export function DoctorReportGenerator({ babyId, babyName, onReportGenerated }: D
           <Button onClick={handleGenerateReport} disabled={generating} className="w-full">
             {generating ? 'Generating...' : 'Generate Report'}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Emergency Health Card</CardTitle>
+          <CardDescription>
+            Fast summary for urgent care visits, triage, or caregiver handoff.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button onClick={handleGenerateEmergencyCard} disabled={buildingEmergencyCard} variant="outline" className="w-full">
+            {buildingEmergencyCard ? 'Building card...' : 'Generate Emergency Card'}
+          </Button>
+
+          {(emergencyCard || emergencyShareCard) && (
+            <div className="rounded-lg border border-border-gray dark:border-zinc-700 bg-gray-50 dark:bg-zinc-900 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Allergies:{' '}
+                {emergencyShareCard
+                  ? emergencyShareCard.allergies.length
+                    ? emergencyShareCard.allergies
+                        .map((item: any) => `${item.allergen} (${item.severity})`)
+                        .join(', ')
+                    : 'None recorded'
+                  : emergencyCard?.knownAllergies.length
+                  ? emergencyCard.knownAllergies.join(', ')
+                  : 'None recorded'}
+              </p>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Active meds:{' '}
+                {emergencyShareCard
+                  ? emergencyShareCard.medications.length
+                    ? emergencyShareCard.medications
+                        .map((item: any) => `${item.medication_name}${item.dosage ? ` ${item.dosage}` : ''}`)
+                        .join(', ')
+                    : 'None recorded'
+                  : emergencyCard?.activeMedications.length
+                  ? emergencyCard.activeMedications.join(', ')
+                  : 'None recorded'}
+              </p>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Vaccines to review:{' '}
+                {emergencyShareCard
+                  ? emergencyShareCard.vaccines.length
+                    ? emergencyShareCard.vaccines
+                        .map((item: any) => `${item.vaccine_name} (${item.status})`)
+                        .join(', ')
+                    : 'None'
+                  : emergencyCard?.overdueVaccines.length
+                  ? emergencyCard.overdueVaccines.join(', ')
+                  : 'None'}
+              </p>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Doctor contacts: {emergencyShareCard?.doctorContacts.length ?? 0}
+              </p>
+              {emergencyShareCard?.qrCodeDataUrl && (
+                <div className="flex justify-center bg-white rounded-md p-2">
+                  <img src={emergencyShareCard.qrCodeDataUrl} alt="Emergency QR" className="w-32 h-32" />
+                </div>
+              )}
+              <Button
+                onClick={handleDownloadEmergencyCardPdf}
+                size="sm"
+                variant="outline"
+                className="w-full"
+                disabled={downloadingEmergencyPdf}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {downloadingEmergencyPdf ? 'Preparing PDF...' : 'Download Emergency PDF'}
+              </Button>
+              <Button onClick={handleCopyEmergencyCard} size="sm" variant="outline" className="w-full">
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Full Emergency Card
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

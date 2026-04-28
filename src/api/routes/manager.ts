@@ -4,10 +4,10 @@
  */
 
 import { Router, Response } from 'express';
-import { AuthRequest, requireRole } from '../middleware/auth';
-import { supabase } from '../utils/supabase';
-import { requirePermission } from '../utils/role-manager';
-import { logger } from '../../utils/logger';
+import { AuthRequest, requireRole } from '../middleware/auth.js';
+import { supabase } from '../utils/supabase.js';
+import { requirePermission } from '../utils/role-manager.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 

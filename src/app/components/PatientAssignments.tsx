@@ -3,13 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { CheckCircle2, ChevronLeft, RefreshCw, Stethoscope, UserPlus2, Users } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, MessageCircle, RefreshCw, Stethoscope, UserPlus2, Users } from 'lucide-react';
 import {
   acceptIncomingSharingInvite,
   getIncomingSharingInvites,
   type FamilySharingInvite,
 } from '@/lib/family-sharing-service';
 import { useAuthStore } from '@/app/AppContext';
+import { CareTeamChat } from './CareTeamChat';
+import { getDefaultAvatar } from '@/lib/baby-utils';
 
 interface PatientAssignmentsProps {
   onBack?: () => void;
@@ -33,12 +35,18 @@ const formatDate = (value?: string) => {
 const resolveBabyName = (invite: FamilySharingInvite) =>
   invite.baby_name_snapshot?.trim() || `Baby ${invite.baby_id.slice(0, 8)}`;
 
+const resolveBabyAvatar = (invite: FamilySharingInvite): string => {
+  const name = resolveBabyName(invite);
+  return invite.baby_photo_url_snapshot || getDefaultAvatar(undefined, name);
+};
+
 export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
   const { user, refreshBabies } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [pendingInvites, setPendingInvites] = useState<FamilySharingInvite[]>([]);
   const [assignedInvites, setAssignedInvites] = useState<FamilySharingInvite[]>([]);
   const [acceptingInviteId, setAcceptingInviteId] = useState<string | null>(null);
+  const [chatInviteId, setChatInviteId] = useState<string | null>(null);
 
   const profileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
@@ -67,6 +75,20 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
     loadInvites();
   }, []);
 
+  useEffect(() => {
+    if (!assignedInvites.length) {
+      setChatInviteId(null);
+      return;
+    }
+
+    setChatInviteId((previous) => {
+      if (previous && assignedInvites.some((invite) => invite.id === previous)) {
+        return previous;
+      }
+      return assignedInvites[0].id;
+    });
+  }, [assignedInvites]);
+
   const handleAcceptInvite = async (inviteId: string) => {
     setAcceptingInviteId(inviteId);
     await acceptIncomingSharingInvite(inviteId);
@@ -82,6 +104,8 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
       </div>
     );
   }
+
+  const selectedInviteForChat = assignedInvites.find((invite) => invite.id === chatInviteId) || null;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -138,9 +162,21 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
               <Card key={invite.id} className="border border-border-gray dark:border-zinc-800">
                 <CardContent className="py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-foreground">{resolveBabyName(invite)}</p>
-                      <p className="text-xs text-text-light">Shared on {formatDate(invite.created_at)}</p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900">
+                        <img
+                          src={resolveBabyAvatar(invite)}
+                          alt={`${resolveBabyName(invite)} avatar`}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.src = getDefaultAvatar(undefined, resolveBabyName(invite));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{resolveBabyName(invite)}</p>
+                        <p className="text-xs text-text-light">Shared on {formatDate(invite.created_at)}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{roleLabel[invite.role] || invite.role}</Badge>
@@ -148,6 +184,15 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
                         <CheckCircle2 className="mr-1 h-3 w-3" />
                         Added
                       </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setChatInviteId(invite.id)}
+                        className="h-7 px-2 text-[10px]"
+                      >
+                        <MessageCircle className="mr-1 h-3 w-3" />
+                        Chat
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -168,10 +213,22 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
               <Card key={invite.id} className="border border-border-gray dark:border-zinc-800">
                 <CardContent className="py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-foreground">{resolveBabyName(invite)}</p>
-                      <p className="text-xs text-text-light">Role: {roleLabel[invite.role] || invite.role}</p>
-                      <p className="text-xs text-text-light">Shared on {formatDate(invite.created_at)}</p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900">
+                        <img
+                          src={resolveBabyAvatar(invite)}
+                          alt={`${resolveBabyName(invite)} avatar`}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.src = getDefaultAvatar(undefined, resolveBabyName(invite));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{resolveBabyName(invite)}</p>
+                        <p className="text-xs text-text-light">Role: {roleLabel[invite.role] || invite.role}</p>
+                        <p className="text-xs text-text-light">Shared on {formatDate(invite.created_at)}</p>
+                      </div>
                     </div>
                     <Button
                       size="sm"
@@ -188,6 +245,13 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      {selectedInviteForChat && (
+        <CareTeamChat
+          babyId={selectedInviteForChat.baby_id}
+          babyName={resolveBabyName(selectedInviteForChat)}
+        />
+      )}
     </div>
   );
 }

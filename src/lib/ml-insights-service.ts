@@ -23,6 +23,17 @@ export interface ScrapbookSummary {
   };
 }
 
+export interface CareCopilotMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CareCopilotResponse {
+  response: string;
+  usedModel: string;
+  generatedAt: string;
+}
+
 const getJsonHeaders = async (): Promise<Record<string, string>> => {
   const auth = supabase.auth as any;
   const {
@@ -69,6 +80,41 @@ export async function generateMonthlyScrapbookSummary(
     return payload?.scrapbook || null;
   } catch (error) {
     console.error('Error generating scrapbook summary:', error);
+    return null;
+  }
+}
+
+/**
+ * Ask AI care copilot a contextual question about this baby profile
+ */
+export async function askCareCopilot(
+  babyId: string,
+  prompt: string,
+  history: CareCopilotMessage[] = [],
+): Promise<CareCopilotResponse | null> {
+  try {
+    const response = await postMl('/api/ml/care-copilot', {
+      babyId,
+      prompt,
+      history: history.slice(-8),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Care copilot request failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    if (!payload?.success || !payload?.response) {
+      return null;
+    }
+
+    return {
+      response: String(payload.response),
+      usedModel: String(payload.usedModel || 'fallback'),
+      generatedAt: String(payload.generatedAt || new Date().toISOString()),
+    };
+  } catch (error) {
+    console.error('Error asking care copilot:', error);
     return null;
   }
 }

@@ -3,9 +3,9 @@
  */
 
 import { Router, Response } from 'express';
-import { AuthRequest, requireAuth } from '../middleware/auth';
-import { supabase } from '../utils/supabase';
-import { logger } from '../../utils/logger';
+import { AuthRequest, requireAuth } from '../middleware/auth.js';
+import { supabase } from '../utils/supabase.js';
+import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();

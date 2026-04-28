@@ -4,8 +4,8 @@
  */
 
 import { Router, Response } from 'express';
-import { AuthRequest, requireRole } from '../middleware/auth';
-import { supabase } from '../utils/supabase';
+import { AuthRequest, requireRole } from '../middleware/auth.js';
+import { supabase } from '../utils/supabase.js';
 import {
   assignRoleToUser,
   listUsersWithRoles,
@@ -14,8 +14,8 @@ import {
   demoteUser,
   promoteUser,
   getUserRole,
-} from '../utils/role-manager';
-import { logger } from '../../utils/logger';
+} from '../utils/role-manager.js';
+import { logger } from '../../utils/logger.js';
 
 const router = Router();
 

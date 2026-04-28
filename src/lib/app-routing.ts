@@ -48,6 +48,9 @@ export const APP_VIEWS = [
   'patients',
   'voice-logging',
   'doctor-reports',
+  'care-priority',
+  'emergency-card',
+  'clinic-panel',
   'payment',
   'admin',
 ] as const;
@@ -102,4 +105,3 @@ export const getAppViewFromPathname = (pathname: string): AppView | null => {
 
 export const getPublicRoutePath = (route: PublicRoute): string => PUBLIC_ROUTE_PATHS[route];
 export const getAppViewPath = (view: AppView): string => APP_VIEW_PATHS[view];
-

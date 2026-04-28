@@ -31,6 +31,7 @@ export interface SyncConflict {
   id: string;
   type: 'local' | 'remote';
   data: any;
+  remoteData?: any;
   timestamp: Date;
 }
 
@@ -246,14 +247,21 @@ class CloudSyncManager {
   /**
    * Handle sync conflicts (local vs remote)
    */
-  async resolveConflict(conflict: SyncConflict, resolution: 'local' | 'remote'): Promise<void> {
+  async resolveConflict(conflict: SyncConflict, resolution: 'local' | 'remote' | 'merge'): Promise<void> {
     console.log(`Resolving conflict for ${conflict.id} with ${resolution} version`);
 
     if (resolution === 'local') {
       // Queue local change again
       this.queueChange(conflict.id, conflict.data, 'update');
+      return;
     }
-    // If remote, just ignore the local version
+
+    if (resolution === 'merge') {
+      const merged = mergeConflictData(conflict.data, conflict.remoteData || {});
+      this.queueChange(conflict.id, merged, 'update');
+      return;
+    }
+    // If remote, ignore local version.
   }
 
   /**
@@ -348,3 +356,53 @@ export const useSyncState = () => {
 
   return syncState;
 };
+
+export function mergeConflictData(localData: any, remoteData: any): any {
+  if (!localData) return remoteData;
+  if (!remoteData) return localData;
+
+  if (Array.isArray(localData) && Array.isArray(remoteData)) {
+    const map = new Map<string, any>();
+    for (const item of remoteData) {
+      map.set(String(item?.id || JSON.stringify(item)), item);
+    }
+    for (const item of localData) {
+      const key = String(item?.id || JSON.stringify(item));
+      const remoteItem = map.get(key);
+      if (!remoteItem) {
+        map.set(key, item);
+        continue;
+      }
+
+      const localUpdated = Date.parse(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || '');
+      const remoteUpdated = Date.parse(
+        remoteItem?.updatedAt || remoteItem?.updated_at || remoteItem?.createdAt || remoteItem?.created_at || '',
+      );
+      map.set(key, Number.isFinite(localUpdated) && localUpdated >= remoteUpdated ? item : remoteItem);
+    }
+    return Array.from(map.values());
+  }
+
+  if (typeof localData === 'object' && typeof remoteData === 'object') {
+    const merged: Record<string, any> = { ...remoteData, ...localData };
+
+    for (const key of Object.keys(merged)) {
+      const localValue = localData[key];
+      const remoteValue = remoteData[key];
+      if (
+        localValue &&
+        remoteValue &&
+        typeof localValue === 'object' &&
+        typeof remoteValue === 'object' &&
+        !Array.isArray(localValue) &&
+        !Array.isArray(remoteValue)
+      ) {
+        merged[key] = mergeConflictData(localValue, remoteValue);
+      }
+    }
+
+    return merged;
+  }
+
+  return localData;
+}

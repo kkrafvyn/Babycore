@@ -4,7 +4,14 @@ import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getGrowthMeasurementsByBaby, addGrowthMeasurement, updateGrowthMeasurement, deleteGrowthMeasurement } from '../../lib/supabase-storage';
 import type { GrowthMeasurement } from '../../types';
-import { getWHOData, getPercentile, getAgeInMonths, convertWeight, convertLength } from '../../lib/baby-utils';
+import {
+  getGrowthStandardData,
+  getPercentile,
+  getAgeInMonths,
+  convertWeight,
+  convertLength,
+  type GrowthStandard,
+} from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
 
 const MotionDiv = motion.div as any;
@@ -12,6 +19,40 @@ const MotionDiv = motion.div as any;
 interface GrowthChartProps {
   onBack: () => void;
   showBackButton?: boolean;
+}
+
+function getInterpolatedPercentile(value: number, ageMonths: number, whoData: Array<any>): number {
+  if (!whoData.length) return 50;
+
+  const closest = whoData.reduce((best, current) => {
+    if (!best) return current;
+    return Math.abs(current.ageMonths - ageMonths) < Math.abs(best.ageMonths - ageMonths)
+      ? current
+      : best;
+  }, whoData[0]);
+
+  const buckets: Array<{ percentile: number; value: number }> = [
+    { percentile: 3, value: closest.p3 },
+    { percentile: 15, value: closest.p15 },
+    { percentile: 50, value: closest.p50 },
+    { percentile: 85, value: closest.p85 },
+    { percentile: 97, value: closest.p97 },
+  ];
+
+  if (value <= buckets[0].value) return 1;
+  if (value >= buckets[buckets.length - 1].value) return 99;
+
+  for (let i = 0; i < buckets.length - 1; i++) {
+    const left = buckets[i];
+    const right = buckets[i + 1];
+    if (value >= left.value && value <= right.value) {
+      const span = right.value - left.value || 1;
+      const progress = (value - left.value) / span;
+      return left.percentile + progress * (right.percentile - left.percentile);
+    }
+  }
+
+  return 50;
 }
 
 export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton = true }) => {
@@ -27,6 +68,7 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedPoint, setSelectedPoint] = useState<GrowthMeasurement | null>(null);
   const [useImperial, setUseImperial] = useState(settings?.units === 'imperial');
+  const [growthStandard, setGrowthStandard] = useState<GrowthStandard>('WHO');
 
   const isImperial = useImperial;
   const weightUnit = isImperial ? 'lbs' : 'kg';
@@ -99,7 +141,10 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
     }
   };
 
-  const whoData = useMemo(() => getWHOData(activeTab, gender || undefined), [activeTab, gender]);
+  const referenceData = useMemo(
+    () => getGrowthStandardData(activeTab, gender || undefined, growthStandard),
+    [activeTab, gender, growthStandard],
+  );
 
   const chartW = 400;
   const chartH = 200;
@@ -113,34 +158,70 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   const maxAge = 24;
   const scaleX = (age: number) => padL + (age / maxAge) * plotW;
 
-  const allValues = whoData.flatMap(d => [d.p3, d.p97]);
+  const allValues = referenceData.flatMap(d => [d.p3, d.p97]);
   const minY = Math.min(...allValues) * 0.9;
   const maxY = Math.max(...allValues) * 1.1;
   const scaleY = (val: number) => padT + plotH - ((val - minY) / (maxY - minY)) * plotH;
 
   const buildPath = (key: 'p3' | 'p15' | 'p50' | 'p85' | 'p97') =>
-    whoData.map((d, i) => `${i === 0 ? 'M' : 'L'}${scaleX(d.ageMonths)} ${scaleY(d[key])}`).join(' ');
+    referenceData.map((d, i) => `${i === 0 ? 'M' : 'L'}${scaleX(d.ageMonths)} ${scaleY(d[key])}`).join(' ');
 
   const babyPoints = measurements
     .map(m => {
       const age = currentBaby?.dateOfBirth ? getAgeInMonths(currentBaby.dateOfBirth, m.date) : 0;
-      let val = activeTab === 'weight' ? m.weight : activeTab === 'height' ? m.height : m.headCircumference;
-      if (val === undefined) return null;
-      if (isImperial && activeTab === 'weight') val = convertWeight(val, 'metric', 'imperial');
-      if (isImperial && (activeTab === 'height' || activeTab === 'head')) val = convertLength(val, 'metric', 'imperial');
-      return { age, val, measurement: m };
+      const metricVal = activeTab === 'weight' ? m.weight : activeTab === 'height' ? m.height : m.headCircumference;
+      if (metricVal === undefined) return null;
+      let displayVal = metricVal;
+      if (isImperial && activeTab === 'weight') {
+        displayVal = convertWeight(metricVal, 'metric', 'imperial');
+      }
+      if (isImperial && (activeTab === 'height' || activeTab === 'head')) {
+        displayVal = convertLength(metricVal, 'metric', 'imperial');
+      }
+      return { age, metricVal, displayVal, measurement: m };
     })
-    .filter(Boolean) as { age: number; val: number; measurement: GrowthMeasurement }[];
+    .filter(Boolean) as {
+      age: number;
+      metricVal: number;
+      displayVal: number;
+      measurement: GrowthMeasurement;
+    }[];
 
   const babyPath = babyPoints.length > 1
-    ? babyPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${scaleX(p.age)} ${scaleY(p.val)}`).join(' ')
+    ? babyPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${scaleX(p.age)} ${scaleY(p.metricVal)}`).join(' ')
     : '';
 
   const latestPoint = babyPoints[babyPoints.length - 1];
-  const currentValue = latestPoint?.val ?? '—';
+  const currentValue = latestPoint?.displayVal ?? '-';
   const currentPercentile = latestPoint && currentBaby?.dateOfBirth
-    ? getPercentile(latestPoint.val, latestPoint.age, activeTab, gender || undefined)
-    : '—';
+    ? getPercentile(latestPoint.metricVal, latestPoint.age, activeTab, gender || undefined, growthStandard)
+    : '-';
+  const previousPoint = babyPoints[babyPoints.length - 2];
+  const latestPercentileRank = latestPoint
+    ? getInterpolatedPercentile(latestPoint.metricVal, latestPoint.age, referenceData)
+    : null;
+  const previousPercentileRank = previousPoint
+    ? getInterpolatedPercentile(previousPoint.metricVal, previousPoint.age, referenceData)
+    : null;
+  const percentileDelta =
+    latestPercentileRank !== null && previousPercentileRank !== null
+      ? latestPercentileRank - previousPercentileRank
+      : null;
+  const percentileTrendLabel =
+    percentileDelta === null
+      ? 'No trend yet'
+      : percentileDelta > 5
+      ? 'Rising percentile'
+      : percentileDelta < -5
+      ? 'Dropping percentile'
+      : 'Stable percentile';
+  const percentileRiskLabel =
+    latestPercentileRank === null
+      ? 'Insufficient data'
+      : latestPercentileRank < 5 || latestPercentileRank > 95
+      ? 'Outside typical range'
+      : 'Within expected range';
+  const isCdcPlaceholder = growthStandard === 'CDC';
 
   return (
     <div className="fit-screen bg-background">
@@ -185,6 +266,27 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
              </div>
            </div>
 
+           <div className="flex justify-end px-2">
+             <div className="bg-surface-gray dark:bg-zinc-800 p-1 rounded-[1.5rem] flex gap-1 shadow-inner">
+               <button
+                 onClick={() => setGrowthStandard('WHO')}
+                 className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                   growthStandard === 'WHO' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
+                 }`}
+               >
+                 WHO
+               </button>
+               <button
+                 onClick={() => setGrowthStandard('CDC')}
+                 className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                   growthStandard === 'CDC' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
+                 }`}
+               >
+                 CDC
+               </button>
+             </div>
+           </div>
+
            <div className="card-onboarding bg-surface overflow-hidden relative">
              <div className="flex justify-between items-start mb-8">
                <div>
@@ -201,6 +303,14 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                   <p className="text-[8px] font-black opacity-60 uppercase tracking-widest mt-1">Percentile</p>
                </div>
              </div>
+             <p className="text-[9px] font-black text-text-light uppercase tracking-widest mb-4">
+               Standard: {growthStandard}
+             </p>
+             {isCdcPlaceholder && (
+               <p className="text-[10px] font-bold text-text-dim mb-4">
+                 CDC mode currently mirrors WHO reference tables until validated CDC LMS curves are imported.
+               </p>
+             )}
 
              <div className="relative">
                <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-48 drop-shadow-sm">
@@ -226,7 +336,7 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                    <circle
                      key={i}
                      cx={scaleX(p.age)}
-                     cy={scaleY(p.val)}
+                     cy={scaleY(p.metricVal)}
                      r={selectedPoint?.id === p.measurement.id ? 7 : 5}
                      fill="var(--bg-surface)"
                      stroke="currentColor"
@@ -253,6 +363,36 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                  </div>
                  <h4 className="text-lg font-headline font-black text-foreground leading-tight mb-2">{measurements.length} Logged</h4>
                  <p className="text-[11px] font-bold text-text-dim leading-relaxed">Total growth records.</p>
+              </div>
+           </div>
+
+           <div className="bg-surface-gray dark:bg-zinc-900/30 p-6 rounded-[2.5rem] border border-border-gray dark:border-zinc-800 shadow-inner">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-secondary/10 dark:bg-zinc-800 text-secondary rounded-xl flex items-center justify-center shrink-0">
+                  <Info size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">Percentile Trajectory</p>
+                  <p className="text-xl font-headline font-black text-foreground mt-1">
+                    {latestPercentileRank === null ? 'Not enough data' : `${latestPercentileRank.toFixed(1)}th`}
+                  </p>
+                  <p className="text-[11px] font-bold text-text-dim mt-1">{percentileTrendLabel}</p>
+                  <p
+                    className={`text-[10px] font-black uppercase tracking-wider mt-2 ${
+                      percentileRiskLabel === 'Outside typical range'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {percentileRiskLabel}
+                  </p>
+                  {percentileDelta !== null && (
+                    <p className="text-[10px] font-bold text-text-dim mt-1">
+                      Change since last log: {percentileDelta > 0 ? '+' : ''}
+                      {percentileDelta.toFixed(1)} percentile points
+                    </p>
+                  )}
+                </div>
               </div>
            </div>
 

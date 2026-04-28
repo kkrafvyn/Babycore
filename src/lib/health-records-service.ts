@@ -35,6 +35,24 @@ export interface Medication {
   effectiveness_notes?: string;
 }
 
+export interface MedicationAdherence {
+  id: string;
+  medication_id: string;
+  given_at: string;
+  given_by?: string;
+  dose_taken: boolean;
+  notes?: string;
+  created_at: string;
+  medication_name?: string;
+  dosage?: string;
+  frequency?: string;
+}
+
+const isMissingRelationError = (error: unknown): boolean => {
+  const value = String((error as any)?.message || (error as any)?.details || '').toLowerCase();
+  return value.includes('does not exist') || value.includes('relation');
+};
+
 /**
  * Create health record
  */
@@ -242,6 +260,102 @@ export async function getMedications(babyId: string, activOnly = true): Promise<
     return data || [];
   } catch (err) {
     console.error('Error fetching medications:', err);
+    return [];
+  }
+}
+
+/**
+ * Record a medication dose event for adherence tracking
+ */
+export async function recordMedicationDose(
+  medicationId: string,
+  notes?: string,
+  givenAt?: string
+): Promise<MedicationAdherence | null> {
+  try {
+    const auth = supabase.auth as any;
+    const { data: userData } = await auth.getUser();
+
+    const { data, error } = await supabase
+      .from('medication_adherence')
+      .insert({
+        medication_id: medicationId,
+        given_at: givenAt || new Date().toISOString(),
+        given_by: userData?.user?.id,
+        dose_taken: true,
+        notes,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    if (isMissingRelationError(err)) {
+      console.warn(
+        'medication_adherence table not available yet. Run the latest SQL migrations to enable dose tracking.',
+      );
+      return null;
+    }
+    console.error('Error recording medication dose:', err);
+    return null;
+  }
+}
+
+/**
+ * Get medication adherence logs for all medications linked to a baby profile
+ */
+export async function getMedicationAdherenceByBaby(
+  babyId: string,
+  limit = 120
+): Promise<MedicationAdherence[]> {
+  try {
+    const { data, error } = await supabase
+      .from('medication_adherence')
+      .select(
+        `
+          id,
+          medication_id,
+          given_at,
+          given_by,
+          dose_taken,
+          notes,
+          created_at,
+          medications!inner (
+            id,
+            baby_id,
+            medication_name,
+            dosage,
+            frequency
+          )
+        `,
+      )
+      .eq('medications.baby_id', babyId)
+      .order('given_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      medication_id: row.medication_id,
+      given_at: row.given_at,
+      given_by: row.given_by || undefined,
+      dose_taken: row.dose_taken ?? true,
+      notes: row.notes || undefined,
+      created_at: row.created_at,
+      medication_name: row.medications?.medication_name,
+      dosage: row.medications?.dosage,
+      frequency: row.medications?.frequency,
+    }));
+  } catch (err) {
+    if (isMissingRelationError(err)) {
+      console.warn(
+        'medication_adherence table not available yet. Run the latest SQL migrations to enable dose tracking.',
+      );
+      return [];
+    }
+    console.error('Error fetching medication adherence:', err);
     return [];
   }
 }

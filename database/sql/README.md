@@ -49,6 +49,8 @@ Run in this exact order:
 28. `27-storage-buckets-and-policies.sql`
 29. `28-notifications-infrastructure.sql`
 30. `29-core-compatibility-and-shared-access.sql`
+31. `30-care-team-chat.sql`
+32. `31-care-advanced-features.sql`
 
 ## Common Errors
 

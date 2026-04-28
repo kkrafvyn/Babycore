@@ -315,7 +315,270 @@ export async function generateScrapbookSummary(req: Request, res: Response) {
   }
 }
 
+/**
+ * POST /api/ml/care-copilot
+ * Conversational AI copilot for parent/doctor/caregiver guidance
+ */
+export async function careCopilot(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    const { babyId, prompt, history } = req.body || {};
+
+    if (!userId || !babyId || !String(prompt || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const babyAccess = await resolveBabyAccess(userId, babyId, req.user?.email);
+    if (!babyAccess) {
+      return res.status(403).json({ success: false, error: 'Unauthorized baby access' });
+    }
+
+    const [recentFeeds, recentSleeps, recentDiapers, recentGrowth, recentVaccines] = await Promise.all([
+      supabase
+        .from('feed_logs')
+        .select('timestamp,type,duration,bottle_amount,bottle_type,solid_description')
+        .eq('baby_id', babyId)
+        .order('timestamp', { ascending: false })
+        .limit(12),
+      supabase
+        .from('sleep_logs')
+        .select('start_time,end_time,duration')
+        .eq('baby_id', babyId)
+        .order('start_time', { ascending: false })
+        .limit(12),
+      supabase
+        .from('diaper_logs')
+        .select('timestamp,type')
+        .eq('baby_id', babyId)
+        .order('timestamp', { ascending: false })
+        .limit(12),
+      supabase
+        .from('growth_measurements')
+        .select('date,weight,height,head_circumference')
+        .eq('baby_id', babyId)
+        .order('date', { ascending: false })
+        .limit(6),
+      supabase
+        .from('vaccination_records')
+        .select('name,due_date,status,given_date')
+        .eq('baby_id', babyId)
+        .order('due_date', { ascending: false })
+        .limit(12),
+    ]);
+
+    const contextSummary = buildCareContextSummary({
+      babyName: babyAccess.name || 'Baby',
+      dateOfBirth: babyAccess.date_of_birth || babyAccess.dateOfBirth || undefined,
+      feeds: recentFeeds.data || [],
+      sleeps: recentSleeps.data || [],
+      diapers: recentDiapers.data || [],
+      growth: recentGrowth.data || [],
+      vaccines: recentVaccines.data || [],
+    });
+
+    const safeHistory = Array.isArray(history)
+      ? history
+          .filter((item) => item && (item.role === 'user' || item.role === 'assistant') && item.content)
+          .slice(-8)
+          .map((item) => ({
+            role: item.role,
+            content: String(item.content).slice(0, 1200),
+          }))
+      : [];
+
+    let answer = buildFallbackCopilotResponse(String(prompt), contextSummary);
+    let usedModel = 'fallback-rules';
+
+    const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY;
+    if (openaiKey) {
+      const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+      const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.25,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are BabyCore Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
+            },
+            {
+              role: 'system',
+              content: `Baby profile context:\n${contextSummary}`,
+            },
+            ...safeHistory,
+            {
+              role: 'user',
+              content: String(prompt).slice(0, 1500),
+            },
+          ],
+        }),
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        const content = payload?.choices?.[0]?.message?.content;
+        if (content) {
+          answer = String(content).trim();
+          usedModel = model;
+        }
+      } else {
+        console.warn('Care copilot model request failed:', response.status);
+      }
+    }
+
+    return res.json({
+      success: true,
+      response: answer,
+      usedModel,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 // Helper functions
+async function resolveBabyAccess(
+  userId: string,
+  babyId: string,
+  userEmail?: string,
+): Promise<any | null> {
+  const owner = await supabase
+    .from('babies')
+    .select('id,name,date_of_birth')
+    .eq('id', babyId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (owner.data) {
+    return owner.data;
+  }
+
+  const normalizedEmail = String(userEmail || '').toLowerCase();
+  const [inviteByUser, inviteByEmail, doctorAssignment] = await Promise.all([
+    supabase
+      .from('family_sharing_invites')
+      .select('id,baby_name_snapshot')
+      .eq('baby_id', babyId)
+      .eq('accepted_by', userId)
+      .not('accepted_at', 'is', null)
+      .maybeSingle(),
+    normalizedEmail
+      ? supabase
+          .from('family_sharing_invites')
+          .select('id,baby_name_snapshot')
+          .eq('baby_id', babyId)
+          .ilike('invited_email', normalizedEmail)
+          .not('accepted_at', 'is', null)
+          .maybeSingle()
+      : Promise.resolve({ data: null } as any),
+    supabase
+      .from('doctor_baby_assignments')
+      .select('id,status')
+      .eq('baby_id', babyId)
+      .eq('doctor_id', userId)
+      .in('status', ['active', 'pending'])
+      .maybeSingle(),
+  ]);
+
+  if (inviteByUser.data || inviteByEmail.data || doctorAssignment.data) {
+    const baby = await supabase
+      .from('babies')
+      .select('id,name,date_of_birth')
+      .eq('id', babyId)
+      .maybeSingle();
+    return (
+      baby.data || {
+        id: babyId,
+        name: inviteByUser.data?.baby_name_snapshot || inviteByEmail.data?.baby_name_snapshot || 'Baby',
+      }
+    );
+  }
+
+  return null;
+}
+
+function summarizeLastTimestamp(rows: any[], field: string): string {
+  if (!rows.length) return 'none';
+  const latest = new Date(rows[0][field] || rows[0].created_at || rows[0].date || Date.now());
+  if (Number.isNaN(latest.getTime())) return 'unknown';
+  return latest.toISOString();
+}
+
+function buildCareContextSummary(context: {
+  babyName: string;
+  dateOfBirth?: string;
+  feeds: any[];
+  sleeps: any[];
+  diapers: any[];
+  growth: any[];
+  vaccines: any[];
+}): string {
+  const overdueVaccines = context.vaccines.filter((item) => item.status === 'overdue').length;
+  const pendingVaccines = context.vaccines.filter((item) => item.status === 'scheduled').length;
+  const latestGrowth = context.growth[0];
+
+  return [
+    `Baby: ${context.babyName}`,
+    `DOB: ${context.dateOfBirth || 'unknown'}`,
+    `Feeds logged: ${context.feeds.length} (latest: ${summarizeLastTimestamp(context.feeds, 'timestamp')})`,
+    `Sleep logs: ${context.sleeps.length} (latest: ${summarizeLastTimestamp(context.sleeps, 'start_time')})`,
+    `Diaper logs: ${context.diapers.length} (latest: ${summarizeLastTimestamp(context.diapers, 'timestamp')})`,
+    `Growth entries: ${context.growth.length}${
+      latestGrowth
+        ? ` (latest weight: ${latestGrowth.weight ?? 'n/a'}, height: ${latestGrowth.height ?? 'n/a'})`
+        : ''
+    }`,
+    `Vaccines pending: ${pendingVaccines}, overdue: ${overdueVaccines}`,
+  ].join('\n');
+}
+
+function buildFallbackCopilotResponse(prompt: string, contextSummary: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+  const bullets: string[] = [];
+
+  if (/(fe(ed|eding)|hungry|bottle|breast)/.test(lowerPrompt)) {
+    bullets.push('Track intervals for 24-48 hours and watch hunger cues before adjusting volume/frequency.');
+    bullets.push('Keep feeds upright and burp midway and after feeds to reduce discomfort.');
+  }
+
+  if (/(sleep|nap|wake|night)/.test(lowerPrompt)) {
+    bullets.push('Use a consistent pre-sleep routine and stable wake windows for the next 3 days.');
+    bullets.push('Aim for a calm wind-down environment: dim lights, lower noise, and predictable sequence.');
+  }
+
+  if (/(vaccine|immuni)/.test(lowerPrompt)) {
+    bullets.push('Prioritize overdue doses first, then schedule the next due vaccines by clinician guidance.');
+    bullets.push('Bring the vaccine record to every visit so the pediatrician can confirm catch-up spacing.');
+  }
+
+  if (/(fever|rash|pain|vomit|blood|breath|seizure|emergency)/.test(lowerPrompt)) {
+    bullets.push('This may need urgent medical review. Please contact your pediatrician or emergency services now.');
+  }
+
+  if (bullets.length === 0) {
+    bullets.push('Log the next 2-3 days of feeds, sleep, diapers, and symptoms to identify reliable patterns.');
+    bullets.push('If behavior changes are persistent or severe, check with your pediatrician for personalized advice.');
+  }
+
+  return [
+    'Here is a practical care plan:',
+    ...bullets.map((item) => `- ${item}`),
+    '',
+    'Context used:',
+    contextSummary,
+    '',
+    'Medical note: This guidance is informational and does not replace professional care.',
+  ].join('\n');
+}
+
 function calculateAverage(data: any[], field: string): number {
   if (!data?.length) return 0;
   return data.reduce((sum, item) => sum + Number(item[field] || 0), 0) / data.length;
@@ -491,5 +754,6 @@ router.post('/predict-next-sleep', predictNextSleep);
 router.post('/predict-milestone', predictMilestone);
 router.post('/growth-analysis', analyzeGrowthTrajectory);
 router.post('/scrapbook-summary', generateScrapbookSummary);
+router.post('/care-copilot', careCopilot);
 
 export default router;
