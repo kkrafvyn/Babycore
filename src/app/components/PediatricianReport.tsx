@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, FileText, Download, Share, Activity, Heart, ArrowRight } from 'lucide-react';
+import { ChevronLeft, FileText, Download, Share, Activity, Heart } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
 import { formatDuration } from '../../lib/baby-utils';
+import { downloadCSV, generateCSV, generatePDFHTML, openPDFInNewWindow } from '../../lib/export';
 
 const MotionDiv = motion.div as any;
 
@@ -11,45 +12,112 @@ interface PediatricianReportProps {
 }
 
 export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }) => {
-  const { currentBaby, growthMeasurements, vaccinationRecords, feedLogs, sleepLogs, diaperLogs } = useAppContext();
-  const [reportPeriod, setReportPeriod] = useState<7 | 14 | 30>(7); // Days
+  const { currentBaby, growthMeasurements, vaccinationRecords, feedLogs, sleepLogs, diaperLogs, milestones, memories } =
+    useAppContext();
+  const [reportPeriod, setReportPeriod] = useState<7 | 14 | 30>(7);
+  const [exporting, setExporting] = useState(false);
+  const [notice, setNotice] = useState('');
 
-  const reportData = useMemo(() => {
+  const reportPayload = useMemo(() => {
     if (!currentBaby) return null;
 
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - reportPeriod);
 
-    // Filter data for period
-    const periodFeeds = feedLogs.filter(l => new Date(l.timestamp) >= startDate);
-    const periodSleeps = sleepLogs.filter(l => new Date(l.startTime) >= startDate);
-    const periodDiapers = diaperLogs.filter(l => new Date(l.timestamp) >= startDate);
+    const periodFeeds = feedLogs.filter((l) => new Date(l.timestamp) >= startDate);
+    const periodSleeps = sleepLogs.filter((l) => new Date(l.startTime) >= startDate);
+    const periodDiapers = diaperLogs.filter((l) => new Date(l.timestamp) >= startDate);
+    const periodGrowth = growthMeasurements.filter((l) => new Date(l.date) >= startDate);
+    const periodMilestones = milestones.filter((l) => new Date(l.date) >= startDate);
+    const periodMemories = memories.filter((l) => new Date(l.timestamp) >= startDate);
 
-    // Calculate averages
     const avgFeedsPerDay = periodFeeds.length / reportPeriod;
     const avgSleepPerDay = periodSleeps.reduce((sum, l) => sum + l.duration, 0) / reportPeriod;
     const avgDiapersPerDay = periodDiapers.length / reportPeriod;
 
-    // Get latest metrics
-    const latestGrowth = [...growthMeasurements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    const upcomingVax = [...vaccinationRecords].filter(v => ['scheduled', 'overdue'].includes(v.status)).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const latestGrowth = [...growthMeasurements].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    )[0];
+
+    const upcomingVax = [...vaccinationRecords]
+      .filter((v) => ['scheduled', 'overdue'].includes(v.status))
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    const exportData = {
+      baby: currentBaby,
+      sleepLogs: periodSleeps,
+      feedLogs: periodFeeds,
+      diaperLogs: periodDiapers,
+      growthMeasurements: periodGrowth,
+      vaccinationRecords,
+      milestones: periodMilestones,
+      memories: periodMemories,
+      dateRange: { start: startDate, end: now },
+    };
 
     return {
       avgFeedsPerDay: avgFeedsPerDay.toFixed(1),
       avgSleepPerDay: formatDuration(Math.round(avgSleepPerDay)),
       avgDiapersPerDay: avgDiapersPerDay.toFixed(1),
       latestGrowth,
-      upcomingVax: upcomingVax.slice(0, 3)
+      upcomingVax: upcomingVax.slice(0, 3),
+      exportData,
+      reportSummary: `Last ${reportPeriod} days: ${periodFeeds.length} feed logs, ${periodSleeps.length} sleep logs, ${periodDiapers.length} diaper logs.`,
     };
-  }, [currentBaby, reportPeriod, feedLogs, sleepLogs, diaperLogs, growthMeasurements, vaccinationRecords]);
+  }, [currentBaby, reportPeriod, feedLogs, sleepLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories]);
 
-  const handleGeneratePdf = () => {
-    // In a real app this would use a library like jspdf to generate and download a PDF
-    alert('This would generate a PDF containing all the summarized information, ready to email to your pediatrician or print out.');
+  const handleDownloadPdf = async () => {
+    if (!reportPayload || !currentBaby) return;
+    setExporting(true);
+    setNotice('');
+    try {
+      const html = generatePDFHTML(reportPayload.exportData as any);
+      openPDFInNewWindow(html);
+      setNotice('PDF report generated in a new tab.');
+    } finally {
+      setExporting(false);
+    }
   };
 
-  if (!currentBaby || !reportData) return null;
+  const handleDownloadCsv = async () => {
+    if (!reportPayload || !currentBaby) return;
+    setExporting(true);
+    setNotice('');
+    try {
+      const csv = generateCSV(reportPayload.exportData as any);
+      const filename = `${currentBaby.name}-pediatric-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      downloadCSV(csv, filename);
+      setNotice('CSV export downloaded.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!reportPayload || !currentBaby) return;
+    setNotice('');
+
+    const text = `${currentBaby.name} pediatric summary\n${reportPayload.reportSummary}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${currentBaby.name} Pediatric Summary`,
+          text,
+        });
+        setNotice('Summary shared.');
+        return;
+      } catch (error) {
+        console.warn('Web share canceled/unavailable:', error);
+      }
+    }
+
+    await navigator.clipboard.writeText(text);
+    setNotice('Summary copied to clipboard.');
+  };
+
+  if (!currentBaby || !reportPayload) return null;
 
   return (
     <div className="fit-screen bg-background">
@@ -65,7 +133,7 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
       <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-32">
         <div className="max-w-md mx-auto w-full space-y-8">
           <div className="flex justify-between items-center bg-surface-gray dark:bg-zinc-900 rounded-[2rem] p-2">
-            {[7, 14, 30].map(days => (
+            {[7, 14, 30].map((days) => (
               <button
                 key={days}
                 onClick={() => setReportPeriod(days as any)}
@@ -80,15 +148,13 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
 
           <div id="report-content" className="bg-white dark:bg-black rounded-[3rem] p-8 space-y-8 shadow-sm border border-border-gray dark:border-zinc-800 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-r from-secondary to-purple-500" />
-            
+
             <div className="text-center pt-4 border-b border-border-gray dark:border-zinc-800 pb-6">
               <div className="w-16 h-16 bg-surface-gray dark:bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 text-secondary">
                 <FileText size={28} />
               </div>
               <h2 className="text-2xl font-headline font-black text-foreground mb-1">{currentBaby.name}</h2>
-              <p className="text-sm font-bold text-text-dim">
-                Pediatric Summary • {new Date().toLocaleDateString()}
-              </p>
+              <p className="text-sm font-bold text-text-dim">Pediatric Summary • {new Date().toLocaleDateString()}</p>
             </div>
 
             <div>
@@ -97,15 +163,15 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
               </h3>
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-2xl text-center">
-                  <p className="text-xl font-headline font-black text-rose-500">{reportData.avgFeedsPerDay}</p>
+                  <p className="text-xl font-headline font-black text-rose-500">{reportPayload.avgFeedsPerDay}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-text-dim mt-1">Feeds/Day</p>
                 </div>
                 <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl text-center">
-                  <p className="text-lg font-headline font-black text-indigo-500 tracking-tighter">{reportData.avgSleepPerDay}</p>
+                  <p className="text-lg font-headline font-black text-indigo-500 tracking-tighter">{reportPayload.avgSleepPerDay}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-text-dim mt-1">Sleep/Day</p>
                 </div>
                 <div className="bg-sky-50 dark:bg-sky-900/10 p-4 rounded-2xl text-center">
-                  <p className="text-xl font-headline font-black text-sky-500">{reportData.avgDiapersPerDay}</p>
+                  <p className="text-xl font-headline font-black text-sky-500">{reportPayload.avgDiapersPerDay}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-text-dim mt-1">Diapers/Day</p>
                 </div>
               </div>
@@ -115,21 +181,21 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
               <h3 className="text-[10px] font-black uppercase tracking-widest text-text-light mb-4 flex items-center gap-2">
                 <Heart size={14} /> Latest Metrics
               </h3>
-              {reportData.latestGrowth ? (
+              {reportPayload.latestGrowth ? (
                 <div className="bg-surface-gray dark:bg-zinc-900 p-5 rounded-[2rem] flex justify-between items-center">
                   <div>
                     <p className="text-xs font-black uppercase tracking-widest text-text-light">Weight</p>
-                    <p className="text-base font-headline font-black">{reportData.latestGrowth.weight || '-'} kg</p>
+                    <p className="text-base font-headline font-black">{reportPayload.latestGrowth.weight || '-'} kg</p>
                   </div>
                   <div className="w-px h-8 bg-border-gray dark:bg-zinc-800" />
                   <div>
                     <p className="text-xs font-black uppercase tracking-widest text-text-light">Length</p>
-                    <p className="text-base font-headline font-black">{reportData.latestGrowth.height || '-'} cm</p>
+                    <p className="text-base font-headline font-black">{reportPayload.latestGrowth.height || '-'} cm</p>
                   </div>
                   <div className="w-px h-8 bg-border-gray dark:bg-zinc-800" />
                   <div>
                     <p className="text-xs font-black uppercase tracking-widest text-text-light">Head</p>
-                    <p className="text-base font-headline font-black">{reportData.latestGrowth.headCircumference || '-'} cm</p>
+                    <p className="text-base font-headline font-black">{reportPayload.latestGrowth.headCircumference || '-'} cm</p>
                   </div>
                 </div>
               ) : (
@@ -137,22 +203,28 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
               )}
             </div>
 
-            {reportData.upcomingVax.length > 0 && (
+            {reportPayload.upcomingVax.length > 0 && (
               <div>
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-text-light mb-4">Upcoming Vaccinations</h3>
                 <div className="space-y-2">
-                  {reportData.upcomingVax.map(v => (
+                  {reportPayload.upcomingVax.map((v) => (
                     <div key={v.id} className="flex justify-between items-center bg-surface-gray dark:bg-zinc-900 p-4 rounded-2xl">
                       <p className="text-sm font-bold text-foreground">{v.name}</p>
                       <p className="text-xs font-bold text-red-500">
-                        {new Date(v.dueDate) < new Date() ? 'Overdue' : 'Due: ' + new Date(v.dueDate).toLocaleDateString()}
+                        {new Date(v.dueDate) < new Date() ? 'Overdue' : `Due: ${new Date(v.dueDate).toLocaleDateString()}`}
                       </p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            
+
+            {notice && (
+              <div className="rounded-2xl border border-border-gray dark:border-zinc-700 bg-surface px-4 py-3 text-xs font-semibold text-text-dim">
+                {notice}
+              </div>
+            )}
+
             <div className="pt-4 border-t border-border-gray dark:border-zinc-800 flex justify-between items-center text-[10px] font-bold text-text-dim">
               <span>Prepared specifically for pediatrician review.</span>
               <span className="font-headline font-black text-secondary">BabyLog</span>
@@ -163,11 +235,25 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
 
       <div className="fixed bottom-0 left-0 w-full bg-background/90 backdrop-blur-md p-6 border-t border-border-gray dark:border-zinc-800 z-40">
         <div className="max-w-md mx-auto flex gap-4">
-          <button onClick={handleGeneratePdf} className="flex-1 bg-secondary text-white py-4 rounded-[2rem] flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-secondary/20 active:scale-95 transition-all">
+          <button
+            onClick={handleDownloadPdf}
+            disabled={exporting}
+            className="flex-1 bg-secondary text-white py-4 rounded-[2rem] flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-secondary/20 active:scale-95 transition-all disabled:opacity-60"
+          >
             <Download size={18} /> Download PDF
           </button>
-          <button onClick={handleGeneratePdf} className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700">
+          <button
+            onClick={handleShare}
+            className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700"
+          >
             <Share size={20} />
+          </button>
+          <button
+            onClick={handleDownloadCsv}
+            disabled={exporting}
+            className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700 disabled:opacity-60"
+          >
+            <FileText size={20} />
           </button>
         </div>
       </div>

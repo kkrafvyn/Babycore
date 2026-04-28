@@ -171,16 +171,16 @@ router.get('/:babyId/summary', requireAuth, async (req: AuthRequest, res: Respon
     const [baby, feeding, sleep, diaper, health] = await Promise.all([
       supabase.from('babies').select('*').eq('id', babyId).single(),
       supabase
-        .from('feeding_logs')
+        .from('feed_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .order('created_at', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(5),
       supabase
-        .from('sleep_analytics')
+        .from('sleep_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .order('recorded_date', { ascending: false })
+        .order('start_time', { ascending: false })
         .limit(5),
       supabase
         .from('diaper_logs')

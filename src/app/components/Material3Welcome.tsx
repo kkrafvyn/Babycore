@@ -129,7 +129,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                   </p>
                   <p className="mt-2 text-base font-semibold leading-relaxed text-text-dim">
                     A more personal welcome built around the nursing mother artwork
-                    instead of the phone mockup.
+                    instead of a generic device preview.
                   </p>
                 </div>
               </div>

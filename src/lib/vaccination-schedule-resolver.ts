@@ -298,11 +298,11 @@ const REGION_COUNTRIES: Record<VaccinationRegionCode, Set<string>> = {
 const REGION_DEFAULT_SCHEDULE: Record<VaccinationRegionCode, string> = {
   AFRICA: 'WHO',
   ASIA: 'WHO',
-  EUROPE: 'WHO',
+  EUROPE: 'GB',
   MIDDLE_EAST: 'WHO',
-  NORTH_AMERICA: 'WHO',
+  NORTH_AMERICA: 'US',
   SOUTH_AMERICA: 'WHO',
-  OCEANIA: 'WHO',
+  OCEANIA: 'AU',
   GLOBAL: 'WHO',
 };
 

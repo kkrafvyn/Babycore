@@ -138,6 +138,41 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     try {
       const localBabies = await getBabies();
 
+      const normalizedEmail = (user?.email || '').trim().toLowerCase();
+      const [sharedByUser, sharedByEmail, doctorAssignments] = await Promise.all([
+        supabase
+          .from('family_sharing_invites')
+          .select('baby_id')
+          .eq('accepted_by', userId)
+          .not('accepted_at', 'is', null),
+        normalizedEmail
+          ? supabase
+              .from('family_sharing_invites')
+              .select('baby_id')
+              .ilike('invited_email', normalizedEmail)
+              .not('accepted_at', 'is', null)
+          : Promise.resolve({ data: [], error: null } as any),
+        supabase
+          .from('doctor_baby_assignments')
+          .select('baby_id,status')
+          .eq('doctor_id', userId),
+      ]);
+
+      const sharedBabyIds = new Set<string>();
+      for (const row of sharedByUser.data || []) {
+        if (row?.baby_id) sharedBabyIds.add(row.baby_id);
+      }
+      for (const row of sharedByEmail.data || []) {
+        if (row?.baby_id) sharedBabyIds.add(row.baby_id);
+      }
+      for (const row of doctorAssignments.data || []) {
+        if (row?.baby_id && (!row?.status || row.status === 'active')) {
+          sharedBabyIds.add(row.baby_id);
+        }
+      }
+
+      const ownedLocalBabies = localBabies.filter((baby) => !sharedBabyIds.has(baby.id));
+
       const aggregate = {
         sleepLogs: [] as SleepLog[],
         feedLogs: [] as FeedLog[],
@@ -148,7 +183,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         memories: [] as MemoryLog[],
       };
 
-      for (const baby of localBabies) {
+      for (const baby of ownedLocalBabies) {
         const [sleepEntries, feedEntries, diaperEntries, growthEntries, vaccineEntries, milestoneEntries, memoryEntries] =
           await Promise.all([
             getSleepLogsByBaby(baby.id),
@@ -172,7 +207,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       const latestSettings = await getUserSettings(userId);
 
       await performFullSync({
-        babies: localBabies,
+        babies: ownedLocalBabies,
         sleepLogs: aggregate.sleepLogs,
         feedLogs: aggregate.feedLogs,
         diaperLogs: aggregate.diaperLogs,

@@ -24,7 +24,7 @@ export const Material3DiaperLog: React.FC = () => {
     timestamp: log.timestamp,
   }));
 
-  const baby = babies?.[0];
+  const baby = currentBaby || babies?.[0];
 
   // Calculate today's stats
   const today = new Date().toDateString();

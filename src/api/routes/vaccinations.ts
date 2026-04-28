@@ -22,15 +22,16 @@ router.post('/record', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
+    const hasGivenDate = Boolean(dateGiven);
     const { data: record, error } = await supabase
       .from('vaccination_records')
       .insert({
         id: uuidv4(),
         baby_id: babyId,
-        user_id: req.user?.id,
-        name: vaccineName,
-        date_given: dateGiven,
-        next_due_date: nextDue,
+        vaccine_name: vaccineName,
+        due_date: nextDue || dateGiven || new Date().toISOString(),
+        given_date: hasGivenDate ? dateGiven : null,
+        status: hasGivenDate ? 'given' : 'scheduled',
         notes,
       })
       .select()
@@ -62,7 +63,7 @@ router.get('/records', requireAuth, async (req: AuthRequest, res: Response) => {
       .from('vaccination_records')
       .select('*')
       .eq('baby_id', babyId)
-      .order('date_given', { ascending: false });
+      .order('due_date', { ascending: false });
 
     if (error) throw error;
 

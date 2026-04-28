@@ -39,7 +39,7 @@ export async function calculateSleepAnalytics(
   try {
     // Fetch all sleep logs for the day
     const { data: sleepLogs } = await supabase
-      .from('sleep')
+      .from('sleep_logs')
       .select('*')
       .eq('baby_id', babyId)
       .like('start_time', `${date}%`)
@@ -141,11 +141,11 @@ export async function calculateFeedingAnalytics(
   try {
     // Fetch all feeding logs for the day
     const { data: feedingLogs } = await supabase
-      .from('feeding')
+      .from('feed_logs')
       .select('*')
       .eq('baby_id', babyId)
-      .like('start_time', `${date}%`)
-      .order('start_time', { ascending: true });
+      .like('timestamp', `${date}%`)
+      .order('timestamp', { ascending: true });
 
     if (!feedingLogs || feedingLogs.length === 0) return null;
 
@@ -153,10 +153,10 @@ export async function calculateFeedingAnalytics(
     const totalFeeds = feedingLogs.length;
     const breastFeeds = feedingLogs.filter((f) => f.type === 'breast').length;
     const bottleFeeds = feedingLogs.filter((f) => f.type === 'bottle').length;
-    const solidFeeds = feedingLogs.filter((f) => f.type === 'solids').length;
+    const solidFeeds = feedingLogs.filter((f) => f.type === 'solids' || f.type === 'solid').length;
 
     const totalDuration = feedingLogs.reduce((sum, feed) => {
-      return sum + (feed.duration || 0);
+      return sum + Number(feed.left_duration || 0) + Number(feed.right_duration || 0);
     }, 0);
 
     const averageDuration = totalDuration / totalFeeds;
@@ -166,8 +166,8 @@ export async function calculateFeedingAnalytics(
     const solidsTypes = Array.from(
       new Set(
         feedingLogs
-          .filter((f) => f.food_type)
-          .map((f) => f.food_type)
+          .filter((f) => f.food_description)
+          .map((f) => f.food_description)
       )
     );
 

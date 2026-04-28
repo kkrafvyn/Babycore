@@ -26,10 +26,10 @@ export async function analyzeSleepPatterns(req: Request, res: Response) {
     startDate.setDate(startDate.getDate() - daysBack);
 
     const { data: sleepLogs, error } = await supabase
-      .from('sleep_analytics')
+      .from('sleep_logs')
       .select('*')
       .eq('baby_id', babyId)
-      .gte('recorded_date', startDate.toISOString());
+      .gte('start_time', startDate.toISOString());
 
     if (error) throw error;
 
@@ -37,7 +37,7 @@ export async function analyzeSleepPatterns(req: Request, res: Response) {
 
     // ML Analysis
     const analysis = {
-      averageSleepPerDay: calculateAverage(safeSleepLogs, 'total_sleep_minutes'),
+      averageSleepPerDay: calculateAverage(safeSleepLogs, 'duration'),
       sleepQuality: calculateAverageQuality(safeSleepLogs),
       regressions: detectRegressions(safeSleepLogs),
       trends: calculateTrends(safeSleepLogs),
@@ -71,10 +71,10 @@ export async function predictNextSleep(req: Request, res: Response) {
 
     // Fetch recent sleep logs
     const { data: recentSleep } = await supabase
-      .from('sleep_analytics')
+      .from('sleep_logs')
       .select('*')
       .eq('baby_id', babyId)
-      .order('recorded_date', { ascending: false })
+      .order('start_time', { ascending: false })
       .limit(14); // Last 2 weeks
 
     // Simple pattern detection (replace with ML model in production)
@@ -92,7 +92,7 @@ export async function predictNextSleep(req: Request, res: Response) {
     const averageInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
 
     const lastSleep = recentSleep?.[0];
-    const predictedTime = new Date(lastSleep?.recorded_date);
+    const predictedTime = new Date(lastSleep?.start_time);
     predictedTime.setMinutes(predictedTime.getMinutes() + averageInterval);
 
     return res.json({
@@ -142,7 +142,7 @@ export async function predictMilestone(req: Request, res: Response) {
       return res.status(400).json({ error: 'Unknown milestone' });
     }
 
-    const babyAgeMonths = calculateAgeMonths(baby?.dateOfBirth);
+    const babyAgeMonths = calculateAgeMonths(baby?.date_of_birth || baby?.dateOfBirth);
     const predictedAge = Math.round(timeline.averageAge);
     const monthsUntil = Math.max(0, predictedAge - babyAgeMonths);
 
@@ -174,7 +174,7 @@ export async function analyzeGrowthTrajectory(req: Request, res: Response) {
       .from('growth_measurements')
       .select('*')
       .eq('baby_id', babyId)
-      .order('recorded_date', { ascending: true });
+      .order('date', { ascending: true });
 
     const safeMeasurements = measurements || [];
     const analysis = {
@@ -194,15 +194,163 @@ export async function analyzeGrowthTrajectory(req: Request, res: Response) {
   }
 }
 
+/**
+ * POST /api/ml/scrapbook-summary
+ * Generate a monthly scrapbook summary from real logs
+ */
+export async function generateScrapbookSummary(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    const { babyId, month, year } = req.body || {};
+
+    if (!userId || !babyId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const targetYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
+    const targetMonth = Number.isFinite(Number(month)) ? Number(month) : new Date().getMonth() + 1;
+    const monthStart = new Date(targetYear, Math.max(0, targetMonth - 1), 1);
+    const monthEnd = new Date(targetYear, Math.max(0, targetMonth), 1);
+
+    const ownerCheck = await supabase
+      .from('babies')
+      .select('id,name')
+      .eq('id', babyId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!ownerCheck.data) {
+      const sharedCheck = await supabase
+        .from('family_sharing_invites')
+        .select('id')
+        .eq('baby_id', babyId)
+        .eq('accepted_by', userId)
+        .not('accepted_at', 'is', null)
+        .maybeSingle();
+
+      if (!sharedCheck.data) {
+        return res.status(403).json({ error: 'Unauthorized baby access' });
+      }
+    }
+
+    const safeQuery = async (table: string, dateField: string, columns = '*') => {
+      const { data, error } = await supabase
+        .from(table)
+        .select(columns)
+        .eq('baby_id', babyId)
+        .gte(dateField, monthStart.toISOString())
+        .lt(dateField, monthEnd.toISOString())
+        .order(dateField, { ascending: false })
+        .limit(30);
+
+      if (error) {
+        console.warn(`Scrapbook query skipped for ${table}:`, error.message);
+        return [];
+      }
+
+      return data || [];
+    };
+
+    const [entriesRaw, memoriesRaw, feedsRaw, sleepsRaw, diapersRaw] = await Promise.all([
+      safeQuery('journal_entries', 'date', 'date,prompt,text,mood'),
+      safeQuery('memories', 'timestamp', 'timestamp,text,is_milestone'),
+      safeQuery('feed_logs', 'timestamp', 'timestamp,type'),
+      safeQuery('sleep_logs', 'start_time', 'start_time,duration'),
+      safeQuery('diaper_logs', 'timestamp', 'timestamp,type'),
+    ]);
+    const entries = entriesRaw as any[];
+    const memories = memoriesRaw as any[];
+    const feeds = feedsRaw as any[];
+    const sleeps = sleepsRaw as any[];
+    const diapers = diapersRaw as any[];
+
+    const babyName = ownerCheck.data?.name || 'Baby';
+    const monthLabel = monthStart.toLocaleString('default', { month: 'long' });
+
+    const firstEntry = entries[0]?.text || memories[0]?.text || '';
+    const recentMilestone = memories.find((m: any) => Boolean(m.is_milestone));
+
+    const highlights = [
+      firstEntry ? `Journal highlight: ${String(firstEntry).slice(0, 90)}` : null,
+      recentMilestone ? `Milestone captured: ${String(recentMilestone.text || '').slice(0, 90)}` : null,
+      feeds.length ? `Recorded ${feeds.length} feeding sessions this month.` : null,
+      sleeps.length
+        ? `Tracked ${sleeps.length} sleep sessions with ${Math.round(
+            sleeps.reduce((sum: number, row: any) => sum + Number(row.duration || 0), 0) / 60,
+          )} total sleep hours.`
+        : null,
+      diapers.length ? `Logged ${diapers.length} diaper events.` : null,
+    ].filter(Boolean) as string[];
+
+    const vibe =
+      highlights.length >= 4
+        ? 'Active, expressive, and full of momentum.'
+        : highlights.length >= 2
+        ? 'Warm, nurturing, and steady growth.'
+        : 'Gentle month with meaningful little moments.';
+
+    const summary =
+      highlights.length > 0
+        ? `${babyName}'s ${monthLabel} featured ${highlights.length} key moments. ${highlights[0]}`
+        : `${babyName}'s ${monthLabel} was calm and consistent. Add more memories and journal notes to enrich this scrapbook.`;
+
+    return res.json({
+      success: true,
+      scrapbook: {
+        title: `${babyName}'s ${monthLabel} Magic`,
+        summary,
+        highlights: highlights.slice(0, 5),
+        vibe,
+        stats: {
+          journalEntries: entries.length,
+          memories: memories.length,
+          feedLogs: feeds.length,
+          sleepLogs: sleeps.length,
+          diaperLogs: diapers.length,
+        },
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 // Helper functions
 function calculateAverage(data: any[], field: string): number {
   if (!data?.length) return 0;
-  return data.reduce((sum, item) => sum + (item[field] || 0), 0) / data.length;
+  return data.reduce((sum, item) => sum + Number(item[field] || 0), 0) / data.length;
+}
+
+function getSleepMinutes(entry: any): number {
+  if (typeof entry?.duration === 'number') return entry.duration;
+  if (typeof entry?.total_sleep_minutes === 'number') return entry.total_sleep_minutes;
+  if (entry?.start_time && entry?.end_time) {
+    const start = new Date(entry.start_time).getTime();
+    const end = new Date(entry.end_time).getTime();
+    if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+      return (end - start) / (1000 * 60);
+    }
+  }
+  return 0;
+}
+
+function getSleepTimestamp(entry: any): string {
+  return entry?.start_time || entry?.recorded_date || entry?.created_at || new Date().toISOString();
 }
 
 function calculateAverageQuality(data: any[]): number {
   if (!data?.length) return 0;
-  return data.reduce((sum, item) => sum + (item.quality_score || 0), 0) / data.length;
+  const manualQualitySamples = data.filter((item) => typeof item?.quality_score === 'number');
+  if (manualQualitySamples.length === 0) {
+    // Estimate quality from duration (8h ~= score 8 baseline)
+    const avgMinutes = data.reduce((sum, item) => sum + getSleepMinutes(item), 0) / data.length;
+    return Math.max(1, Math.min(10, avgMinutes / 60));
+  }
+
+  return (
+    manualQualitySamples.reduce((sum, item) => sum + Number(item.quality_score || 0), 0) /
+    manualQualitySamples.length
+  );
 }
 
 function detectRegressions(data: any[]): any[] {
@@ -215,10 +363,10 @@ function detectRegressions(data: any[]): any[] {
     explanation: string;
   }> = [];
   for (let i = 1; i < data.length; i++) {
-    const diff = data[i].total_sleep_minutes - data[i - 1].total_sleep_minutes;
+    const diff = getSleepMinutes(data[i]) - getSleepMinutes(data[i - 1]);
     if (diff < -120) { // More than 2 hours less
       regressions.push({
-        date: data[i].recorded_date,
+        date: getSleepTimestamp(data[i]),
         severity: 'high',
         explanation: 'Significant decrease in sleep duration',
       });
@@ -230,7 +378,7 @@ function detectRegressions(data: any[]): any[] {
 function calculateTrends(data: any[]): string {
   if (!data?.length) return 'insufficient_data';
   const recent = data.slice(-7);
-  const avg = calculateAverage(recent, 'total_sleep_minutes');
+  const avg = recent.reduce((sum, item) => sum + getSleepMinutes(item), 0) / recent.length;
   return avg > 600 ? 'improving' : avg < 400 ? 'declining' : 'stable';
 }
 
@@ -253,14 +401,15 @@ function generateSleepRecommendations(data: any[]): string[] {
 function detectAnomalies(data: any[]): any[] {
   if (!data?.length) return [];
   
-  const avg = calculateAverage(data, 'total_sleep_minutes');
-  const stdDev = calculateStdDev(data, 'total_sleep_minutes', avg);
+  const avg = data.reduce((sum, item) => sum + getSleepMinutes(item), 0) / data.length;
+  const stdDev = calculateStdDev(data.map((item) => getSleepMinutes(item)), null, avg);
+  if (stdDev === 0) return [];
   
   return data.filter(d => 
-    Math.abs((d.total_sleep_minutes - avg) / stdDev) > 2
+    Math.abs((getSleepMinutes(d) - avg) / stdDev) > 2
   ).map(d => ({
-    date: d.recorded_date,
-    value: d.total_sleep_minutes,
+    date: getSleepTimestamp(d),
+    value: getSleepMinutes(d),
     deviation: 'high',
   }));
 }
@@ -270,8 +419,8 @@ function calculateSleepIntervals(data: any[]): number[] {
   
   const intervals: number[] = [];
   for (let i = 1; i < data.length; i++) {
-    const current = new Date(data[i].recorded_date).getTime();
-    const next = new Date(data[i - 1].recorded_date).getTime();
+    const current = new Date(getSleepTimestamp(data[i])).getTime();
+    const next = new Date(getSleepTimestamp(data[i - 1])).getTime();
     intervals.push((next - current) / (1000 * 60)); // Minutes
   }
   return intervals;
@@ -290,9 +439,11 @@ function calculateStdDev(data: any[], field: string | null, mean: number): numbe
   return Math.sqrt(squareDiffs.reduce((a, b) => a + b) / values.length);
 }
 
-function calculateAgeMonths(dateOfBirth: string): number {
+function calculateAgeMonths(dateOfBirth?: string): number {
+  if (!dateOfBirth) return 0;
   const today = new Date();
   const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return 0;
   return (today.getFullYear() - dob.getFullYear()) * 12 + (today.getMonth() - dob.getMonth());
 }
 
@@ -339,5 +490,6 @@ router.post('/analyze-sleep-patterns', analyzeSleepPatterns);
 router.post('/predict-next-sleep', predictNextSleep);
 router.post('/predict-milestone', predictMilestone);
 router.post('/growth-analysis', analyzeGrowthTrajectory);
+router.post('/scrapbook-summary', generateScrapbookSummary);
 
 export default router;

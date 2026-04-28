@@ -297,8 +297,9 @@ class CloudSyncManager {
    * Export all local data
    */
   async exportAllData(): Promise<Blob> {
-    // Implementation would export local data to JSON
+    const snapshot = await this.buildLocalSnapshot();
     const data = {
+      snapshot,
       syncQueue: Array.from(this.syncQueue.entries()),
       lastSyncTime: this.lastSyncTime,
       exportTime: new Date().toISOString(),

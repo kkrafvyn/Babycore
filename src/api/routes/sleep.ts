@@ -16,7 +16,7 @@ const router = Router();
  */
 router.post('/log', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { babyId, startTime, endTime, quality, notes } = req.body;
+    const { babyId, startTime, endTime, notes } = req.body;
 
     if (!babyId || !startTime || !endTime) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -25,17 +25,14 @@ router.post('/log', requireAuth, async (req: AuthRequest, res: Response) => {
     const duration = (new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60);
 
     const { data: log, error } = await supabase
-      .from('sleep_analytics')
+      .from('sleep_logs')
       .insert({
         id: uuidv4(),
         baby_id: babyId,
-        user_id: req.user?.id,
         start_time: startTime,
         end_time: endTime,
-        total_sleep_minutes: duration,
-        quality_score: quality,
+        duration,
         notes,
-        recorded_date: new Date().toISOString(),
       })
       .select()
       .single();
@@ -63,10 +60,10 @@ router.get('/logs', requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const { data: logs, error, count } = await supabase
-      .from('sleep_analytics')
+      .from('sleep_logs')
       .select('*', { count: 'exact' })
       .eq('baby_id', babyId)
-      .order('recorded_date', { ascending: false })
+      .order('start_time', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
     if (error) throw error;

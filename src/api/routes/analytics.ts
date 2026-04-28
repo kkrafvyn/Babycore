@@ -23,16 +23,16 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
 
     const [feedingStats, sleepStats, diaperStats, healthAlerts] = await Promise.all([
       supabase
-        .from('feeding_logs')
+        .from('feed_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .order('created_at', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(30),
       supabase
-        .from('sleep_analytics')
+        .from('sleep_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .order('recorded_date', { ascending: false })
+        .order('start_time', { ascending: false })
         .limit(30),
       supabase
         .from('diaper_logs')
@@ -49,8 +49,11 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
     ]);
 
     const feedingCount = feedingStats.data?.length || 0;
-    const avgSleepMinutes = feedingStats.data
-      ? (feedingStats.data as any[]).reduce((sum, item) => sum + (item.duration || 0), 0) / feedingCount
+    const avgFeedingDuration = feedingCount
+      ? (feedingStats.data as any[]).reduce(
+          (sum, item) => sum + Number(item.left_duration || 0) + Number(item.right_duration || 0),
+          0,
+        ) / feedingCount
       : 0;
 
     res.json({
@@ -58,7 +61,7 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
       data: {
         feeding: {
           count: feedingCount,
-          avgDuration: avgSleepMinutes,
+          avgDuration: avgFeedingDuration,
           recent: feedingStats.data?.slice(0, 5),
         },
         sleep: {
@@ -95,8 +98,8 @@ router.get('/trends', requireAuth, async (req: AuthRequest, res: Response) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(daysBack));
 
-    let table = metric === 'feeding' ? 'feeding_logs' : 'sleep_analytics';
-    let dateField = metric === 'feeding' ? 'created_at' : 'recorded_date';
+    let table = metric === 'feeding' ? 'feed_logs' : 'sleep_logs';
+    let dateField = metric === 'feeding' ? 'timestamp' : 'start_time';
 
     const { data: trends, error } = await supabase
       .from(table)
@@ -126,8 +129,8 @@ router.get('/export', requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const [feeding, sleep, diaper] = await Promise.all([
-      supabase.from('feeding_logs').select('*').eq('baby_id', babyId),
-      supabase.from('sleep_analytics').select('*').eq('baby_id', babyId),
+      supabase.from('feed_logs').select('*').eq('baby_id', babyId),
+      supabase.from('sleep_logs').select('*').eq('baby_id', babyId),
       supabase.from('diaper_logs').select('*').eq('baby_id', babyId),
     ]);
 

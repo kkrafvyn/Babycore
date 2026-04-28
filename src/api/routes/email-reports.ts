@@ -27,6 +27,33 @@ const getEmailTransporter = async () => ({
     }),
 });
 
+const resolveUserEmail = async (
+  userId: string,
+  fallbackEmail?: string,
+): Promise<string | null> => {
+  if (fallbackEmail) {
+    return fallbackEmail.trim().toLowerCase();
+  }
+
+  try {
+    const adminAuth = (supabase.auth as any)?.admin;
+    if (!adminAuth?.getUserById) {
+      return null;
+    }
+
+    const { data, error } = await adminAuth.getUserById(userId);
+    if (error) {
+      console.warn('Unable to resolve user email from auth admin API:', error.message);
+      return null;
+    }
+
+    return data?.user?.email?.trim().toLowerCase() || null;
+  } catch (error) {
+    console.warn('Failed resolving user email:', error);
+    return null;
+  }
+};
+
 /**
  * POST /api/email-reports/generate-weekly
  * Generate and send weekly digest email
@@ -34,22 +61,21 @@ const getEmailTransporter = async () => ({
 export async function generateWeeklyDigest(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
+    const requesterEmail = req.user?.email as string | undefined;
     const { babyId } = req.body;
 
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get user email and baby data
-    const authClient = supabase.auth as any;
-    const { data: { user } } = await authClient.getUser();
+    const userEmail = await resolveUserEmail(userId, requesterEmail);
     const { data: baby } = await supabase
       .from('babies')
       .select('*')
       .eq('id', babyId)
       .single();
 
-    if (!user?.email || !baby) {
+    if (!userEmail || !baby) {
       return res.status(404).json({ error: 'User or baby not found' });
     }
 
@@ -59,15 +85,15 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
 
     const [feedingLogs, sleepLogs, diaperLogs, vaccinations] = await Promise.all([
       supabase
-        .from('feeding_logs')
+        .from('feed_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('created_at', startDate.toISOString()),
+        .gte('timestamp', startDate.toISOString()),
       supabase
-        .from('sleep_analytics')
+        .from('sleep_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('recorded_date', startDate.toISOString()),
+        .gte('start_time', startDate.toISOString()),
       supabase
         .from('diaper_logs')
         .select('*')
@@ -77,7 +103,7 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
         .from('vaccination_records')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('date', startDate.toISOString()),
+        .gte('due_date', startDate.toISOString()),
     ]);
 
     // Generate email content
@@ -91,7 +117,7 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
 
     // Send email
     await sendTransactionalEmail({
-      to: user.email,
+      to: userEmail,
       subject: `Weekly Update: ${baby.name}'s Progress`,
       html: emailContent.html,
       from: process.env.EMAIL_FROM || 'noreply@babylog.app',
@@ -106,7 +132,7 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
         baby_id: babyId,
         report_type: 'weekly_digest',
         sent_at: new Date().toISOString(),
-        recipient_email: user.email,
+        recipient_email: userEmail,
       });
 
     if (logError) console.error('Error logging email:', logError);
@@ -129,22 +155,21 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
 export async function sendMilestoneAnnouncement(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
+    const requesterEmail = req.user?.email as string | undefined;
     const { babyId, milestone, details } = req.body;
 
     if (!userId || !babyId || !milestone) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get user and baby data
-    const authClient = supabase.auth as any;
-    const { data: { user } } = await authClient.getUser();
+    const userEmail = await resolveUserEmail(userId, requesterEmail);
     const { data: baby } = await supabase
       .from('babies')
       .select('*')
       .eq('id', babyId)
       .single();
 
-    if (!user?.email || !baby) {
+    if (!userEmail || !baby) {
       return res.status(404).json({ error: 'User or baby not found' });
     }
 
@@ -155,7 +180,7 @@ export async function sendMilestoneAnnouncement(req: Request, res: Response) {
     const transporter = await getEmailTransporter();
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'noreply@babylog.app',
-      to: user.email,
+      to: userEmail,
       subject: `🎉 ${baby.name} reached a milestone!`,
       html: emailContent.html,
     });
@@ -234,7 +259,7 @@ export async function getReportPreview(req: Request, res: Response) {
       return res.status(400).json({ error: 'Baby ID required' });
     }
 
-    // Get sample data
+    // Get report data for the selected preview window.
     const { data: baby } = await supabase
       .from('babies')
       .select('*')
@@ -250,16 +275,16 @@ export async function getReportPreview(req: Request, res: Response) {
 
     const [feeding, sleep, diapers] = await Promise.all([
       supabase
-        .from('feeding_logs')
+        .from('feed_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('created_at', startDate.toISOString())
+        .gte('timestamp', startDate.toISOString())
         .limit(10),
       supabase
-        .from('sleep_analytics')
+        .from('sleep_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('recorded_date', startDate.toISOString())
+        .gte('start_time', startDate.toISOString())
         .limit(10),
       supabase
         .from('diaper_logs')
@@ -297,7 +322,7 @@ function generateWeeklyDigestContent(
   vaccinations: any[]
 ) {
   const avgFeedingsPerDay = feeding.length / 7;
-  const totalSleepHours = sleep.reduce((sum, s) => sum + (s.total_sleep_minutes || 0), 0) / 60;
+  const totalSleepHours = sleep.reduce((sum, s) => sum + Number(s.duration || 0), 0) / 60;
   const avgDiaperChanges = diapers.length / 7;
 
   const html = `

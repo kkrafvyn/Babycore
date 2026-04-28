@@ -48,6 +48,7 @@ Run in this exact order:
 27. `26-sharing-link-and-directory-fields.sql`
 28. `27-storage-buckets-and-policies.sql`
 29. `28-notifications-infrastructure.sql`
+30. `29-core-compatibility-and-shared-access.sql`
 
 ## Common Errors
 

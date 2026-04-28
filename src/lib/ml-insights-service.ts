@@ -9,6 +9,20 @@ export interface AIInsight {
   data?: any;
 }
 
+export interface ScrapbookSummary {
+  title: string;
+  summary: string;
+  highlights: string[];
+  vibe: string;
+  stats?: {
+    journalEntries: number;
+    memories: number;
+    feedLogs: number;
+    sleepLogs: number;
+    diaperLogs: number;
+  };
+}
+
 const getJsonHeaders = async (): Promise<Record<string, string>> => {
   const auth = supabase.auth as any;
   const {
@@ -34,6 +48,30 @@ const normalizeConfidence = (value: unknown, fallback = 0.5): number => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(0, Math.min(1, parsed));
 };
+
+export async function generateMonthlyScrapbookSummary(
+  babyId: string,
+  month = new Date().getMonth() + 1,
+  year = new Date().getFullYear(),
+): Promise<ScrapbookSummary | null> {
+  try {
+    const response = await postMl('/api/ml/scrapbook-summary', {
+      babyId,
+      month,
+      year,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate scrapbook summary');
+    }
+
+    const payload = await response.json();
+    return payload?.scrapbook || null;
+  } catch (error) {
+    console.error('Error generating scrapbook summary:', error);
+    return null;
+  }
+}
 
 /**
  * Analyze sleep patterns using ML

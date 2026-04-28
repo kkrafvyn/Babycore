@@ -38,22 +38,28 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
     setError(null);
 
     try {
-      // In a real PWA on iOS/Android, this triggers FaceID/TouchID if configured
-      // We check if WebAuthn is available
-      const available = await window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable();
-      
-      if (available) {
-        // This is a simplified "dummy" call to represent the OS prompt.
-        // A full implementation would involve a stored credential.
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setIsLocked(false);
-      } else {
-        // Fallback for devices without biometrics
-        setError("Biometric hardware not found. Unlocking with session bypass for demo.");
-        setTimeout(() => setIsLocked(false), 1500);
+      const hasBiometricApi =
+        typeof window !== 'undefined' &&
+        'PublicKeyCredential' in window &&
+        typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
+
+      if (!hasBiometricApi) {
+        setError('Biometric authentication is not supported on this device/browser.');
+        return;
       }
+
+      const available =
+        await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+
+      if (!available) {
+        setError('Biometric hardware was not detected on this device.');
+        return;
+      }
+
+      // Unlock only when platform biometrics are available.
+      setIsLocked(false);
     } catch (err) {
-      setError("Authentication failed. Please try again.");
+      setError('Authentication failed. Please try again.');
     } finally {
       setIsAuthenticating(false);
     }

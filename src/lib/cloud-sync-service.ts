@@ -18,12 +18,61 @@ export function getSyncStatus(): SyncStatus {
   return { ...syncStatus };
 }
 
-const getAuthenticatedUser = async (): Promise<{ id: string } | null> => {
+const getAuthenticatedUser = async (): Promise<{ id: string; email?: string } | null> => {
   const auth = supabase.auth as any;
   const {
     data: { user },
   } = await auth.getUser();
   return user || null;
+};
+
+const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const resolveAccessibleBabyIds = async (
+  user: { id: string; email?: string },
+): Promise<{ ownedIds: string[]; sharedIds: string[]; allIds: string[] }> => {
+  const [ownedBabies, inviteByUser, inviteByEmail, doctorAssignments] = await Promise.all([
+    supabase.from('babies').select('id').eq('user_id', user.id),
+    supabase
+      .from('family_sharing_invites')
+      .select('baby_id')
+      .eq('accepted_by', user.id)
+      .not('accepted_at', 'is', null),
+    normalizeEmail(user.email)
+      ? supabase
+          .from('family_sharing_invites')
+          .select('baby_id')
+          .ilike('invited_email', normalizeEmail(user.email))
+          .not('accepted_at', 'is', null)
+      : Promise.resolve({ data: [], error: null } as any),
+    supabase
+      .from('doctor_baby_assignments')
+      .select('baby_id,status')
+      .eq('doctor_id', user.id),
+  ]);
+
+  const ownedIds = (ownedBabies.data || []).map((row: any) => row.id).filter(Boolean);
+
+  const sharedSet = new Set<string>();
+  for (const row of inviteByUser.data || []) {
+    if (row?.baby_id) sharedSet.add(row.baby_id);
+  }
+  for (const row of inviteByEmail.data || []) {
+    if (row?.baby_id) sharedSet.add(row.baby_id);
+  }
+  for (const row of doctorAssignments.data || []) {
+    if (row?.baby_id && (!row?.status || row.status === 'active')) {
+      sharedSet.add(row.baby_id);
+    }
+  }
+
+  // Owned babies should not be considered "shared" during sync writes.
+  ownedIds.forEach((id) => sharedSet.delete(id));
+
+  const sharedIds = Array.from(sharedSet);
+  const allIds = Array.from(new Set([...ownedIds, ...sharedIds]));
+
+  return { ownedIds, sharedIds, allIds };
 };
 
 const genericSync = async (table: string, data: any[]) => {
@@ -68,9 +117,12 @@ export async function performFullSync(localData: {
   try {
     syncStatus.isSyncing = true;
     syncStatus.syncError = null;
+    const { sharedIds } = await resolveAccessibleBabyIds(user);
+    const sharedIdSet = new Set(sharedIds);
+    const ownedBabiesOnly = localData.babies.filter((baby) => !sharedIdSet.has(String(baby?.id || '')));
 
     const results = await Promise.all([
-      syncBabies(localData.babies.map(b => ({ 
+      syncBabies(ownedBabiesOnly.map(b => ({
         id: b.id,
         user_id: user.id,
         name: b.name,
@@ -123,7 +175,7 @@ export async function performFullSync(localData: {
       syncVaccinationRecords(localData.vaccinationRecords.map(r => ({
         id: r.id,
         baby_id: r.babyId,
-        name: r.name,
+        vaccine_name: r.name,
         due_date: r.dueDate,
         status: r.status,
         given_date: r.givenDate,
@@ -172,14 +224,8 @@ export async function pullFromCloud(): Promise<any> {
     const user = await getAuthenticatedUser();
     if (!user) throw new Error('User not authenticated');
 
-    const babies = await supabase.from('babies').select('*').match({ user_id: user.id });
-    if (babies.error) {
-      throw babies.error;
-    }
-
-    const babyIds = (babies.data || []).map((baby: any) => baby.id);
-
-    if (babyIds.length === 0) {
+    const { allIds } = await resolveAccessibleBabyIds(user);
+    if (allIds.length === 0) {
       return {
         babies: [],
         sleepLogs: [],
@@ -191,6 +237,13 @@ export async function pullFromCloud(): Promise<any> {
         memories: [],
       };
     }
+
+    const babies = await supabase.from('babies').select('*').in('id', allIds);
+    if (babies.error) {
+      throw babies.error;
+    }
+
+    const babyIds = (babies.data || []).map((baby: any) => baby.id);
 
     const fetchByBabyIds = (table: string) =>
       supabase.from(table).select('*').in('baby_id', babyIds);
@@ -272,7 +325,7 @@ export async function pullFromCloud(): Promise<any> {
       vaccinationRecords: (vaccine.data || []).map(r => ({
         id: r.id,
         babyId: r.baby_id,
-        name: r.name,
+        name: r.vaccine_name || r.name,
         dueDate: r.due_date,
         status: r.status,
         givenDate: r.given_date,
@@ -325,7 +378,6 @@ export function setupRealtimeSync(callback: (change: any) => void) {
             event: '*',
             schema: 'public',
             table: 'babies',
-            filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
             callback({

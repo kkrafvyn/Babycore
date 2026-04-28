@@ -372,6 +372,25 @@ export function buildInviteLink(inviteToken: string, view: 'patients' | 'family-
   return inviteUrl.toString();
 }
 
+const isSyntheticPublicInviteEmail = (email: string): boolean => {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  if (/^public-link\+.+@babycore\.local$/.test(normalized)) return true;
+  if (/^invite-[a-f0-9]+@share\.babycore\.app$/.test(normalized)) return true;
+
+  return false;
+};
+
+const generatePublicInviteEmail = (): string => {
+  const unique =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `${Date.now()}${Math.random().toString(16).slice(2, 10)}`;
+
+  return `invite-${unique}@share.babycore.app`.toLowerCase();
+};
+
 /**
  * Create a shareable invite link that can be opened by any authenticated user.
  */
@@ -386,9 +405,9 @@ export async function createPublicFamilyInviteLink(
     view?: 'patients' | 'family-sharing';
   },
 ): Promise<PublicInviteLink | null> {
-  const placeholderEmail = `public-link+${Date.now()}@babycore.local`;
+  const publicInviteEmail = generatePublicInviteEmail();
 
-  const invite = await sendFamilySharingInvite(babyId, placeholderEmail, role, createdBy, {
+  const invite = await sendFamilySharingInvite(babyId, publicInviteEmail, role, createdBy, {
     invitedName: options?.invitedName,
     isPublicLink: true,
     babyNameSnapshot: options?.babyNameSnapshot,
@@ -510,6 +529,8 @@ export async function searchCareTeamCandidates(query: string): Promise<CareTeamS
       .limit(120);
 
     inviteCandidates = (inviteResult.data || [])
+      .filter((invite: any) => !invite?.is_public_link)
+      .filter((invite: any) => !isSyntheticPublicInviteEmail(String(invite?.invited_email || '')))
       .map((invite: any) => {
         const email = String(invite.invited_email || '').toLowerCase();
         const fallbackName = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
@@ -526,7 +547,7 @@ export async function searchCareTeamCandidates(query: string): Promise<CareTeamS
           metadata: invite.role || 'Care team',
         };
       })
-      .filter((candidate) => candidate.email)
+      .filter((candidate: any) => candidate.email)
       .filter((candidate) => {
         const nameMatch = candidate.name.toLowerCase().includes(normalized);
         const emailMatch = candidate.email.toLowerCase().includes(normalized);

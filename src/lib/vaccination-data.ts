@@ -315,65 +315,134 @@ export const WHO_SCHEDULE: VaccineSchedule[] = [
   },
 ];
 
-const US_COUNTRY_SCHEDULES: CountrySchedule[] = [
-  { code: 'US', name: 'United States', schedules: US_SCHEDULE },
-  { code: 'CA', name: 'Canada', schedules: US_SCHEDULE },
+// UK/NHS-style infant schedule (reference implementation)
+export const UK_NHS_SCHEDULE: VaccineSchedule[] = [
+  {
+    id: 'six_in_one_uk',
+    name: '6-in-1 (DTaP/IPV/Hib/HepB)',
+    shortName: '6-in-1',
+    descriptions: {
+      en: 'Protects against diphtheria, tetanus, pertussis, polio, Hib, and hepatitis B',
+      es: 'Protege contra difteria, tetanos, tos ferina, polio, Hib y hepatitis B',
+    },
+    schedule: [
+      { ageWeeks: 8, ageMonths: 2, ageYears: 0, doses: 3, doseNumber: 1 },
+      { ageWeeks: 12, ageMonths: 3, ageYears: 0, doses: 3, doseNumber: 2 },
+      { ageWeeks: 16, ageMonths: 4, ageYears: 0, doses: 3, doseNumber: 3 },
+    ],
+    colors: 'bg-indigo-500 dark:bg-indigo-600',
+  },
+  {
+    id: 'rotavirus_uk',
+    name: 'Rotavirus',
+    shortName: 'Rota',
+    descriptions: {
+      en: 'Protects against rotavirus',
+      es: 'Protege contra rotavirus',
+    },
+    schedule: [
+      { ageWeeks: 8, ageMonths: 2, ageYears: 0, doses: 2, doseNumber: 1 },
+      { ageWeeks: 12, ageMonths: 3, ageYears: 0, doses: 2, doseNumber: 2 },
+    ],
+    colors: 'bg-yellow-500 dark:bg-yellow-600',
+  },
+  {
+    id: 'menb_uk',
+    name: 'Meningococcal B',
+    shortName: 'MenB',
+    descriptions: {
+      en: 'Protects against meningococcal group B disease',
+      es: 'Protege contra la enfermedad meningococica grupo B',
+    },
+    schedule: [
+      { ageWeeks: 8, ageMonths: 2, ageYears: 0, doses: 3, doseNumber: 1 },
+      { ageWeeks: 16, ageMonths: 4, ageYears: 0, doses: 3, doseNumber: 2 },
+      { ageMonths: 12, ageYears: 1, doses: 3, doseNumber: 3 },
+    ],
+    colors: 'bg-rose-500 dark:bg-rose-600',
+  },
+  {
+    id: 'mmr_uk',
+    name: 'Measles, Mumps, Rubella',
+    shortName: 'MMR',
+    descriptions: {
+      en: 'Protects against measles, mumps, and rubella',
+      es: 'Protege contra sarampion, paperas y rubeola',
+    },
+    schedule: [
+      { ageMonths: 12, ageYears: 1, doses: 2, doseNumber: 1 },
+      { ageYears: 3, doses: 2, doseNumber: 2 },
+    ],
+    colors: 'bg-pink-500 dark:bg-pink-600',
+  },
 ];
 
-const WHO_COUNTRY_CODES: Array<{ code: string; name: string }> = [
-  { code: 'WHO', name: 'WHO Global' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'ZA', name: 'South Africa' },
-  { code: 'IN', name: 'India' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'CN', name: 'China' },
-  { code: 'PH', name: 'Philippines' },
-  { code: 'ID', name: 'Indonesia' },
-  { code: 'BR', name: 'Brazil' },
-  { code: 'AR', name: 'Argentina' },
-  { code: 'CL', name: 'Chile' },
-  { code: 'CO', name: 'Colombia' },
-  { code: 'MX', name: 'Mexico' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'BE', name: 'Belgium' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'NO', name: 'Norway' },
-  { code: 'DK', name: 'Denmark' },
-  { code: 'FI', name: 'Finland' },
-  { code: 'CH', name: 'Switzerland' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'PT', name: 'Portugal' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'RO', name: 'Romania' },
-  { code: 'GR', name: 'Greece' },
-  { code: 'TR', name: 'Turkey' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'EG', name: 'Egypt' },
-  { code: 'MA', name: 'Morocco' },
-  { code: 'ET', name: 'Ethiopia' },
-  { code: 'TZ', name: 'Tanzania' },
-  { code: 'UG', name: 'Uganda' },
+// Australia/NIP-style infant schedule (reference implementation)
+export const AU_NIP_SCHEDULE: VaccineSchedule[] = [
+  {
+    id: 'dtpa_ipv_hib_hepb_au',
+    name: 'DTPa/IPV/Hib/HepB',
+    shortName: 'DTPa combo',
+    descriptions: {
+      en: 'Protects against diphtheria, tetanus, pertussis, polio, Hib, and hepatitis B',
+      es: 'Protege contra difteria, tetanos, tos ferina, polio, Hib y hepatitis B',
+    },
+    schedule: [
+      { ageMonths: 2, ageYears: 0, doses: 3, doseNumber: 1 },
+      { ageMonths: 4, ageYears: 0, doses: 3, doseNumber: 2 },
+      { ageMonths: 6, ageYears: 0, doses: 3, doseNumber: 3 },
+    ],
+    colors: 'bg-blue-500 dark:bg-blue-600',
+  },
+  {
+    id: 'pneumococcal_au',
+    name: 'Pneumococcal',
+    shortName: 'PCV',
+    descriptions: {
+      en: 'Protects against pneumococcal disease',
+      es: 'Protege contra enfermedad neumococica',
+    },
+    schedule: [
+      { ageMonths: 2, ageYears: 0, doses: 3, doseNumber: 1 },
+      { ageMonths: 4, ageYears: 0, doses: 3, doseNumber: 2 },
+      { ageMonths: 12, ageYears: 1, doses: 3, doseNumber: 3 },
+    ],
+    colors: 'bg-orange-500 dark:bg-orange-600',
+  },
+  {
+    id: 'rotavirus_au',
+    name: 'Rotavirus',
+    shortName: 'Rota',
+    descriptions: {
+      en: 'Protects against rotavirus',
+      es: 'Protege contra rotavirus',
+    },
+    schedule: [
+      { ageMonths: 2, ageYears: 0, doses: 2, doseNumber: 1 },
+      { ageMonths: 4, ageYears: 0, doses: 2, doseNumber: 2 },
+    ],
+    colors: 'bg-yellow-500 dark:bg-yellow-600',
+  },
+  {
+    id: 'mmr_au',
+    name: 'Measles, Mumps, Rubella',
+    shortName: 'MMR',
+    descriptions: {
+      en: 'Protects against measles, mumps, and rubella',
+      es: 'Protege contra sarampion, paperas y rubeola',
+    },
+    schedule: [{ ageMonths: 12, ageYears: 1, doses: 1, doseNumber: 1 }],
+    colors: 'bg-pink-500 dark:bg-pink-600',
+  },
 ];
 
 export const VACCINATION_SCHEDULES: CountrySchedule[] = [
-  ...US_COUNTRY_SCHEDULES,
-  ...WHO_COUNTRY_CODES.map((country) => ({
-    code: country.code,
-    name: country.name,
-    schedules: WHO_SCHEDULE,
-  })),
+  { code: 'US', name: 'United States', schedules: US_SCHEDULE },
+  { code: 'CA', name: 'Canada', schedules: US_SCHEDULE },
+  { code: 'GB', name: 'United Kingdom', schedules: UK_NHS_SCHEDULE },
+  { code: 'AU', name: 'Australia', schedules: AU_NIP_SCHEDULE },
+  { code: 'NZ', name: 'New Zealand', schedules: AU_NIP_SCHEDULE },
+  { code: 'WHO', name: 'WHO Global', schedules: WHO_SCHEDULE },
 ];
 
 export function getScheduleByCountry(countryCode: string): VaccineSchedule[] {

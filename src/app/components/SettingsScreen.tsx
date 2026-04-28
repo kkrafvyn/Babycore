@@ -117,11 +117,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const handleBiometricToggle = async () => {
     const isEnabled = !settings?.biometricLockEnabled;
-    if (isEnabled && window.PublicKeyCredential) {
-      // Mock biometrics check
+    if (isEnabled) {
+      const hasWebAuthn =
+        typeof window !== 'undefined' &&
+        'PublicKeyCredential' in window &&
+        typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
+
+      if (!hasWebAuthn) {
+        toast.error('Biometric authentication is not supported on this device/browser.');
+        return;
+      }
+
       const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
       if (!available) {
-        alert("Biometric hardware not detected. We'll enable the lock with session-level security for now.");
+        toast.error('Biometric hardware was not detected on this device.');
+        return;
       }
     }
     await updateSettings({ biometricLockEnabled: isEnabled });

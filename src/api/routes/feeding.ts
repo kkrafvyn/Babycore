@@ -16,21 +16,24 @@ const router = Router();
  */
 router.post('/log', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { babyId, type, duration, amount, notes } = req.body;
+    const { babyId, type, duration, amount, notes, milkType, foodDescription, timestamp } = req.body;
 
     if (!babyId || !type) {
       return res.status(400).json({ success: false, error: 'Baby ID and type required' });
     }
 
     const { data: log, error } = await supabase
-      .from('feeding_logs')
+      .from('feed_logs')
       .insert({
         id: uuidv4(),
         baby_id: babyId,
-        user_id: req.user?.id,
+        timestamp: timestamp || new Date().toISOString(),
         type,
-        duration,
         amount,
+        left_duration: type === 'breast' && duration ? Number(duration) : 0,
+        right_duration: 0,
+        milk_type: milkType,
+        food_description: foodDescription,
         notes,
       })
       .select()
@@ -59,10 +62,10 @@ router.get('/logs', requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const { data: logs, error, count } = await supabase
-      .from('feeding_logs')
+      .from('feed_logs')
       .select('*', { count: 'exact' })
       .eq('baby_id', babyId)
-      .order('created_at', { ascending: false })
+      .order('timestamp', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
     if (error) throw error;
@@ -80,11 +83,23 @@ router.get('/logs', requireAuth, async (req: AuthRequest, res: Response) => {
 router.put('/:feedingId', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { feedingId } = req.params;
-    const { duration, amount, notes } = req.body;
+    const { duration, amount, notes, milkType, foodDescription, leftDuration, rightDuration } = req.body;
 
     const { data: log, error } = await supabase
-      .from('feeding_logs')
-      .update({ duration, amount, notes })
+      .from('feed_logs')
+      .update({
+        left_duration:
+          typeof leftDuration === 'number'
+            ? leftDuration
+            : typeof duration === 'number'
+            ? duration
+            : undefined,
+        right_duration: typeof rightDuration === 'number' ? rightDuration : undefined,
+        amount,
+        milk_type: milkType,
+        food_description: foodDescription,
+        notes,
+      })
       .eq('id', feedingId)
       .select()
       .single();
@@ -105,7 +120,7 @@ router.delete('/:feedingId', requireAuth, async (req: AuthRequest, res: Response
   try {
     const { feedingId } = req.params;
 
-    const { error } = await supabase.from('feeding_logs').delete().eq('id', feedingId);
+    const { error } = await supabase.from('feed_logs').delete().eq('id', feedingId);
 
     if (error) throw error;
 

@@ -292,7 +292,7 @@ async function syncAppleHealthData(
 ): Promise<void> {
   try {
     if (samples.length === 0) {
-      // No mocked inserts: we only persist real client-provided measurements.
+      // Persist only client-provided measurements.
       return;
     }
 

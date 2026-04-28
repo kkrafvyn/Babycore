@@ -41,7 +41,7 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
 };
 
 /**
- * Generate doctor report PDF (would call backend service)
+ * Generate doctor report via backend API
  */
 export async function generateDoctorReport(
   babyId: string,
@@ -50,52 +50,28 @@ export async function generateDoctorReport(
   dateEnd?: string
 ): Promise<DoctorReport | null> {
   try {
-    // Call backend endpoint to generate PDF
-    // This would include charts, data summaries, vaccination records, etc.
+    const includeDataMap: Record<typeof reportType, string[]> = {
+      pediatrician: ['sleep', 'feeding', 'diaper', 'growth', 'vaccinations', 'health'],
+      vaccination: ['vaccinations'],
+      health_summary: ['sleep', 'feeding', 'diaper', 'growth', 'health'],
+    };
+
     const headers = await getAuthHeaders();
     const response = await fetch('/api/reports/generate', {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        baby_id: babyId,
-        report_type: reportType,
-        date_range_start: dateStart,
-        date_range_end: dateEnd,
+        babyId,
+        reportType,
+        includeData: includeDataMap[reportType],
+        dateStart,
+        dateEnd,
       }),
     });
 
     if (!response.ok) throw new Error('Failed to generate report');
-    const pdfBuffer = await response.arrayBuffer();
-
-    // Upload to storage
-    const fileName = `reports/${babyId}/${reportType}_${Date.now()}.pdf`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('doctor-reports')
-      .upload(fileName, new Blob([pdfBuffer], { type: 'application/pdf' }));
-
-    if (uploadError) throw uploadError;
-
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from('doctor-reports')
-      .getPublicUrl(fileName);
-
-    // Save to database
-    const { data, error } = await supabase
-      .from('doctor_reports')
-      .insert({
-        baby_id: babyId,
-        report_url: publicUrl.publicUrl,
-        storage_key: fileName,
-        report_type: reportType,
-        date_range_start: dateStart,
-        date_range_end: dateEnd,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const payload = await response.json();
+    return payload?.report || null;
   } catch (err) {
     console.error('Error generating doctor report:', err);
     return null;
@@ -177,16 +153,15 @@ export async function emailReportToDoctor(
 
     if (!report) return false;
 
-    // Call email service (backend)
+    // Call backend doctor report email route
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/email/send-report', {
+    const response = await fetch('/api/reports/email', {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        recipient_email: doctorEmail,
-        baby_name: babyName,
-        report_url: report.report_url,
-        report_type: report.report_type,
+        reportId,
+        doctorEmail,
+        babyName,
       }),
     });
 

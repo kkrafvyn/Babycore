@@ -1,6 +1,6 @@
 /**
  * Material Design 3 Vaccination Calendar
- * Uses the real vaccination scheduling + persistence engine (no mock records).
+ * Uses the real vaccination scheduling + persistence engine.
  */
 
 import React from 'react';

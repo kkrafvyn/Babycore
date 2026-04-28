@@ -67,11 +67,12 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
 
   const handleShare = async () => {
     try {
+      const shareUrl = `${window.location.origin}/#app`;
       if (navigator.share) {
         await navigator.share({
           title: `${currentBaby?.name}'s First Year`,
           text: `Check out ${currentBaby?.name}'s growth over the first 12 months!`,
-          url: window.location.href, // Dummy URL for now
+          url: shareUrl,
         });
       } else {
         alert('Sharing not supported on this browser/device.');
