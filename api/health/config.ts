@@ -67,15 +67,27 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
     fcmServerKey: isTruthy(process.env.FCM_SERVER_KEY) && !isLikelyPlaceholder(process.env.FCM_SERVER_KEY),
   };
 
-  const missingCritical = Object.entries(checks)
-    .filter(([, ok]) => !ok)
-    .map(([name]) => name);
+  const criticalCheckKeys = [
+    'supabaseFrontendUrl',
+    'supabaseFrontendKey',
+    'supabaseServerUrl',
+    'supabaseServiceKey',
+    'paystackPublicKey',
+    'paystackSecretKey',
+    'oauthRedirectConfigured',
+  ] as const;
+
+  const recommendedCheckKeys = ['vapidPublicKey', 'vapidPrivateKey', 'fcmServerKey'] as const;
+
+  const missingCritical = criticalCheckKeys.filter((key) => !checks[key]);
+  const missingRecommended = recommendedCheckKeys.filter((key) => !checks[key]);
 
   res.status(200).json({
     success: true,
     ready: missingCritical.length === 0,
     checks,
     missingCritical,
+    missingRecommended,
     urls: {
       appOrigin: process.env.VITE_SUPABASE_AUTH_REDIRECT_URL || null,
       paystackWebhookPrimary: '/api/payments/webhook/paystack',
