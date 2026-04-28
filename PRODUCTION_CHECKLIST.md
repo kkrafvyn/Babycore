@@ -4,6 +4,7 @@
 
 Set these in Vercel Project Settings before production deployment:
 
+- `VITE_APP_URL` (`https://babycore.vercel.app`)
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`)
 - `SUPABASE_URL`
@@ -12,6 +13,8 @@ Set these in Vercel Project Settings before production deployment:
 - `VITE_PAYSTACK_PUBLIC_KEY`
 - `PAYSTACK_SECRET_KEY`
 - `VITE_API_BASE_URL` (or keep relative `/api`)
+- `PAYSTACK_CALLBACK_URL` (`https://babycore.vercel.app`)
+- `PAYSTACK_WEBHOOK_URL` (`https://babycore.vercel.app/api/payments/webhook/paystack`)
 
 Optional but recommended:
 
@@ -20,6 +23,7 @@ Optional but recommended:
 - `VAPID_PRIVATE_KEY`
 - `VAPID_SUBJECT`
 - `SENDGRID_API_KEY` / `RESEND_API_KEY`
+- `FCM_SERVER_KEY` (required for native Android/iOS push delivery)
 
 ## 2) Database Migrations (Production)
 
@@ -57,11 +61,18 @@ Run these checks on production URL:
 10. Verify health alerts sync endpoint:
     - `/api/health-alerts/sync-external`
     - `/api/health-alerts/active`
+11. Verify webhook endpoints are reachable from provider dashboards:
+    - `/api/payments/webhook/paystack` (primary)
+    - `/api/webhooks/paystack` (compat)
+    - `/api/payments/webhook/flutterwave` (primary)
+    - `/api/webhooks/flutterwave` (compat)
 
 ## 4) Deployment Validation Commands
 
 ```bash
+npm run check:prod-config
 npm run build:full
+npm run smoke:prod https://babycore.vercel.app
 ```
 
 If build passes, deploy and smoke test routes:

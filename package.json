@@ -18,6 +18,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "check:prod-config": "node scripts/check-prod-config.mjs",
+    "smoke:prod": "node scripts/smoke-prod.mjs",
     "start": "node dist/api/server.js",
     "start:api": "node dist/api/server.js",
     "lighthouse": "lighthouse http://localhost:5173 --output-path=./lighthouse/report.html",

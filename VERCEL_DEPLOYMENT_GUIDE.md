@@ -49,7 +49,7 @@ In Vercel project dashboard:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_key
 VITE_PAYSTACK_PUBLIC_KEY=your_paystack_key
-VITE_PAYSTACK_LIVE_SECRET_KEY=your_paystack_secret
+PAYSTACK_SECRET_KEY=your_paystack_secret
 SENDGRID_API_KEY=your_sendgrid_key
 OPENAI_API_KEY=your_openai_key
 ```
@@ -127,13 +127,16 @@ In Supabase dashboard:
 2. Settings → API Keys & Webhooks
 3. Copy live public and secret keys
 4. Add to Vercel environment variables
-5. Configure webhook URL: `https://babylog.app/api/payments/paystack/webhook`
+5. Configure callback URL: `https://babycore.vercel.app`
+6. Configure webhook URL (primary): `https://babycore.vercel.app/api/payments/webhook/paystack`
+7. Optional compatibility webhook URL: `https://babycore.vercel.app/api/webhooks/paystack`
 
 ### 5.2 Flutterwave Configuration
 1. Go to [Flutterwave Dashboard](https://dashboard.flutterwave.com/)
 2. Settings → API → Copy live keys
 3. Add to Vercel environment variables
-4. Configure webhook URL: `https://babylog.app/api/payments/flutterwave/webhook`
+4. Configure webhook URL (primary): `https://babycore.vercel.app/api/payments/webhook/flutterwave`
+5. Optional compatibility webhook URL: `https://babycore.vercel.app/api/webhooks/flutterwave`
 
 ### 5.3 Stripe Configuration (Future)
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com/)
@@ -180,7 +183,7 @@ In Supabase dashboard:
 
 ### 7.3 Custom Domain Setup
 1. In Vercel dashboard → Settings → Domains
-2. Add custom domain: `babylog.app`
+2. Add custom domain: `babycore.app` (or keep `babycore.vercel.app`)
 3. Configure DNS records:
    - A Record: `76.76.19.163`
    - CNAME Record: `cname.vercel.com.`
@@ -221,7 +224,7 @@ vercel
 ## ✅ Post-Deployment Verification
 
 ### 9.1 Test Frontend
-- [ ] Navigate to https://babylog.app
+- [ ] Navigate to https://babycore.vercel.app
 - [ ] Check page loads correctly
 - [ ] Verify responsive design (mobile/tablet/desktop)
 - [ ] Test user authentication
@@ -230,13 +233,13 @@ vercel
 ### 9.2 Test Backend APIs
 ```bash
 # Test API endpoint
-curl https://babylog.app/api/health
+curl https://babycore.vercel.app/api/health
 
 # Test authentication
-curl -H "Authorization: Bearer YOUR_TOKEN" https://babylog.app/api/babies
+curl -H "Authorization: Bearer YOUR_TOKEN" https://babycore.vercel.app/api/babies
 
 # Test payment webhook
-curl -X POST https://babylog.app/api/payments/paystack/webhook \
+curl -X POST https://babycore.vercel.app/api/payments/webhook/paystack \
   -H "Content-Type: application/json" \
   -d '{"event":"charge.success"}'
 ```
@@ -268,7 +271,7 @@ curl -X POST https://babylog.app/api/payments/paystack/webhook \
 
 ### 10.2 CORS Configuration
 ```env
-CORS_ORIGIN=https://babylog.app,https://www.babylog.app
+CORS_ORIGIN=https://babycore.vercel.app
 ```
 
 ### 10.3 Rate Limiting
@@ -332,7 +335,7 @@ Response:
 **Solution:**
 1. Verify `vercel.json` routes configuration
 2. Check environment variables in Vercel
-3. Test API endpoint directly: `curl https://babylog.app/api/babies`
+3. Test API endpoint directly: `curl https://babycore.vercel.app/api/babies`
 4. Check Vercel function logs
 
 ### Issue: Database connection failing

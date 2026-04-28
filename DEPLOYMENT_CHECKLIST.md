@@ -82,7 +82,7 @@ VITE_SUPABASE_URL=https://your-prod-project.supabase.co
 VITE_SUPABASE_ANON_KEY=<prod_anon_key>
 
 # API
-VITE_API_BASE_URL=https://api.babylog.app/api
+VITE_API_BASE_URL=https://babycore.vercel.app/api
 NODE_ENV=production
 
 # Payments
@@ -142,7 +142,7 @@ npm run build:api
 # Vercel: vercel --prod
 
 # Verify deployment
-curl https://api.babylog.app/health
+curl https://babycore.vercel.app/api/health
 ```
 
 - [ ] API deployed
@@ -155,13 +155,15 @@ curl https://api.babylog.app/health
 **Paystack:**
 - [ ] Go to Paystack Dashboard
 - [ ] Settings → API Keys & Webhooks
-- [ ] Add Webhook URL: `https://api.babylog.app/api/payments/webhook/paystack`
+- [ ] Add Webhook URL: `https://babycore.vercel.app/api/payments/webhook/paystack`
+- [ ] Optional compatibility URL: `https://babycore.vercel.app/api/webhooks/paystack`
 - [ ] Events: charge.success, charge.failed
 
 **Flutterwave:**
 - [ ] Go to Flutterwave Dashboard
 - [ ] Settings → Webhooks
-- [ ] Add URL: `https://api.babylog.app/api/payments/webhook/flutterwave`
+- [ ] Add URL: `https://babycore.vercel.app/api/payments/webhook/flutterwave`
+- [ ] Optional compatibility URL: `https://babycore.vercel.app/api/webhooks/flutterwave`
 - [ ] Select all events
 
 ### 6. Notification Service Setup (15 min)
@@ -177,7 +179,7 @@ curl -X POST \
       "keys": {...}
     }
   }' \
-  https://api.babylog.app/api/notifications/subscribe
+  https://babycore.vercel.app/api/notifications/subscribe
 ```
 
 - [ ] VAPID keys loaded
@@ -225,16 +227,16 @@ curl -X POST \
 
 ```bash
 # Check CORS headers
-curl -i -H "Origin: https://babylog.app" \
-  https://api.babylog.app/health
+curl -i -H "Origin: https://babycore.vercel.app" \
+  https://babycore.vercel.app/api/health
 
 # Test authentication
 curl -H "Authorization: Bearer invalid" \
-  https://api.babylog.app/api/health-alerts/active
+  https://babycore.vercel.app/api/health-alerts/active
 # Should return 401
 
 # Check HTTPS redirect
-curl -i http://babylog.app
+curl -i http://babycore.vercel.app
 # Should redirect to https
 ```
 
@@ -252,13 +254,13 @@ Test critical user journeys:
 ```bash
 # Test health alert retrieval
 curl -H "Authorization: Bearer $USER_TOKEN" \
-  https://api.babylog.app/api/health-alerts/active
+  https://babycore.vercel.app/api/health-alerts/active
 
 # Test report generation
 curl -X POST \
   -H "Authorization: Bearer $USER_TOKEN" \
   -d '{"babyId":"...", "reportType":"pediatrician"}' \
-  https://api.babylog.app/api/reports/generate
+  https://babycore.vercel.app/api/reports/generate
 
 # Test notification subscription
 # (Use browser dev tools or automated tool)
