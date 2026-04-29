@@ -199,4 +199,73 @@ describe('cloud-sync-service', () => {
     expect(callOrder).toEqual(['babies']);
     expect(getSyncStatus().syncError).toContain('babies: row-level security policy failure');
   });
+
+  it('formats Supabase object errors into readable sync messages', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'babies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+          upsert: vi.fn(async () => ({
+            error: {
+              code: '42501',
+              message: 'new row violates row-level security policy for table "babies"',
+              details: 'user_id must match auth.uid()',
+              hint: 'Check the authenticated session on this device.',
+            },
+          })),
+        };
+      }
+
+      if (table === 'family_sharing_invites') {
+        return {
+          select: vi.fn().mockReturnValue(createInviteQuery()),
+        };
+      }
+
+      if (table === 'doctor_baby_assignments') {
+        return {
+          select: vi.fn().mockReturnValue(createDoctorAssignmentsQuery()),
+        };
+      }
+
+      return {
+        upsert: vi.fn(async () => ({ error: null })),
+      };
+    });
+
+    const synced = await performFullSync({
+      babies: [
+        {
+          id: 'baby-1',
+          name: 'Unako',
+          dateOfBirth: '2024-09-01',
+          gender: 'girl',
+          country: 'US',
+          createdAt: '2026-04-29T00:00:00.000Z',
+        },
+      ],
+      sleepLogs: [],
+      feedLogs: [],
+      diaperLogs: [],
+      healthLogs: [],
+      growthMeasurements: [],
+      vaccinationRecords: [],
+      milestones: [],
+      memories: [],
+      journalEntries: [],
+      userSettings: {
+        units: 'metric',
+      },
+    });
+
+    expect(synced).toBe(false);
+    expect(getSyncStatus().syncError).toContain(
+      'babies: new row violates row-level security policy for table "babies"',
+    );
+    expect(getSyncStatus().syncError).toContain('user_id must match auth.uid()');
+    expect(getSyncStatus().syncError).toContain('Hint: Check the authenticated session on this device.');
+    expect(getSyncStatus().syncError).toContain('Code: 42501');
+  });
 });

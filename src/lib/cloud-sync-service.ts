@@ -30,6 +30,49 @@ export function getSyncStatus(): SyncStatus {
   return { ...syncStatus };
 }
 
+const formatSyncError = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message || error.name;
+  }
+
+  if (error && typeof error === 'object') {
+    const candidate = error as Record<string, unknown>;
+    const parts: string[] = [];
+
+    if (typeof candidate.message === 'string' && candidate.message.trim()) {
+      parts.push(candidate.message.trim());
+    }
+
+    if (typeof candidate.details === 'string' && candidate.details.trim()) {
+      parts.push(candidate.details.trim());
+    }
+
+    if (typeof candidate.hint === 'string' && candidate.hint.trim()) {
+      parts.push(`Hint: ${candidate.hint.trim()}`);
+    }
+
+    if (typeof candidate.code === 'string' && candidate.code.trim()) {
+      parts.push(`Code: ${candidate.code.trim()}`);
+    }
+
+    if (parts.length > 0) {
+      return parts.join(' | ');
+    }
+
+    try {
+      return JSON.stringify(candidate);
+    } catch {
+      return 'Unknown sync error';
+    }
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+
+  return 'Unknown sync error';
+};
+
 const getAuthenticatedUser = async (): Promise<{ id: string; email?: string } | null> => {
   const auth = supabase.auth as any;
   const {
@@ -98,7 +141,7 @@ const genericSync = async (table: string, data: any[]): Promise<TableSyncResult>
     return { table, ok: true };
   } catch (error) {
     console.error(`Error syncing ${table}:`, error);
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatSyncError(error);
     syncStatus.syncError = `${table}: ${message}`;
     return { table, ok: false, error: message };
   }
@@ -128,7 +171,7 @@ export const syncUserSettings = async (userId: string, settings: any): Promise<T
     return { table: 'user_settings', ok: true };
   } catch (error) {
     console.error('Error syncing user_settings:', error);
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatSyncError(error);
     syncStatus.syncError = `user_settings: ${message}`;
     return { table: 'user_settings', ok: false, error: message };
   }
@@ -273,7 +316,7 @@ export async function performFullSync(localData: {
     }
     return allSuccess;
   } catch (error) {
-    syncStatus.syncError = error instanceof Error ? error.message : String(error);
+    syncStatus.syncError = formatSyncError(error);
     return false;
   } finally {
     syncStatus.isSyncing = false;
