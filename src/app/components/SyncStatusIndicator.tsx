@@ -162,7 +162,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         {/* Auto-sync Info */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded p-2 text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
           <Download size={14} />
-          <span>Changes sync automatically every 5 minutes when online</span>
+          <span>Changes sync automatically in the background and retry on their own when online</span>
         </div>
       </motion.div>
 

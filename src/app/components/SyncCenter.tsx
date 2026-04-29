@@ -204,9 +204,8 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
           {syncState.dataScope === 'guest' && (
             <div className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4">
               <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                You are viewing guest-only data on this device. Sign in with the same account on every device, then tap
-                <span className="font-black"> Sync Now </span>
-                so your data can follow you everywhere.
+                You are viewing guest-only data on this device. Sign in with the same account on every device and the
+                app will keep trying to move your data into cloud storage automatically while you are online.
               </p>
             </div>
           )}

@@ -19,7 +19,11 @@ import {
   getUserSettings,
   getVaccinationRecordsByBaby,
 } from './supabase-storage';
-import { pullFromCloud, performFullSync as performCloudSync } from './cloud-sync-service';
+import {
+  getSyncStatus as getCloudSyncServiceStatus,
+  pullFromCloud,
+  performFullSync as performCloudSync,
+} from './cloud-sync-service';
 import { getCurrentUser } from './supabase';
 import { resolveSyncScope, summarizeSyncSnapshot, type SyncSnapshotSummary } from './sync-diagnostics';
 
@@ -60,6 +64,8 @@ class CloudSyncManager {
   private accountEmail: string | null = null;
   private dataScope: 'guest' | 'account' = 'guest';
   private localSummary: SyncSnapshotSummary = summarizeSyncSnapshot(null);
+  private retryTimeout: number | null = null;
+  private retryAttempt = 0;
 
   constructor() {
     this.setupNetworkListeners();
@@ -81,6 +87,7 @@ class CloudSyncManager {
   private onOnline(): void {
     this.isOnline = true;
     console.log('App is online, starting sync...');
+    this.clearRetrySchedule();
     this.syncAll();
     this.dispatchSyncStateChange();
   }
@@ -102,7 +109,7 @@ class CloudSyncManager {
       if (this.isOnline && !this.isSyncing) {
         this.syncAll();
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 60 * 1000);
   }
 
   /**
@@ -113,6 +120,28 @@ class CloudSyncManager {
       window.clearInterval(this.syncInterval);
       this.syncInterval = null;
     }
+    this.clearRetrySchedule();
+  }
+
+  private clearRetrySchedule(): void {
+    if (this.retryTimeout) {
+      window.clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
+  }
+
+  private scheduleRetry(): void {
+    if (!this.isOnline || this.conflicts.length > 0 || this.retryTimeout) {
+      return;
+    }
+
+    const delay = Math.min(15000 * 2 ** this.retryAttempt, 5 * 60 * 1000);
+    this.retryAttempt += 1;
+
+    this.retryTimeout = window.setTimeout(() => {
+      this.retryTimeout = null;
+      void this.syncAll();
+    }, delay);
   }
 
   /**
@@ -184,18 +213,23 @@ class CloudSyncManager {
 
       const synced = await performCloudSync(localSnapshot);
       if (!synced) {
-        throw new Error('Cloud sync rejected by backend');
+        const backendSyncStatus = getCloudSyncServiceStatus();
+        throw new Error(backendSyncStatus.syncError || 'Cloud sync rejected by backend');
       }
 
       this.syncQueue.clear();
       this.conflicts = [];
       this.lastSyncTime = new Date();
       this.pendingChanges = this.syncQueue.size;
+      this.retryAttempt = 0;
+      this.clearRetrySchedule();
 
       console.log('Sync completed');
     } catch (error) {
       console.error('Sync failed:', error);
-      this.syncError = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
+      this.syncError = `${message}. Retrying automatically.`;
+      this.scheduleRetry();
     } finally {
       this.isSyncing = false;
       this.dispatchSyncStateChange();
@@ -476,6 +510,8 @@ class CloudSyncManager {
     if (!this.isOnline) {
       throw new Error('Cannot sync while offline');
     }
+    this.retryAttempt = 0;
+    this.clearRetrySchedule();
     await this.refreshDiagnostics();
     await this.syncAll();
   }
