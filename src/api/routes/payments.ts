@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { supabase } from '../utils/supabase.js';
+import { createRequestSupabaseClient, hasServiceConfig, supabase } from '../utils/supabase.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { sendTransactionalEmail } from '../utils/email.js';
@@ -707,6 +707,51 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
 
+    const now = Date.now();
+    if (!hasServiceConfig) {
+      const fallbackClient = createRequestSupabaseClient(req.headers?.authorization);
+      const { data: settings, error } = await fallbackClient
+        .from('user_settings')
+        .select(
+          'subscription_plan, subscription_status, subscription_start_date, subscription_end_date, subscription_currency',
+        )
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!settings || settings.subscription_status !== 'active' || !settings.subscription_plan) {
+        return res.json({ success: true, subscription: null });
+      }
+
+      const startDate = settings.subscription_start_date || new Date().toISOString();
+      const endDate =
+        settings.subscription_end_date ||
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const endMs = endDate ? new Date(endDate).getTime() : 0;
+      const isExpired = endMs > 0 && endMs < now;
+
+      if (isExpired) {
+        return res.json({ success: true, subscription: null });
+      }
+
+      return res.json({
+        success: true,
+        subscription: {
+          status: 'active',
+          period: inferBillingPeriod(startDate, endDate),
+          startDate,
+          endDate,
+          renewalDate: endDate,
+          planId: settings.subscription_plan || 'premium',
+          planName: settings.subscription_plan || 'Premium',
+          price: 0,
+          currency: settings.subscription_currency || 'USD',
+          autoRenewal: true,
+        },
+      });
+    }
+
     const { data: activeSubscription, error } = await supabase
       .from('user_addon_subscriptions')
       .select('*')
@@ -722,7 +767,6 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
       return res.json({ success: true, subscription: null });
     }
 
-    const now = Date.now();
     const endMs = activeSubscription.expires_at ? new Date(activeSubscription.expires_at).getTime() : 0;
     const isExpired = endMs > 0 && endMs < now;
 
@@ -775,8 +819,11 @@ export async function getBillingHistory(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
 
+    const paymentReadClient = hasServiceConfig
+      ? supabase
+      : createRequestSupabaseClient(req.headers?.authorization);
     const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
-    const { data, error } = await supabase
+    const { data, error } = await paymentReadClient
       .from('payment_events')
       .select('*')
       .eq('user_id', userId)
@@ -789,7 +836,7 @@ export async function getBillingHistory(req: Request, res: Response) {
     const transitionsByEventId = new Map<string, any[]>();
 
     if (eventIds.length > 0) {
-      const { data: transitions, error: transitionsError } = await supabase
+      const { data: transitions, error: transitionsError } = await paymentReadClient
         .from('payment_event_transitions')
         .select('*')
         .in('payment_event_id', eventIds)

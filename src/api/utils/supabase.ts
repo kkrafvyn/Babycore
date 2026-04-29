@@ -11,6 +11,12 @@ const supabaseServiceKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SECRET_KEY ||
   '';
+const supabasePublicKey =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  '';
 
 const createMissingConfigProxy = (label: string) =>
   new Proxy(
@@ -23,7 +29,7 @@ const createMissingConfigProxy = (label: string) =>
   );
 
 // Create Supabase client with service role key (for backend operations)
-const hasServiceConfig = Boolean(supabaseUrl && supabaseServiceKey);
+export const hasServiceConfig = Boolean(supabaseUrl && supabaseServiceKey);
 
 export const supabase = hasServiceConfig
   ? createClient(
@@ -43,7 +49,7 @@ export const supabase = hasServiceConfig
 // Create Supabase client with anon key (for public operations)
 export const supabasePublic = createClient(
   supabaseUrl || 'https://example.supabase.co',
-  process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+  supabasePublicKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -52,10 +58,43 @@ export const supabasePublic = createClient(
   }
 );
 
+export const getBearerToken = (authHeader?: string | string[]) => {
+  const rawValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!rawValue) return null;
+
+  const match = rawValue.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] || null;
+};
+
+export const createRequestSupabaseClient = (authHeader?: string | string[]) => {
+  const token = getBearerToken(authHeader);
+  const key = token && supabasePublicKey ? supabasePublicKey : (supabaseServiceKey || supabasePublicKey);
+
+  if (!supabaseUrl || !key) {
+    throw new Error(
+      'Missing SUPABASE_URL and one of SUPABASE_SERVICE_KEY/SUPABASE_ANON_KEY/SUPABASE_PUBLISHABLE_KEY',
+    );
+  }
+
+  return createClient(supabaseUrl, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: token
+      ? {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      : undefined,
+  });
+};
+
 // Helper: Get user from token
 export async function getUserFromToken(token: string) {
   try {
-    const authClient = supabase.auth as any;
+    const authClient = createRequestSupabaseClient(`Bearer ${token}`).auth as any;
     const { data: { user }, error } = await authClient.getUser(token);
     if (error) throw error;
     return user;
