@@ -1,136 +1,98 @@
 import { supabase } from './supabase';
 
+export type WearableDeviceType = 'apple_health' | 'fitbit' | 'oura_ring' | 'garmin';
+export type WearableDataType = 'heart_rate' | 'temperature' | 'activity' | 'sleep' | 'steps';
+
 export interface WearableIntegration {
   id: string;
   user_id: string;
-  device_type: 'apple_health' | 'fitbit' | 'oura_ring' | 'garmin';
-  access_token?: string;
-  refresh_token?: string;
-  last_synced?: string;
+  device_type: WearableDeviceType;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  last_synced?: string | null;
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface WearableData {
   id: string;
   baby_id: string;
-  data_type: 'heart_rate' | 'temperature' | 'activity' | 'sleep' | 'steps';
+  data_type: WearableDataType;
   value: number;
   unit: string;
   recorded_at: string;
   source: string;
 }
 
-/**
- * Connect to Apple Health
- */
+export interface WearableDataInput {
+  dataType: WearableDataType;
+  value: number;
+  unit: string;
+  recordedAt: string;
+  source?: string;
+}
+
+const normalizeTimestamp = (value: string): string => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+};
+
+export async function connectWearableSource(
+  userId: string,
+  deviceType: WearableDeviceType,
+): Promise<WearableIntegration | null> {
+  try {
+    const { data, error } = await supabase
+      .from('wearable_integrations')
+      .upsert(
+        {
+          user_id: userId,
+          device_type: deviceType,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,device_type' },
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error(`Error connecting wearable source (${deviceType}):`, err);
+    return null;
+  }
+}
+
 export async function connectAppleHealth(userId: string): Promise<WearableIntegration | null> {
-  try {
-    // Apple Health authorization is initiated on-device.
-    // This call stores the connected state after client permission succeeds.
-
-    const { data, error } = await supabase
-      .from('wearable_integrations')
-      .upsert(
-        {
-          user_id: userId,
-          device_type: 'apple_health',
-          is_active: true,
-        },
-        { onConflict: 'user_id,device_type' }
-      )
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    console.error('Error connecting Apple Health:', err);
-    return null;
-  }
+  return connectWearableSource(userId, 'apple_health');
 }
 
-/**
- * Connect to Fitbit
- */
-export async function connectFitbit(userId: string, accessToken: string): Promise<WearableIntegration | null> {
-  try {
-    const { data, error } = await supabase
-      .from('wearable_integrations')
-      .upsert(
-        {
-          user_id: userId,
-          device_type: 'fitbit',
-          access_token: accessToken,
-          is_active: true,
-        },
-        { onConflict: 'user_id,device_type' }
-      )
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    console.error('Error connecting Fitbit:', err);
-    return null;
-  }
+export async function connectFitbit(userId: string, _accessToken?: string): Promise<WearableIntegration | null> {
+  return connectWearableSource(userId, 'fitbit');
 }
 
-/**
- * Sync wearable data (backend would call this periodically)
- */
-export async function syncWearableData(userId: string, deviceType: string): Promise<boolean> {
+export async function syncWearableData(userId: string, deviceType: WearableDeviceType): Promise<boolean> {
   try {
-    // Get integration
-    const { data: integration } = await supabase
-      .from('wearable_integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('device_type', deviceType)
-      .single();
-
-    if (!integration || !integration.is_active) return false;
-
-    const auth = supabase.auth as any;
-    const {
-      data: { session },
-    } = await auth.getSession();
-    const accessToken: string | undefined = session?.access_token;
-
-    // Fetch data from device API
-    const response = await fetch('/api/wearable/sync', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({
-        deviceType,
-      }),
-    });
-
-    if (!response.ok) throw new Error('Sync failed');
-
-    // Update last_synced timestamp
-    await supabase
+    const { error } = await supabase
       .from('wearable_integrations')
       .update({ last_synced: new Date().toISOString() })
-      .eq('id', integration.id);
+      .eq('user_id', userId)
+      .eq('device_type', deviceType);
 
+    if (error) throw error;
     return true;
   } catch (err) {
-    console.error('Error syncing wearable data:', err);
+    console.error('Error syncing wearable source timestamp:', err);
     return false;
   }
 }
 
-/**
- * Get wearable data for a baby
- */
 export async function getWearableData(
   babyId: string,
-  dataType?: 'heart_rate' | 'temperature' | 'activity' | 'sleep' | 'steps',
-  days: number = 7
+  dataType?: WearableDataType,
+  days: number = 7,
 ): Promise<WearableData[]> {
   try {
     const fromDate = new Date();
@@ -150,22 +112,20 @@ export async function getWearableData(
     const { data, error } = await query;
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as WearableData[];
   } catch (err) {
     console.error('Error fetching wearable data:', err);
     return [];
   }
 }
 
-/**
- * Add manual wearable data entry
- */
 export async function addWearableDataManually(
   babyId: string,
-  dataType: string,
+  dataType: WearableDataType,
   value: number,
   unit: string,
-  recordedAt: string
+  recordedAt: string,
+  source = 'manual',
 ): Promise<WearableData | null> {
   try {
     const { data, error } = await supabase
@@ -175,31 +135,59 @@ export async function addWearableDataManually(
         data_type: dataType,
         value,
         unit,
-        recorded_at: recordedAt,
-        source: 'manual',
+        recorded_at: normalizeTimestamp(recordedAt),
+        source,
       })
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as WearableData;
   } catch (err) {
     console.error('Error adding wearable data:', err);
     return null;
   }
 }
 
-/**
- * Disconnect wearable device
- */
+export async function importWearableDataEntries(
+  babyId: string,
+  entries: WearableDataInput[],
+): Promise<WearableData[]> {
+  try {
+    if (!entries.length) {
+      return [];
+    }
+
+    const payload = entries.map((entry) => ({
+      baby_id: babyId,
+      data_type: entry.dataType,
+      value: entry.value,
+      unit: entry.unit,
+      recorded_at: normalizeTimestamp(entry.recordedAt),
+      source: entry.source || 'import',
+    }));
+
+    const { data, error } = await supabase
+      .from('wearable_data')
+      .insert(payload)
+      .select('*');
+
+    if (error) throw error;
+    return (data || []) as WearableData[];
+  } catch (err) {
+    console.error('Error importing wearable data:', err);
+    return [];
+  }
+}
+
 export async function disconnectWearable(
   userId: string,
-  deviceType: string
+  deviceType: WearableDeviceType,
 ): Promise<boolean> {
   try {
     const { error } = await supabase
       .from('wearable_integrations')
-      .update({ is_active: false })
+      .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('device_type', deviceType);
 
@@ -211,19 +199,17 @@ export async function disconnectWearable(
   }
 }
 
-/**
- * Get user's connected wearables
- */
 export async function getConnectedWearables(userId: string): Promise<WearableIntegration[]> {
   try {
     const { data, error } = await supabase
       .from('wearable_integrations')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as WearableIntegration[];
   } catch (err) {
     console.error('Error fetching wearables:', err);
     return [];

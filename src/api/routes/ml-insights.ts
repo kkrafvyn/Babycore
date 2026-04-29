@@ -77,7 +77,7 @@ export async function predictNextSleep(req: Request, res: Response) {
       .order('start_time', { ascending: false })
       .limit(14); // Last 2 weeks
 
-    // Simple pattern detection (replace with ML model in production)
+    // Built-in pattern detection keeps the feature working even without an external model provider.
     const intervals = calculateSleepIntervals(recentSleep || []);
     if (!intervals.length || !recentSleep?.[0]) {
       return res.json({
@@ -387,7 +387,7 @@ export async function careCopilot(req: Request, res: Response) {
       : [];
 
     let answer = buildFallbackCopilotResponse(String(prompt), contextSummary);
-    let usedModel = 'fallback-rules';
+    let usedModel = 'built-in-rules';
 
     const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY;
     if (openaiKey) {

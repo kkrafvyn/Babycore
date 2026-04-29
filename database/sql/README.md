@@ -57,6 +57,7 @@ Run in this exact order:
 36. `35-core-client-table-grants.sql`
 37. `36-babies-owner-policies-and-user-roles-access.sql`
 38. `37-activity-logs-access.sql`
+39. `38-wearables-client-access.sql`
 
 ## Common Errors
 

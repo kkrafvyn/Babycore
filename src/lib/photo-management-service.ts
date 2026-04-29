@@ -277,7 +277,7 @@ export async function deletePhoto(photoId: string, storageKey: string): Promise<
 }
 
 /**
- * Generate monthly collage (would be done server-side with image library)
+ * Generate a monthly collage locally so the feature works without a separate image API.
  */
 export async function generateMonthlyCollage(
   babyId: string,

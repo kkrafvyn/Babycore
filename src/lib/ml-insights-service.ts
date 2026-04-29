@@ -110,7 +110,7 @@ export async function askCareCopilot(
 
     return {
       response: String(payload.response),
-      usedModel: String(payload.usedModel || 'fallback'),
+      usedModel: String(payload.usedModel || 'built-in-rules'),
       generatedAt: String(payload.generatedAt || new Date().toISOString()),
     };
   } catch (error) {

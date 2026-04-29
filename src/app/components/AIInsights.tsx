@@ -29,7 +29,7 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
         'Hi! I am your BabyCore care copilot. Ask about sleep, feeding, vaccine timing, or growth trends.',
     },
   ]);
-  const [copilotModel, setCopilotModel] = useState<string>('fallback-rules');
+  const [copilotModel, setCopilotModel] = useState<string>('built-in-rules');
   const [copilotLoading, setCopilotLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -79,7 +79,7 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
       return;
     }
 
-    setCopilotModel(answer.usedModel || 'fallback-rules');
+    setCopilotModel(answer.usedModel || 'built-in-rules');
     setCopilotHistory((prev) => [...prev, { role: 'assistant', content: answer.response }]);
   };
 
@@ -134,9 +134,9 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5" />
-            AI-Powered Insights
+            Smart Pattern Insights
           </CardTitle>
-          <CardDescription>Intelligent analysis of {babyName}'s patterns</CardDescription>
+          <CardDescription>Built-in analysis of {babyName}'s patterns with no external AI key required</CardDescription>
         </CardHeader>
       </Card>
 
@@ -185,9 +185,9 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>AI Care Copilot</CardTitle>
+          <CardTitle>Care Copilot</CardTitle>
           <CardDescription>
-            Ask questions about {babyName}'s logs. Model: {copilotModel}
+            Ask questions about {babyName}'s logs. Engine: {copilotModel}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

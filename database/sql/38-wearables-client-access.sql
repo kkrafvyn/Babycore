@@ -1,0 +1,164 @@
+-- ============================================================================
+-- WEARABLE CLIENT ACCESS
+-- ============================================================================
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.wearable_integrations TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.wearable_data TO authenticated;
+
+ALTER TABLE public.wearable_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wearable_data ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage own wearable integrations" ON public.wearable_integrations;
+CREATE POLICY "Users can manage own wearable integrations"
+ON public.wearable_integrations
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS wearable_data_select_access ON public.wearable_data;
+CREATE POLICY wearable_data_select_access
+ON public.wearable_data
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = wearable_data.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = wearable_data.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = wearable_data.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
+
+DROP POLICY IF EXISTS wearable_data_insert_access ON public.wearable_data;
+CREATE POLICY wearable_data_insert_access
+ON public.wearable_data
+FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = wearable_data.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = wearable_data.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = wearable_data.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
+
+DROP POLICY IF EXISTS wearable_data_update_access ON public.wearable_data;
+CREATE POLICY wearable_data_update_access
+ON public.wearable_data
+FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = wearable_data.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = wearable_data.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = wearable_data.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = wearable_data.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = wearable_data.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = wearable_data.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
+
+DROP POLICY IF EXISTS wearable_data_delete_access ON public.wearable_data;
+CREATE POLICY wearable_data_delete_access
+ON public.wearable_data
+FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = wearable_data.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = wearable_data.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = wearable_data.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
