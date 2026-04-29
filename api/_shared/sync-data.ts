@@ -92,7 +92,7 @@ const resolveAccessibleBabyIds = async (supabaseAdmin: any, user: { id: string; 
     }
   }
 
-  ownedIds.forEach((id) => sharedSet.delete(id));
+  ownedIds.forEach((id: string) => sharedSet.delete(id));
 
   const sharedIds = Array.from(sharedSet);
   const allIds = Array.from(new Set([...ownedIds, ...sharedIds]));
