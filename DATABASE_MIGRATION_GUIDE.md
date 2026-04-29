@@ -26,11 +26,15 @@ VITE_SUPABASE_ANON_KEY=<your_anon_key>
 
 1. In Supabase dashboard, go to **SQL Editor**
 2. Click **New Query**
-3. Copy entire contents of `DATABASE_MIGRATIONS.sql`
-4. Paste into SQL editor
+3. Follow the exact file order in `database/sql/README.md`
+4. Run each migration file in sequence through `database/sql/33-health-logs-and-user-settings.sql`
 5. Click **Run** button
 6. Wait for all migrations to complete
 7. Check for any errors
+
+Important:
+- `DATABASE_MIGRATIONS.sql` is a legacy aggregate and may not include the newest numbered migrations.
+- For current production rollout, always trust `database/sql/README.md` as the source of truth.
 
 ### Option B: Using Supabase CLI (Recommended for Production)
 
@@ -107,6 +111,15 @@ FROM information_schema.tables
 WHERE table_schema = 'public' 
 ORDER BY table_name;
 ```
+
+Then run:
+```powershell
+npm run check:schema
+```
+
+Expected result:
+- `health_logs` -> `PASS`
+- `user_settings` -> `PASS`
 
 ---
 

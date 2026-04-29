@@ -1,5 +1,15 @@
 # ✅ BABYLOG - FINAL DEPLOYMENT CHECKLIST
 
+## April 29, 2026 Update
+
+- Current migration source of truth is `database/sql/README.md`
+- Production rollout must include `database/sql/33-health-logs-and-user-settings.sql`
+- After running migrations, verify with:
+
+```bash
+npm run check:schema
+```
+
 **Date Started**: April 25, 2026  
 **Status**: Ready for Database Migrations  
 **Estimated Time to Production**: 30-45 minutes

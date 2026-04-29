@@ -22,6 +22,7 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "check:prod-config": "node scripts/check-prod-config.mjs",
+    "check:schema": "node scripts/check-supabase-schema.mjs",
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "start": "node dist/api/server.js",
     "start:api": "node dist/api/server.js",

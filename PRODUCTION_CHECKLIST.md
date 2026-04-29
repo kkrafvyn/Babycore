@@ -30,13 +30,19 @@ Optional but recommended:
 Run in order from `database/sql/README.md`:
 
 1. `00-doctor-profiles.sql`
-2. `01` through `26` in sequence
+2. Continue every numbered file in sequence through `33-health-logs-and-user-settings.sql`
 
 CLI option:
 
 ```bash
 supabase link --project-ref <your-project-ref>
 supabase db push
+```
+
+After migrations, verify the cross-device sync tables:
+
+```bash
+npm run check:schema
 ```
 
 ## 3) End-to-End Verification
@@ -71,6 +77,7 @@ Run these checks on production URL:
 
 ```bash
 npm run check:prod-config
+npm run check:schema
 npm run build:full
 npm run smoke:prod https://babycore.vercel.app
 ```
