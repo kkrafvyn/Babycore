@@ -38,6 +38,27 @@ const resolveStorageScopeId = async (): Promise<string> => {
 
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
 
+const toBabyCloudRow = (baby: Baby, userId: string) => ({
+  id: baby.id,
+  user_id: userId,
+  name: baby.name,
+  date_of_birth: baby.dateOfBirth,
+  gender: baby.gender,
+  photo_url: baby.photoUrl || null,
+  country: baby.country,
+  created_at: baby.createdAt,
+});
+
+const fromBabyCloudRow = (row: any): Baby => ({
+  id: row.id,
+  name: row.name,
+  dateOfBirth: row.date_of_birth,
+  gender: row.gender || 'other',
+  photoUrl: row.photo_url || undefined,
+  country: row.country || 'US',
+  createdAt: row.created_at || new Date().toISOString(),
+});
+
 const getAcceptedInviteRowsForCurrentUser = async () => {
   const user = await getCurrentUser();
   if (!user?.id) {
@@ -152,6 +173,65 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
   }
 
   return Array.from(merged.values());
+};
+
+const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('babies')
+      .upsert(toBabyCloudRow(baby, user.id), { onConflict: 'id' });
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to sync baby profile directly to cloud:', error);
+  }
+};
+
+const deleteBabyFromCloud = async (id: string): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('babies').delete().eq('id', id).eq('user_id', user.id);
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn('Unable to delete baby profile from cloud:', error);
+  }
+};
+
+const getRemoteOwnedBabies = async (): Promise<Baby[]> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('babies')
+      .select('id,name,date_of_birth,gender,photo_url,country,created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || []).map(fromBabyCloudRow);
+  } catch (error) {
+    console.warn('Unable to load owned babies from cloud:', error);
+    return [];
+  }
 };
 
 const upsertMemoryLogToCloud = async (log: MemoryLog): Promise<void> => {
@@ -324,7 +404,8 @@ const getRemoteUserSettings = async (userId: string): Promise<UserSettings | und
 // Baby operations
 export const addBaby = async (baby: Baby): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
-  return LocalStorage.addBaby(baby, scopeId);
+  await LocalStorage.addBaby(baby, scopeId);
+  await upsertBabyToCloud(baby);
 };
 
 export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
@@ -351,6 +432,7 @@ export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
 
       if (migrated) {
         migratedCount += 1;
+        await upsertBabyToCloud(baby);
       }
     } catch (error) {
       console.warn(`Failed to migrate guest baby ${baby.id} to account scope:`, error);
@@ -362,12 +444,28 @@ export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
 
 export const getBabies = async (): Promise<Baby[]> => {
   const scopeId = await resolveStorageScopeId();
-  const [localBabies, sharedAssignedBabies] = await Promise.all([
-    LocalStorage.getBabies(scopeId),
+  const user = await getCurrentUser();
+  const [sharedAssignedBabies, remoteOwnedBabies] = await Promise.all([
     getAssignedSharedBabies(),
+    user?.id ? getRemoteOwnedBabies() : Promise.resolve([] as Baby[]),
   ]);
 
+  if (user?.id && remoteOwnedBabies.length > 0) {
+    await Promise.all(
+      remoteOwnedBabies.map((baby) =>
+        LocalStorage.updateBaby(baby, scopeId).catch((error) => {
+          console.warn(`Failed to hydrate owned baby ${baby.id} into local storage:`, error);
+        }),
+      ),
+    );
+  }
+
+  const localBabies = await LocalStorage.getBabies(scopeId);
+
   const merged = new Map<string, Baby>();
+  for (const baby of remoteOwnedBabies) {
+    merged.set(baby.id, baby);
+  }
   for (const baby of localBabies) {
     merged.set(baby.id, baby);
   }
@@ -391,12 +489,14 @@ export const getBaby = async (id: string): Promise<Baby | undefined> => {
 
 export const updateBaby = async (baby: Baby): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
-  return LocalStorage.updateBaby(baby, scopeId);
+  await LocalStorage.updateBaby(baby, scopeId);
+  await upsertBabyToCloud(baby);
 };
 
 export const deleteBaby = async (id: string): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
-  return LocalStorage.deleteBaby(id, scopeId);
+  await LocalStorage.deleteBaby(id, scopeId);
+  await deleteBabyFromCloud(id);
 };
 
 // Sleep log operations

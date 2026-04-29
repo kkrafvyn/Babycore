@@ -4,27 +4,72 @@ const {
   getCurrentUserMock,
   getBabiesMock,
   transferBabyOwnerScopeMock,
+  addBabyMock,
+  updateBabyMock,
+  supabaseFromMock,
+  upsertMock,
 } = vi.hoisted(() => ({
   getCurrentUserMock: vi.fn(),
   getBabiesMock: vi.fn(),
   transferBabyOwnerScopeMock: vi.fn(),
+  addBabyMock: vi.fn(),
+  updateBabyMock: vi.fn(),
+  supabaseFromMock: vi.fn(),
+  upsertMock: vi.fn(),
 }));
 
 vi.mock('./supabase', () => ({
   getCurrentUser: getCurrentUserMock,
-  supabase: {},
+  supabase: {
+    from: supabaseFromMock,
+  },
 }));
 
 vi.mock('./storage', () => ({
+  addBaby: addBabyMock,
   getBabies: getBabiesMock,
+  updateBaby: updateBabyMock,
   transferBabyOwnerScope: transferBabyOwnerScopeMock,
 }));
 
-import { migrateGuestBabiesToCurrentUser } from './supabase-storage';
+import { addBaby, getBabies, migrateGuestBabiesToCurrentUser } from './supabase-storage';
+
+const createInviteQuery = () => ({
+  eq: vi.fn().mockReturnValue({
+    not: vi.fn().mockResolvedValue({ data: [], error: null }),
+  }),
+});
+
+const createBabySelectQuery = (rows: any[]) => ({
+  eq: vi.fn().mockReturnValue({
+    order: vi.fn().mockResolvedValue({ data: rows, error: null }),
+  }),
+});
 
 describe('supabase-storage guest migration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    upsertMock.mockResolvedValue({ error: null });
+    addBabyMock.mockResolvedValue(undefined);
+    updateBabyMock.mockResolvedValue(undefined);
+    supabaseFromMock.mockImplementation((table: string) => {
+      if (table === 'family_sharing_invites') {
+        return {
+          select: vi.fn().mockReturnValue(createInviteQuery()),
+        };
+      }
+
+      if (table === 'babies') {
+        return {
+          upsert: upsertMock,
+          select: vi.fn().mockReturnValue(createBabySelectQuery([])),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue(createInviteQuery()),
+      };
+    });
   });
 
   it('does nothing when no authenticated user is present', async () => {
@@ -59,5 +104,92 @@ describe('supabase-storage guest migration', () => {
       'guest',
       'user:user-123',
     );
+  });
+
+  it('syncs a newly added baby directly to cloud for authenticated users', async () => {
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    addBabyMock.mockResolvedValue(undefined);
+
+    await addBaby({
+      id: 'baby-1',
+      name: 'Ava',
+      dateOfBirth: '2024-01-01',
+      gender: 'girl',
+      country: 'US',
+      createdAt: '2026-04-29T00:00:00.000Z',
+    });
+
+    expect(addBabyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'baby-1',
+        name: 'Ava',
+      }),
+      'user:user-123',
+    );
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'baby-1',
+        user_id: 'user-123',
+        name: 'Ava',
+        date_of_birth: '2024-01-01',
+      }),
+      { onConflict: 'id' },
+    );
+  });
+
+  it('merges owned babies from cloud into local storage on load', async () => {
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123' });
+    getBabiesMock.mockResolvedValue([
+      {
+        id: 'local-baby',
+        name: 'Local Baby',
+        dateOfBirth: '2024-02-02',
+        gender: 'boy',
+        country: 'US',
+        createdAt: '2026-04-29T00:00:00.000Z',
+      },
+    ]);
+
+    supabaseFromMock.mockImplementation((table: string) => {
+      if (table === 'family_sharing_invites') {
+        return {
+          select: vi.fn().mockReturnValue(createInviteQuery()),
+        };
+      }
+
+      if (table === 'babies') {
+        return {
+          select: vi.fn().mockReturnValue(
+            createBabySelectQuery([
+              {
+                id: 'cloud-baby',
+                name: 'Cloud Baby',
+                date_of_birth: '2024-03-03',
+                gender: 'girl',
+                photo_url: null,
+                country: 'US',
+                created_at: '2026-04-29T00:00:00.000Z',
+              },
+            ]),
+          ),
+          upsert: upsertMock,
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue(createInviteQuery()),
+      };
+    });
+
+    const babies = await getBabies();
+
+    expect(updateBabyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'cloud-baby',
+        name: 'Cloud Baby',
+      }),
+      'user:user-123',
+    );
+    expect(babies.map((baby) => baby.id).sort()).toEqual(['cloud-baby', 'local-baby']);
   });
 });
