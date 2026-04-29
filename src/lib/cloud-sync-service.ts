@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getApiBaseUrl } from './api-base-url';
 import {
   fromHealthLogCloudRow,
   fromUserSettingsCloudRow,
@@ -94,6 +95,62 @@ const getAuthenticatedUser = async (): Promise<{ id: string; email?: string } | 
 };
 
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const getActiveSessionAccessToken = async (): Promise<string | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+  } = await auth.getSession();
+
+  return session?.access_token || null;
+};
+
+const callSyncBackend = async <TPayload>(
+  path: string,
+  init: RequestInit,
+): Promise<TPayload | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const accessToken = await getActiveSessionAccessToken();
+  if (!accessToken) {
+    return null;
+  }
+
+  const headers = new Headers(init.headers || {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (response.status === 404 || response.status === 405) {
+    return null;
+  }
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || payload?.success === false) {
+    throw new Error(
+      payload?.error ||
+        payload?.message ||
+        `Sync backend request failed with status ${response.status}`,
+    );
+  }
+
+  return payload as TPayload;
+};
 
 const resolveAccessibleBabyIds = async (
   user: { id: string; email?: string },
@@ -215,6 +272,44 @@ export async function performFullSync(localData: {
   try {
     syncStatus.isSyncing = true;
     syncStatus.syncError = null;
+
+    let backendResult: {
+      success: boolean;
+      results?: TableSyncResult[];
+      error?: string;
+    } | null = null;
+
+    try {
+      backendResult = await callSyncBackend<{
+        success: boolean;
+        results?: TableSyncResult[];
+        error?: string;
+      }>('/sync/full', {
+        method: 'POST',
+        body: JSON.stringify({ localData }),
+      });
+    } catch (error) {
+      console.warn('Backend sync route failed; falling back to direct Supabase sync.', error);
+    }
+
+    if (backendResult) {
+      const failedResults = (backendResult.results || []).filter((result) => !result.ok);
+      const allSuccess = backendResult.success && failedResults.length === 0;
+
+      if (allSuccess) {
+        syncStatus.lastSyncTime = new Date();
+        syncStatus.pendingChanges = 0;
+        syncStatus.syncError = null;
+      } else {
+        syncStatus.syncError =
+          failedResults.map((result) => `${result.table}: ${result.error || 'sync failed'}`).join(' | ') ||
+          backendResult.error ||
+          'Cloud sync rejected by backend';
+      }
+
+      return allSuccess;
+    }
+
     const { sharedIds } = await resolveAccessibleBabyIds(user);
     const sharedIdSet = new Set(sharedIds);
     const ownedBabiesOnly = localData.babies.filter((baby) => !sharedIdSet.has(String(baby?.id || '')));
@@ -343,6 +438,26 @@ export async function pullFromCloud(): Promise<any> {
   try {
     const user = await getAuthenticatedUser();
     if (!user) throw new Error('User not authenticated');
+
+    let backendSnapshot: {
+      success: boolean;
+      snapshot?: any;
+    } | null = null;
+
+    try {
+      backendSnapshot = await callSyncBackend<{
+        success: boolean;
+        snapshot?: any;
+      }>('/sync/snapshot', {
+        method: 'GET',
+      });
+    } catch (error) {
+      console.warn('Backend snapshot route failed; falling back to direct Supabase pull.', error);
+    }
+
+    if (backendSnapshot?.snapshot) {
+      return backendSnapshot.snapshot;
+    }
 
     const { data: userSettingsRow, error: userSettingsError } = await supabase
       .from('user_settings')
@@ -510,41 +625,37 @@ export async function pullFromCloud(): Promise<any> {
  * Set up real-time sync listener
  */
 export function setupRealtimeSync(callback: (change: any) => void) {
-  const channels: any[] = [];
+  let channel: any | null = null;
   let isDisposed = false;
 
   try {
     getAuthenticatedUser().then((user) => {
       if (!user || isDisposed) return;
 
-      // Listen to babies changes
-      const babiesChannel = supabase
-        .channel('public:babies')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'babies',
-          },
-          (payload) => {
-            callback({
-              table: 'babies',
-              event: payload.eventType,
-              data: payload.new || payload.old,
-            });
-          }
-        )
-        .subscribe();
-      channels.push(babiesChannel);
+      const realtimeChannel = supabase.channel(`sync:${user.id}:${Date.now()}`);
 
-      // Listen to other tables
+      realtimeChannel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'babies',
+        },
+        (payload) => {
+          callback({
+            table: 'babies',
+            event: payload.eventType,
+            data: payload.new || payload.old,
+          });
+        },
+      );
+
       const tables = [
-        'sleep_logs', 
-        'feed_logs', 
-        'diaper_logs', 
+        'sleep_logs',
+        'feed_logs',
+        'diaper_logs',
         'health_logs',
-        'growth_measurements', 
+        'growth_measurements',
         'vaccination_records',
         'milestones',
         'memories',
@@ -552,39 +663,33 @@ export function setupRealtimeSync(callback: (change: any) => void) {
       ];
 
       tables.forEach((table) => {
-        const tableChannel = supabase
-          .channel(`public:${table}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
-            callback({
-              table,
-              event: payload.eventType,
-              data: payload.new || payload.old,
-            });
-          })
-          .subscribe();
-        channels.push(tableChannel);
+        realtimeChannel.on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+          callback({
+            table,
+            event: payload.eventType,
+            data: payload.new || payload.old,
+          });
+        });
       });
 
-      const userSettingsChannel = supabase
-        .channel('public:user_settings')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
+      realtimeChannel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_settings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          callback({
             table: 'user_settings',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            callback({
-              table: 'user_settings',
-              event: payload.eventType,
-              data: payload.new || payload.old,
-            });
-          },
-        )
-        .subscribe();
-      channels.push(userSettingsChannel);
+            event: payload.eventType,
+            data: payload.new || payload.old,
+          });
+        },
+      );
+
+      channel = realtimeChannel.subscribe();
     });
   } catch (error) {
     console.error('Error setting up real-time sync:', error);
@@ -592,12 +697,14 @@ export function setupRealtimeSync(callback: (change: any) => void) {
 
   return () => {
     isDisposed = true;
-    channels.forEach((channel) => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (error) {
-        console.warn('Failed to remove realtime channel:', error);
-      }
-    });
+    if (!channel) {
+      return;
+    }
+
+    try {
+      supabase.removeChannel(channel);
+    } catch (error) {
+      console.warn('Failed to remove realtime channel:', error);
+    }
   };
 }

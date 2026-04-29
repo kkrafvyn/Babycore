@@ -106,6 +106,9 @@ const getAcceptedInviteRowsForCurrentUser = async () => {
 
   for (const result of results) {
     if (result.error) {
+      if (isTablePermissionDenied(result.error, 'family_sharing_invites')) {
+        continue;
+      }
       console.warn('Failed to fetch sharing invites for current user:', result.error);
       continue;
     }
@@ -145,6 +148,9 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
     .in('id', babyIds);
 
   if (babyRowsError) {
+    if (isTablePermissionDenied(babyRowsError, 'babies')) {
+      return fallbackBabies;
+    }
     console.warn('Failed to fetch shared babies from cloud:', babyRowsError);
   }
 
@@ -202,6 +208,9 @@ const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
       throw error;
     }
   } catch (error) {
+    if (isTablePermissionDenied(error, 'babies')) {
+      return;
+    }
     console.warn('Unable to sync baby profile directly to cloud:', error);
   }
 };
@@ -218,6 +227,9 @@ const deleteBabyFromCloud = async (id: string): Promise<void> => {
       throw error;
     }
   } catch (error) {
+    if (isTablePermissionDenied(error, 'babies')) {
+      return;
+    }
     console.warn('Unable to delete baby profile from cloud:', error);
   }
 };
@@ -241,6 +253,9 @@ const getRemoteOwnedBabies = async (): Promise<Baby[]> => {
 
     return (data || []).map(fromBabyCloudRow);
   } catch (error) {
+    if (isTablePermissionDenied(error, 'babies')) {
+      return [];
+    }
     console.warn('Unable to load owned babies from cloud:', error);
     return [];
   }

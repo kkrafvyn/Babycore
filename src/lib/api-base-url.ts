@@ -2,6 +2,16 @@ const isLocalHost = (hostname: string): boolean =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/$/, '');
+const loggedWarnings = new Set<string>();
+
+const warnOnce = (message: string): void => {
+  if (loggedWarnings.has(message)) {
+    return;
+  }
+
+  loggedWarnings.add(message);
+  console.warn(message);
+};
 
 const shouldIgnoreCrossOriginConfiguredUrl = (
   sanitizedUrl: string,
@@ -39,7 +49,7 @@ const sanitizeConfiguredBaseUrl = (
     const pointsToLocalHost = isLocalHost(parsed.hostname);
 
     if (!appIsLocal && pointsToLocalHost) {
-      console.warn(
+      warnOnce(
         `Ignoring local API base URL "${configuredUrl}" because app is running on a non-local host.`,
       );
       return undefined;
@@ -47,7 +57,7 @@ const sanitizeConfiguredBaseUrl = (
 
     return normalizeBaseUrl(parsed.toString());
   } catch {
-    console.warn(`Invalid API base URL ignored: "${configuredUrl}"`);
+    warnOnce(`Invalid API base URL ignored: "${configuredUrl}"`);
     return undefined;
   }
 };
@@ -65,7 +75,7 @@ export const getApiBaseUrl = (): string => {
       const safeProductionBaseUrl = sanitizeConfiguredBaseUrl(configuredProductionBaseUrl, appIsLocal);
       if (safeProductionBaseUrl) {
         if (shouldIgnoreCrossOriginConfiguredUrl(safeProductionBaseUrl, appOrigin, currentHostname)) {
-          console.warn(
+          warnOnce(
             `Ignoring cross-origin production API base URL "${safeProductionBaseUrl}" in favor of same-origin /api.`,
           );
         } else {
@@ -77,7 +87,7 @@ export const getApiBaseUrl = (): string => {
     const safeConfiguredBaseUrl = sanitizeConfiguredBaseUrl(configuredBaseUrl, appIsLocal);
     if (safeConfiguredBaseUrl) {
       if (shouldIgnoreCrossOriginConfiguredUrl(safeConfiguredBaseUrl, appOrigin, currentHostname)) {
-        console.warn(
+        warnOnce(
           `Ignoring cross-origin API base URL "${safeConfiguredBaseUrl}" in favor of same-origin /api.`,
         );
       } else {
