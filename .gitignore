@@ -31,6 +31,7 @@ Thumbs.db
 # Local artifacts and backups
 artifacts/
 scratch/
+.tools/
 *.zip
 *.timestamp-*.mjs
 package-lock.broken-*.json

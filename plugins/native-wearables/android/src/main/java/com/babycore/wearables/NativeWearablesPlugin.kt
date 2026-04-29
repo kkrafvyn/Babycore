@@ -1,5 +1,7 @@
 package com.babycore.wearables
 
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.result.ActivityResultLauncher
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -43,9 +45,9 @@ class NativeWearablesPlugin : Plugin() {
     )
 
     override fun load() {
-        permissionLauncher = bridge.activity.registerForActivityResult(
+        permissionLauncher = bridge.registerForActivityResult(
             PermissionController.createRequestPermissionResultContract(),
-        ) { grantedPermissions ->
+        ) { grantedPermissions: Set<String> ->
             val call = pendingPermissionCall ?: return@registerForActivityResult
             pendingPermissionCall = null
 
@@ -53,10 +55,9 @@ class NativeWearablesPlugin : Plugin() {
             val payload = JSObject().apply {
                 put("granted", granted)
                 put("source", "health_connect")
-                put(
-                    "reason",
-                    if (granted) JSONObject.NULL else "Health Connect permissions were not fully granted.",
-                )
+                if (!granted) {
+                    put("reason", "Health Connect permissions were not fully granted.")
+                }
             }
             call.resolve(payload)
         }
@@ -72,14 +73,14 @@ class NativeWearablesPlugin : Plugin() {
         val availability = getAvailability()
         val payload = JSObject().apply {
             put("available", availability.available)
-            put("source", if (availability.available || availability.reason != null) "health_connect" else JSONObject.NULL)
-            put("reason", availability.reason ?: JSONObject.NULL)
+            put("source", "health_connect")
+            availability.reason?.let { put("reason", it) }
         }
         call.resolve(payload)
     }
 
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    override fun requestPermissions(call: PluginCall) {
         val availability = getAvailability()
         if (!availability.available) {
             call.resolve(
@@ -127,7 +128,7 @@ class NativeWearablesPlugin : Plugin() {
                 return@launch
             }
 
-            bridge.activity.runOnUiThread {
+            Handler(Looper.getMainLooper()).post {
                 val launcher = permissionLauncher
                 if (launcher == null) {
                     call.resolve(
