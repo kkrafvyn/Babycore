@@ -266,24 +266,21 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   }, [isSleeping]);
 
   useEffect(() => {
-    if (!babies.length || !settings || !latestFeed || !latestDiaper) return;
+    if (!babies.length || !settings) return;
+
+    const notificationPayload = {
+      feedLogs: latestFeed ? [latestFeed] : [],
+      sleepLogs: latestSleep ? [latestSleep] : [],
+      diaperLogs: latestDiaper ? [latestDiaper] : [],
+      vaccinationRecords,
+    };
     
     // Initial sync
-    syncNotifications(babies, settings, {
-      feedLogs: [latestFeed],
-      sleepLogs: [latestSleep],
-      diaperLogs: [latestDiaper],
-      vaccinationRecords,
-    });
+    syncNotifications(babies, settings, notificationPayload);
 
     // Periodic sync every 30 seconds
     const interval = setInterval(() => {
-      syncNotifications(babies, settings, {
-        feedLogs: [latestFeed],
-        sleepLogs: [latestSleep],
-        diaperLogs: [latestDiaper],
-        vaccinationRecords,
-      });
+      syncNotifications(babies, settings, notificationPayload);
     }, 30000);
 
     return () => clearInterval(interval);

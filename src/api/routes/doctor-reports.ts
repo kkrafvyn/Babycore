@@ -83,6 +83,18 @@ const hasBabyAccess = async (userId: string, userEmail: string | undefined, baby
     }
   }
 
+  const doctorAssignment = await supabase
+    .from('doctor_baby_assignments')
+    .select('id,status')
+    .eq('baby_id', babyId)
+    .eq('doctor_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (doctorAssignment.data) {
+    return { allowed: true, baby: ownerCheck.data };
+  }
+
   return { allowed: false, baby: null };
 };
 

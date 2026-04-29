@@ -3,6 +3,7 @@
  * Handles all API requests between frontend and backend
  */
 
+import { getApiBaseUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 const getAuthenticatedUser = async (): Promise<{ id: string } | null> => {
@@ -11,6 +12,46 @@ const getAuthenticatedUser = async (): Promise<{ id: string } | null> => {
     data: { user },
   } = await auth.getUser();
   return user || null;
+};
+
+const getAuthenticatedAccessToken = async (): Promise<string | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+    error,
+  } = await auth.getSession();
+
+  if (error || !session?.access_token) {
+    return null;
+  }
+
+  return session.access_token;
+};
+
+const requestAuthedApi = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const accessToken = await getAuthenticatedAccessToken();
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const headers = new Headers(init?.headers || {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+
+  if (init?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.success === false) {
+    throw new Error(payload?.error || payload?.message || `API request failed (${response.status})`);
+  }
+
+  return payload as T;
 };
 
 /**
@@ -148,36 +189,17 @@ export const API = {
    */
   sync: {
     fullSync: async (data: any) => {
-      const { data: result, error } = await supabase.functions.invoke('full-sync', {
-        body: data,
+      return requestAuthedApi('/sync/full', {
+        method: 'POST',
+        body: JSON.stringify({ localData: data }),
       });
-      if (error) throw error;
-      return result;
     },
 
     pullCloud: async () => {
-      const user = await getAuthenticatedUser();
-
-      if (!user) throw new Error('Not authenticated');
-
-      const [babies, sleepLogs, feedLogs, diaperLogs, growthMeasurements, vaccinationRecords] =
-        await Promise.all([
-          supabase.from('babies').select('*').eq('user_id', user.id),
-          supabase.from('sleep_logs').select('*'),
-          supabase.from('feed_logs').select('*'),
-          supabase.from('diaper_logs').select('*'),
-          supabase.from('growth_measurements').select('*'),
-          supabase.from('vaccination_records').select('*'),
-        ]);
-
-      return {
-        babies: babies.data || [],
-        sleepLogs: sleepLogs.data || [],
-        feedLogs: feedLogs.data || [],
-        diaperLogs: diaperLogs.data || [],
-        growthMeasurements: growthMeasurements.data || [],
-        vaccinationRecords: vaccinationRecords.data || [],
-      };
+      const response = await requestAuthedApi<{ success: boolean; snapshot?: any }>('/sync/snapshot', {
+        method: 'GET',
+      });
+      return response.snapshot || null;
     },
   },
 
@@ -203,36 +225,34 @@ export const API = {
    */
   family: {
     invite: async (babyId: string, email: string, role: string = 'viewer') => {
-      const { data, error } = await supabase.functions.invoke('invite-family-member', {
-        body: { babyId, email, role },
+      const response = await requestAuthedApi<{ success: boolean; data?: any }>('/family/invite', {
+        method: 'POST',
+        body: JSON.stringify({ babyId, email, role }),
       });
-      if (error) throw error;
-      return data;
+      return response.data;
     },
 
     getMembers: async (babyId: string) => {
-      const { data, error } = await supabase
-        .from('family_members')
-        .select('*')
-        .eq('baby_id', babyId);
-
-      if (error) throw error;
-      return data;
+      const response = await requestAuthedApi<{ success: boolean; data?: any[] }>(
+        `/family/members?babyId=${encodeURIComponent(babyId)}`,
+        {
+          method: 'GET',
+        },
+      );
+      return response.data || [];
     },
 
     removeMember: async (memberId: string) => {
-      const { error } = await supabase.from('family_members').delete().eq('id', memberId);
-
-      if (error) throw error;
+      await requestAuthedApi(`/family/invites/${encodeURIComponent(memberId)}`, {
+        method: 'DELETE',
+      });
     },
 
     updateRole: async (memberId: string, role: string) => {
-      const { error } = await supabase
-        .from('family_members')
-        .update({ role, updated_at: new Date().toISOString() })
-        .eq('id', memberId);
-
-      if (error) throw error;
+      await requestAuthedApi(`/family/invites/${encodeURIComponent(memberId)}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      });
     },
   },
 };

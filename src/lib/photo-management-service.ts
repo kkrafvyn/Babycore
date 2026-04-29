@@ -1,3 +1,4 @@
+import { getBaby as getStoredBaby } from './supabase-storage';
 import { supabase } from './supabase';
 
 export interface BabyPhoto {
@@ -167,6 +168,11 @@ export async function uploadBabyPhoto(
  */
 async function getBabyBirthDate(babyId: string): Promise<string | null> {
   try {
+    const storedBaby = await getStoredBaby(babyId);
+    if (storedBaby?.dateOfBirth) {
+      return storedBaby.dateOfBirth;
+    }
+
     const { data, error } = await supabase
       .from('babies')
       .select('date_of_birth')

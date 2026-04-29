@@ -302,14 +302,14 @@ export const WHO_HEAD_GIRLS: WHODataPoint[] = [
   { ageMonths: 24, p3: 45.2, p15: 46.2, p50: 47.6, p85: 48.8, p97: 49.8 },
 ];
 
-// CDC placeholders currently mirror WHO percentiles until validated CDC LMS tables are imported.
-// This avoids shipping fabricated curve transformations.
-export const CDC_WEIGHT_BOYS: WHODataPoint[] = [...WHO_WEIGHT_BOYS];
-export const CDC_WEIGHT_GIRLS: WHODataPoint[] = [...WHO_WEIGHT_GIRLS];
-export const CDC_LENGTH_BOYS: WHODataPoint[] = [...WHO_LENGTH_BOYS];
-export const CDC_LENGTH_GIRLS: WHODataPoint[] = [...WHO_LENGTH_GIRLS];
-export const CDC_HEAD_BOYS: WHODataPoint[] = [...WHO_HEAD_BOYS];
-export const CDC_HEAD_GIRLS: WHODataPoint[] = [...WHO_HEAD_GIRLS];
+function getWhoGrowthData(
+  metric: 'weight' | 'height' | 'head',
+  gender?: string,
+): WHODataPoint[] {
+  if (metric === 'weight') return gender === 'girl' ? WHO_WEIGHT_GIRLS : WHO_WEIGHT_BOYS;
+  if (metric === 'height') return gender === 'girl' ? WHO_LENGTH_GIRLS : WHO_LENGTH_BOYS;
+  return gender === 'girl' ? WHO_HEAD_GIRLS : WHO_HEAD_BOYS;
+}
 
 export function getGrowthStandardData(
   metric: 'weight' | 'height' | 'head',
@@ -317,14 +317,13 @@ export function getGrowthStandardData(
   standard: GrowthStandard = 'WHO',
 ): WHODataPoint[] {
   if (standard === 'CDC') {
-    if (metric === 'weight') return gender === 'girl' ? CDC_WEIGHT_GIRLS : CDC_WEIGHT_BOYS;
-    if (metric === 'height') return gender === 'girl' ? CDC_LENGTH_GIRLS : CDC_LENGTH_BOYS;
-    return gender === 'girl' ? CDC_HEAD_GIRLS : CDC_HEAD_BOYS;
+    // BabyLog charts currently cover birth to 24 months. CDC guidance uses the
+    // WHO growth standard for this age range, so CDC requests intentionally
+    // resolve to WHO reference data instead of fabricated parallel curves.
+    return getWhoGrowthData(metric, gender);
   }
 
-  if (metric === 'weight') return gender === 'girl' ? WHO_WEIGHT_GIRLS : WHO_WEIGHT_BOYS;
-  if (metric === 'height') return gender === 'girl' ? WHO_LENGTH_GIRLS : WHO_LENGTH_BOYS;
-  return gender === 'girl' ? WHO_HEAD_GIRLS : WHO_HEAD_BOYS;
+  return getWhoGrowthData(metric, gender);
 }
 
 export function getWHOData(metric: 'weight' | 'height' | 'head', gender?: string): WHODataPoint[] {

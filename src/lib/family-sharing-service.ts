@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 export type FamilySharingRole = 'owner' | 'editor' | 'viewer' | 'caregiver' | 'doctor';
@@ -54,6 +55,84 @@ export interface SharingActivityLog {
   created_at: string;
 }
 
+const isLocalBrowserHost = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+};
+
+const shouldAllowDirectSupabaseFallback = (): boolean =>
+  typeof window === 'undefined' || isLocalBrowserHost();
+
+const getActiveSessionAccessToken = async (): Promise<string | null> => {
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+    error,
+  } = await auth.getSession();
+
+  if (error || !session?.access_token) {
+    return null;
+  }
+
+  return session.access_token;
+};
+
+const callFamilyApi = async <TPayload>(
+  path: string,
+  init: RequestInit,
+): Promise<TPayload | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const accessToken = await getActiveSessionAccessToken();
+  if (!accessToken) {
+    return null;
+  }
+
+  const headers = new Headers(init.headers || {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+  });
+
+  if (response.status === 404 || response.status === 405) {
+    return null;
+  }
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || payload?.success === false) {
+    throw new Error(
+      payload?.error ||
+        payload?.message ||
+        `Family API request failed with status ${response.status}`,
+    );
+  }
+
+  return payload as TPayload;
+};
+
+const mapInvite = (invite: any): FamilySharingInvite => ({
+  ...invite,
+  status: invite?.accepted_at ? 'accepted' : 'pending',
+});
+
 /**
  * Send family sharing invite
  */
@@ -70,6 +149,40 @@ export async function sendFamilySharingInvite(
   },
 ): Promise<FamilySharingInvite | null> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite;
+      }>('/family/invite', {
+        method: 'POST',
+        body: JSON.stringify({
+          babyId,
+          email: invitedEmail,
+          role,
+          invitedName: options?.invitedName,
+          babyNameSnapshot: options?.babyNameSnapshot,
+          babyPhotoUrlSnapshot: options?.babyPhotoUrlSnapshot,
+        }),
+      });
+
+      if (backendResponse?.data) {
+        if (!options?.isPublicLink) {
+          await sendInviteEmail(invitedEmail, babyId, role, backendResponse.data.invite_token);
+        }
+
+        return mapInvite(backendResponse.data);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend family invite request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
     const inviteToken = `${babyId}_${Math.random().toString(36).substring(7)}`;
 
     // 14 days expiration
@@ -120,7 +233,7 @@ export async function sendFamilySharingInvite(
       await sendInviteEmail(invitedEmail, babyId, role, inviteToken);
     }
 
-    return data;
+    return mapInvite(data);
   } catch (err) {
     console.error('Error sending invite:', err);
     return null;
@@ -143,7 +256,7 @@ async function sendInviteEmail(
     } = await auth.getSession();
     const accessToken: string | undefined = session?.access_token;
 
-    await fetch('/api/email/send-invite', {
+    await fetch(`${getApiBaseUrl()}/email/send-invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,7 +267,7 @@ async function sendInviteEmail(
         baby_id: babyId,
         role,
         invite_token: token,
-        invite_link: `${window.location.origin}/accept-invite/${token}`,
+        invite_link: buildInviteLink(token, 'patients'),
       }),
     });
   } catch (err) {
@@ -170,6 +283,29 @@ export async function acceptFamilySharingInvite(
   userId: string
 ): Promise<FamilySharingInvite | null> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite;
+      }>('/family/accept-invite', {
+        method: 'POST',
+        body: JSON.stringify({ token: inviteToken }),
+      });
+
+      if (backendResponse?.data) {
+        return mapInvite(backendResponse.data);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend accept invite request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
     const { data: invite, error: inviteError } = await supabase
       .from('family_sharing_invites')
       .select('*')
@@ -222,10 +358,7 @@ export async function acceptFamilySharingInvite(
     // Link user to baby (would need a junction table)
     // This depends on your user-baby relationship model
 
-    return {
-      ...data,
-      status: 'accepted',
-    };
+    return mapInvite(data);
   } catch (err) {
     console.error('Error accepting invite:', err);
     return null;
@@ -243,6 +376,34 @@ export async function startCaregiverSession(
   pinCodeOverride?: string
 ): Promise<CaregiverSession | null> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: CaregiverSession;
+      }>('/family/caregiver-sessions/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          babyId,
+          accessType,
+          durationMinutes,
+          pinCodeOverride,
+        }),
+      });
+
+      if (backendResponse?.data) {
+        return backendResponse.data;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend start caregiver session request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
     // Generate PIN and session token
     const pinCode = pinCodeOverride || Math.floor(1000 + Math.random() * 9000).toString();
     const sessionToken = `${babyId}_${Math.random().toString(36).substring(7)}`;
@@ -277,6 +438,28 @@ export async function startCaregiverSession(
  */
 export async function endCaregiverSession(sessionId: string): Promise<boolean> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{ success: boolean }>(
+        `/family/caregiver-sessions/${encodeURIComponent(sessionId)}/end`,
+        {
+          method: 'POST',
+        },
+      );
+
+      if (backendResponse) {
+        return true;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    } catch (backendError) {
+      console.warn('Backend end caregiver session request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    }
+
     const { error } = await supabase
       .from('caregiver_sessions')
       .update({ expires_at: new Date().toISOString() })
@@ -300,6 +483,30 @@ export async function logSharingActivity(
   details?: any
 ): Promise<boolean> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{ success: boolean }>('/family/activity-log', {
+        method: 'POST',
+        body: JSON.stringify({
+          babyId,
+          action,
+          details,
+        }),
+      });
+
+      if (backendResponse) {
+        return true;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    } catch (backendError) {
+      console.warn('Backend sharing activity log request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    }
+
     const { error } = await supabase.from('sharing_activity_log').insert({
       baby_id: babyId,
       user_id: userId,
@@ -323,6 +530,28 @@ export async function getSharingActivityLog(
   limit = 50
 ): Promise<SharingActivityLog[]> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: SharingActivityLog[];
+      }>(`/family/activity-log?babyId=${encodeURIComponent(babyId)}&limit=${encodeURIComponent(String(limit))}`, {
+        method: 'GET',
+      });
+
+      if (backendResponse?.data) {
+        return backendResponse.data;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    } catch (backendError) {
+      console.warn('Backend sharing activity fetch failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    }
+
     const { data, error } = await supabase
       .from('sharing_activity_log')
       .select('*')
@@ -343,6 +572,28 @@ export async function getSharingActivityLog(
  */
 export async function getFamilyMembers(babyId: string): Promise<FamilySharingInvite[]> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite[];
+      }>(`/family/members?babyId=${encodeURIComponent(babyId)}`, {
+        method: 'GET',
+      });
+
+      if (backendResponse?.data) {
+        return backendResponse.data.map(mapInvite);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    } catch (backendError) {
+      console.warn('Backend family members request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    }
+
     const { data, error } = await supabase
       .from('family_sharing_invites')
       .select('*')
@@ -350,10 +601,7 @@ export async function getFamilyMembers(babyId: string): Promise<FamilySharingInv
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map((invite) => ({
-      ...invite,
-      status: invite.accepted_at ? 'accepted' : 'pending',
-    }));
+    return (data || []).map(mapInvite);
   } catch (err) {
     console.error('Error fetching family members:', err);
     return [];
@@ -405,6 +653,39 @@ export async function createPublicFamilyInviteLink(
     view?: 'patients' | 'family-sharing';
   },
 ): Promise<PublicInviteLink | null> {
+  try {
+    const backendResponse = await callFamilyApi<{
+      success: boolean;
+      data?: PublicInviteLink;
+    }>('/family/public-invite', {
+      method: 'POST',
+      body: JSON.stringify({
+        babyId,
+        role,
+        invitedName: options?.invitedName,
+        babyNameSnapshot: options?.babyNameSnapshot,
+        babyPhotoUrlSnapshot: options?.babyPhotoUrlSnapshot,
+        view: options?.view || 'patients',
+      }),
+    });
+
+    if (backendResponse?.data) {
+      return {
+        invite: mapInvite(backendResponse.data.invite),
+        inviteLink: backendResponse.data.inviteLink,
+      };
+    }
+
+    if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+      return null;
+    }
+  } catch (backendError) {
+    console.warn('Backend public family invite request failed.', backendError);
+    if (!shouldAllowDirectSupabaseFallback()) {
+      return null;
+    }
+  }
+
   const publicInviteEmail = generatePublicInviteEmail();
 
   const invite = await sendFamilySharingInvite(babyId, publicInviteEmail, role, createdBy, {
@@ -417,7 +698,7 @@ export async function createPublicFamilyInviteLink(
   if (!invite) return null;
 
   return {
-    invite,
+    invite: mapInvite(invite),
     inviteLink: buildInviteLink(invite.invite_token, options?.view || 'patients'),
   };
 }
@@ -427,6 +708,28 @@ export async function createPublicFamilyInviteLink(
  */
 export async function revokeFamilyMemberAccess(inviteId: string): Promise<boolean> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{ success: boolean }>(
+        `/family/invites/${encodeURIComponent(inviteId)}`,
+        {
+          method: 'DELETE',
+        },
+      );
+
+      if (backendResponse) {
+        return true;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    } catch (backendError) {
+      console.warn('Backend revoke family invite request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return false;
+      }
+    }
+
     const { error } = await supabase
       .from('family_sharing_invites')
       .delete()
@@ -448,6 +751,29 @@ export async function updateFamilyMemberRole(
   newRole: FamilySharingRole
 ): Promise<FamilySharingInvite | null> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite;
+      }>(`/family/invites/${encodeURIComponent(inviteId)}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (backendResponse?.data) {
+        return mapInvite(backendResponse.data);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend update family role request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('family_sharing_invites')
       .update({ role: newRole })
@@ -456,7 +782,7 @@ export async function updateFamilyMemberRole(
       .single();
 
     if (error) throw error;
-    return data;
+    return mapInvite(data);
   } catch (err) {
     console.error('Error updating role:', err);
     return null;
@@ -496,6 +822,28 @@ const getCurrentUserId = async (): Promise<string | null> => {
 export async function searchCareTeamCandidates(query: string): Promise<CareTeamSearchCandidate[]> {
   const normalized = query.trim().toLowerCase();
   if (normalized.length < 2) return [];
+
+  try {
+    const backendResponse = await callFamilyApi<{
+      success: boolean;
+      data?: CareTeamSearchCandidate[];
+    }>(`/family/search-candidates?query=${encodeURIComponent(normalized)}`, {
+      method: 'GET',
+    });
+
+    if (backendResponse?.data) {
+      return backendResponse.data;
+    }
+
+    if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+      return [];
+    }
+  } catch (backendError) {
+    console.warn('Backend care-team candidate search failed.', backendError);
+    if (!shouldAllowDirectSupabaseFallback()) {
+      return [];
+    }
+  }
 
   const escaped = normalized.replace(/[%_]/g, '');
   const likeQuery = `%${escaped}%`;
@@ -575,6 +923,28 @@ export async function getIncomingSharingInvites(
   status: 'pending' | 'accepted' | 'all' = 'all'
 ): Promise<FamilySharingInvite[]> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite[];
+      }>(`/family/incoming?status=${encodeURIComponent(status)}`, {
+        method: 'GET',
+      });
+
+      if (backendResponse?.data) {
+        return backendResponse.data.map(mapInvite);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    } catch (backendError) {
+      console.warn('Backend incoming family invites request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return [];
+      }
+    }
+
     const userEmail = await getCurrentUserEmail();
     const userId = await getCurrentUserId();
 
@@ -640,10 +1010,7 @@ export async function getIncomingSharingInvites(
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    return dedupedRows.map((invite) => ({
-      ...invite,
-      status: invite.accepted_at ? 'accepted' : 'pending',
-    }));
+    return dedupedRows.map(mapInvite);
   } catch (err) {
     console.error('Error fetching incoming sharing invites:', err);
     return [];
@@ -655,6 +1022,28 @@ export async function getIncomingSharingInvites(
  */
 export async function acceptIncomingSharingInvite(inviteId: string): Promise<FamilySharingInvite | null> {
   try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: FamilySharingInvite;
+      }>(`/family/invites/${encodeURIComponent(inviteId)}/accept`, {
+        method: 'POST',
+      });
+
+      if (backendResponse?.data) {
+        return mapInvite(backendResponse.data);
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend accept incoming invite request failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
     const userId = await getCurrentUserId();
 
     const { data, error } = await supabase
@@ -679,18 +1068,12 @@ export async function acceptIncomingSharingInvite(inviteId: string): Promise<Fam
         .select()
         .single();
       if (retry.error) throw retry.error;
-      return {
-        ...retry.data,
-        status: 'accepted',
-      };
+      return mapInvite(retry.data);
     }
 
     if (error) throw error;
 
-    return {
-      ...data,
-      status: 'accepted',
-    };
+    return mapInvite(data);
   } catch (err) {
     console.error('Error accepting incoming invite:', err);
     return null;

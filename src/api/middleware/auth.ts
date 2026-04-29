@@ -11,6 +11,8 @@ export interface AuthRequest extends Request {
   userRole?: string;
 }
 
+const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
 /**
  * Main authentication middleware
  * Verifies JWT token and attaches user to request
@@ -158,17 +160,33 @@ export function verifyOwnership(paramName: string) {
         return res.status(404).json({ error: 'Resource not found' });
       }
 
-      // Check if user is owner or has access through family sharing
+      // Check if user is owner or has access through modern family sharing / doctor assignment.
       const isOwner = data.user_id === req.user.id;
+      const userEmail = normalizeEmail(req.user?.email);
       const { data: sharedAccess } = await supabase
         .from('family_sharing_invites')
         .select('*')
-        .eq('invited_user_id', req.user.id)
         .eq('baby_id', resourceId)
-        .eq('status', 'accepted')
-        .single();
+        .not('accepted_at', 'is', null)
+        .or(
+          [
+            `accepted_by.eq.${req.user.id}`,
+            userEmail ? `invited_email.ilike.${userEmail}` : null,
+          ]
+            .filter(Boolean)
+            .join(','),
+        )
+        .maybeSingle();
 
-      if (!isOwner && !sharedAccess) {
+      const { data: doctorAccess } = await supabase
+        .from('doctor_baby_assignments')
+        .select('id')
+        .eq('baby_id', resourceId)
+        .eq('doctor_id', req.user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!isOwner && !sharedAccess && !doctorAccess) {
         return res.status(403).json({
           error: 'You do not have access to this resource',
         });

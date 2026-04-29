@@ -469,26 +469,28 @@ export class NotificationsManager {
       }
     }
 
-    if (
-      typeof navigator === 'undefined' ||
-      typeof window === 'undefined' ||
-      !this.isSupported() ||
-      !('serviceWorker' in navigator) ||
-      !('PushManager' in window)
-    ) {
+    if (typeof window === 'undefined') {
       return false;
+    }
+
+    if (!this.isSupported()) {
+      // Browser-level notifications are unavailable, but in-app reminder toasts
+      // can still be used, so we do not hard-block the app setting.
+      return true;
     }
 
     // iOS web push requires the app to be installed to the home screen.
     if (this.isIOS() && !this.isStandaloneDisplayMode()) {
       toast('Install BabyLog on your home screen to enable iOS push notifications.');
-      return false;
+      return true;
     }
 
     if (Notification.permission === 'granted') return true;
 
     const permission = await Notification.requestPermission();
-    return permission === 'granted';
+    // App reminders can still work as in-app toasts/history even if the user
+    // declines browser notifications, so this only blocks on API failure.
+    return permission !== 'denied';
   }
 
   /**
@@ -834,25 +836,26 @@ export class NotificationsManager {
    * This handles both in-app toasts and OS-level notifications
    */
   static async sendLocalNotification(payload: { title: string; body: string; data?: any; type?: NotificationType }): Promise<void> {
-    if (!this.isSupported()) return;
+    if (typeof window === 'undefined') return;
     const { notification, isDuplicate } = persistNotification(payload);
     if (isDuplicate) return;
 
     // 1. Show In-App Toast (Always show if app is active)
-    if (typeof window !== 'undefined') {
-       const deepLink = notification.data?.deepLink;
-       toast(notification.title, {
-          description: notification.body,
-          duration: 5000,
-          action: deepLink ? {
-             label: 'View',
-             onClick: () => window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } }))
-          } : undefined
-       });
-    }
+    const deepLink = notification.data?.deepLink;
+    toast(notification.title, {
+      description: notification.body,
+      duration: 5000,
+      action: deepLink
+        ? {
+            label: 'View',
+            onClick: () =>
+              window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } })),
+          }
+        : undefined,
+    });
 
     // 2. Fallback to System Notification (if background or permission granted)
-    if (Notification.permission === 'granted') {
+    if (this.isSupported() && Notification.permission === 'granted') {
        if ('serviceWorker' in navigator) {
          const registration = await navigator.serviceWorker.ready;
          if (registration) {
@@ -875,7 +878,7 @@ export class NotificationsManager {
            tag: notification.type || 'general',
            data: notification.data,
          });
-       } catch (e) {
+       } catch {
           console.warn('System Notification API failed');
        }
     }

@@ -125,16 +125,28 @@ export async function checkResourceAccess(
       return true;
     }
 
-    // Check family sharing access
+    // Check family sharing access using the current accepted invite model.
     const { data: access, error: accessError } = await supabase
       .from('family_sharing_invites')
       .select('*')
-      .eq('invited_user_id', userId)
       .eq('baby_id', babyId)
-      .eq('status', 'accepted')
-      .single();
+      .eq('accepted_by', userId)
+      .not('accepted_at', 'is', null)
+      .maybeSingle();
 
-    return !!access && !accessError;
+    if (access && !accessError) {
+      return true;
+    }
+
+    const { data: doctorAccess, error: doctorAccessError } = await supabase
+      .from('doctor_baby_assignments')
+      .select('id')
+      .eq('baby_id', babyId)
+      .eq('doctor_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    return !!doctorAccess && !doctorAccessError;
   } catch (error) {
     console.error('Error checking resource access:', error);
     return false;
@@ -151,18 +163,41 @@ export async function getUserBabies(userId: string) {
       .eq('user_id', userId);
 
     // Get shared babies
-    const { data: sharedBabies } = await supabase
+    const { data: sharedInviteRows } = await supabase
       .from('family_sharing_invites')
-      .select('babies(id, name, date_of_birth, photo_url)')
-      .eq('invited_user_id', userId)
-      .eq('status', 'accepted');
+      .select('baby_id')
+      .eq('accepted_by', userId)
+      .not('accepted_at', 'is', null);
 
-    const babies = [
-      ...(ownedBabies || []),
-      ...(sharedBabies?.map(s => s.babies).filter(Boolean) || []),
-    ];
+    const { data: doctorAssignments } = await supabase
+      .from('doctor_baby_assignments')
+      .select('baby_id,status')
+      .eq('doctor_id', userId);
 
-    return babies;
+    const sharedBabyIds = Array.from(
+      new Set(
+        [
+          ...(sharedInviteRows || []).map((row: any) => String(row?.baby_id || '')).filter(Boolean),
+          ...(doctorAssignments || [])
+            .filter((row: any) => !row?.status || row.status === 'active')
+            .map((row: any) => String(row?.baby_id || ''))
+            .filter(Boolean),
+        ].filter(Boolean),
+      ),
+    );
+
+    const { data: sharedBabies } = sharedBabyIds.length
+      ? await supabase.from('babies').select('*').in('id', sharedBabyIds)
+      : ({ data: [], error: null } as any);
+
+    const dedupedBabies = new Map<string, any>();
+    for (const baby of [...(ownedBabies || []), ...(sharedBabies || [])]) {
+      if (baby?.id) {
+        dedupedBabies.set(String(baby.id), baby);
+      }
+    }
+
+    return Array.from(dedupedBabies.values());
   } catch (error) {
     console.error('Error getting user babies:', error);
     return [];

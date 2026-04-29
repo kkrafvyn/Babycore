@@ -1,3 +1,4 @@
+import { getBaby as getStoredBaby } from './supabase-storage';
 import { supabase } from './supabase';
 
 export interface SleepAnalytics {
@@ -319,6 +320,14 @@ export async function getFeedingTrends(babyId: string, days: number = 30): Promi
  */
 async function calculateBabyAge(babyId: string): Promise<number> {
   try {
+    const storedBaby = await getStoredBaby(babyId);
+    const storedBirthDate = storedBaby?.dateOfBirth;
+    if (storedBirthDate) {
+      const birthDate = new Date(storedBirthDate).getTime();
+      const today = new Date().getTime();
+      return Math.floor((today - birthDate) / (1000 * 60 * 60 * 24));
+    }
+
     const { data } = await supabase
       .from('babies')
       .select('date_of_birth')

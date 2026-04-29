@@ -70,7 +70,7 @@ export interface Activity {
   id: string;
   babyId: string;
   timestamp: string; // ISO 8601
-  type: 'playtime' | 'tummy-time' | 'bathing' | 'outdoor' | 'other';
+  type: 'tummy_time' | 'reading' | 'outdoor' | 'music' | 'sensory' | 'social' | 'other';
   duration: number; // in minutes
   description?: string;
   notes?: string;

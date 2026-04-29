@@ -10,7 +10,6 @@ import {
   getAgeInMonths,
   convertWeight,
   convertLength,
-  type GrowthStandard,
 } from '../../lib/baby-utils';
 import { i18nT } from '../../lib/i18n';
 
@@ -20,11 +19,6 @@ interface GrowthChartProps {
   onBack: () => void;
   showBackButton?: boolean;
 }
-
-const CDC_DEFAULT_COUNTRIES = new Set(['US', 'PR', 'GU', 'VI', 'AS', 'MP']);
-
-const getDefaultGrowthStandardForCountry = (country?: string): GrowthStandard =>
-  CDC_DEFAULT_COUNTRIES.has(String(country || '').toUpperCase()) ? 'CDC' : 'WHO';
 
 function getInterpolatedPercentile(value: number, ageMonths: number, whoData: Array<any>): number {
   if (!whoData.length) return 50;
@@ -73,10 +67,6 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedPoint, setSelectedPoint] = useState<GrowthMeasurement | null>(null);
   const [useImperial, setUseImperial] = useState(settings?.units === 'imperial');
-  const [growthStandard, setGrowthStandard] = useState<GrowthStandard>(
-    getDefaultGrowthStandardForCountry(currentBaby?.country),
-  );
-  const [standardOverridden, setStandardOverridden] = useState(false);
 
   const isImperial = useImperial;
   const weightUnit = isImperial ? 'lbs' : 'kg';
@@ -86,11 +76,6 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   useEffect(() => {
     loadMeasurements();
   }, [currentBaby]);
-
-  useEffect(() => {
-    if (standardOverridden) return;
-    setGrowthStandard(getDefaultGrowthStandardForCountry(currentBaby?.country));
-  }, [currentBaby?.country, standardOverridden]);
 
   const loadMeasurements = async () => {
     if (!currentBaby) return;
@@ -155,8 +140,8 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   };
 
   const referenceData = useMemo(
-    () => getGrowthStandardData(activeTab, gender || undefined, growthStandard),
-    [activeTab, gender, growthStandard],
+    () => getGrowthStandardData(activeTab, gender || undefined),
+    [activeTab, gender],
   );
 
   const chartW = 400;
@@ -207,7 +192,7 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
   const latestPoint = babyPoints[babyPoints.length - 1];
   const currentValue = latestPoint?.displayVal ?? '-';
   const currentPercentile = latestPoint && currentBaby?.dateOfBirth
-    ? getPercentile(latestPoint.metricVal, latestPoint.age, activeTab, gender || undefined, growthStandard)
+    ? getPercentile(latestPoint.metricVal, latestPoint.age, activeTab, gender || undefined)
     : '-';
   const previousPoint = babyPoints[babyPoints.length - 2];
   const latestPercentileRank = latestPoint
@@ -244,8 +229,6 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
       : hasRapidShift
       ? 'Large percentile shift'
       : 'Within expected range';
-  const isCdcPlaceholder = growthStandard === 'CDC';
-
   return (
     <div className="fit-screen bg-background">
       <header className="fixed top-0 w-full z-10 bg-background/80 backdrop-blur-xl h-16 sm:h-20 px-3 sm:px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
@@ -289,33 +272,6 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
              </div>
            </div>
 
-           <div className="flex justify-end px-2">
-             <div className="bg-surface-gray dark:bg-zinc-800 p-1 rounded-[1.5rem] flex gap-1 shadow-inner">
-               <button
-                 onClick={() => {
-                   setGrowthStandard('WHO');
-                   setStandardOverridden(true);
-                 }}
-                 className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                   growthStandard === 'WHO' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
-                 }`}
-               >
-                 WHO
-               </button>
-               <button
-                 onClick={() => {
-                   setGrowthStandard('CDC');
-                   setStandardOverridden(true);
-                 }}
-                 className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                   growthStandard === 'CDC' ? 'bg-secondary text-white shadow-xl' : 'text-text-light'
-                 }`}
-               >
-                 CDC
-               </button>
-             </div>
-           </div>
-
            <div className="card-onboarding bg-surface overflow-hidden relative">
              <div className="flex justify-between items-start mb-8">
                <div>
@@ -333,13 +289,11 @@ export const GrowthChart: React.FC<GrowthChartProps> = ({ onBack, showBackButton
                </div>
              </div>
              <p className="text-[9px] font-black text-text-light uppercase tracking-widest mb-4">
-               Standard: {growthStandard} {currentBaby?.country ? `(${currentBaby.country})` : ''}
+               Standard: WHO (birth to 24 months)
              </p>
-             {isCdcPlaceholder && (
-               <p className="text-[10px] font-bold text-text-dim mb-4">
-                 CDC mode currently mirrors WHO reference tables until validated CDC LMS curves are imported.
-               </p>
-             )}
+             <p className="text-[10px] font-bold text-text-dim mb-4">
+               This infant chart follows the WHO growth standard recommended for children under 2 years.
+             </p>
 
              <div className="relative">
                <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-48 drop-shadow-sm">

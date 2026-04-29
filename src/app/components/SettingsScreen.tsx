@@ -107,12 +107,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleNotificationToggle = async () => {
     const isEnabled = !settings?.notificationsEnabled;
     if (isEnabled) {
-      const granted = await NotificationsManager.requestPermission();
-      if (!granted) return;
+      const permissionGranted = await NotificationsManager.requestPermission();
+      const subscription = await NotificationsManager.subscribeToPush();
+      await updateSettings({ notificationsEnabled: true });
+
+      if (subscription) {
+        toast.success(i18nT('settings.pushEnabled'));
+      } else if (!permissionGranted) {
+        toast('In-app reminders were enabled, but browser push is still unavailable on this device.');
+      } else {
+        toast('Notifications are enabled. Push delivery could not be fully activated yet.');
+      }
+      return;
     } else {
       await NotificationsManager.unsubscribeFromPush();
     }
-    await updateSettings({ notificationsEnabled: isEnabled });
+    await updateSettings({ notificationsEnabled: false });
   };
 
   const handleBiometricToggle = async () => {
