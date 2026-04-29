@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
 import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield, Stethoscope, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -124,6 +124,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
+  const onViewChangeRef = useRef(onViewChange);
   const hasPremiumAccess = isPremiumSubscriptionActive(settings?.subscriptionStatus);
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
@@ -221,11 +222,15 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     if (requestedView !== activeView) {
       setActiveView(requestedView);
     }
-  }, [requestedView]);
+  }, [requestedView, activeView]);
 
   useEffect(() => {
-    onViewChange?.(activeView);
-  }, [activeView, onViewChange]);
+    onViewChangeRef.current = onViewChange;
+  }, [onViewChange]);
+
+  useEffect(() => {
+    onViewChangeRef.current?.(activeView);
+  }, [activeView]);
 
   useEffect(() => {
     if (!currentBaby) return;

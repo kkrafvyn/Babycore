@@ -53,6 +53,7 @@ Run in this exact order:
 32. `31-care-advanced-features.sql`
 33. `32-emergency-links-and-billing-events.sql`
 34. `33-health-logs-and-user-settings.sql`
+35. `34-table-grants-for-health-logs-and-user-settings.sql`
 
 ## Common Errors
 

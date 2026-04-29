@@ -73,6 +73,18 @@ const formatSyncError = (error: unknown): string => {
   return 'Unknown sync error';
 };
 
+const isTablePermissionDenied = (error: unknown, table: string): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  const code = typeof candidate.code === 'string' ? candidate.code.trim() : '';
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : '';
+
+  return code === '42501' && message.includes(`permission denied for table ${table.toLowerCase()}`);
+};
+
 const getAuthenticatedUser = async (): Promise<{ id: string; email?: string } | null> => {
   const auth = supabase.auth as any;
   const {
@@ -170,6 +182,10 @@ export const syncUserSettings = async (userId: string, settings: any): Promise<T
     if (error) throw error;
     return { table: 'user_settings', ok: true };
   } catch (error) {
+    if (isTablePermissionDenied(error, 'user_settings')) {
+      return { table: 'user_settings', ok: true };
+    }
+
     console.error('Error syncing user_settings:', error);
     const message = formatSyncError(error);
     syncStatus.syncError = `user_settings: ${message}`;

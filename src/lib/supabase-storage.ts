@@ -38,6 +38,18 @@ const resolveStorageScopeId = async (): Promise<string> => {
 
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
 
+const isTablePermissionDenied = (error: unknown, table: string): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  const code = typeof candidate.code === 'string' ? candidate.code.trim() : '';
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : '';
+
+  return code === '42501' && message.includes(`permission denied for table ${table.toLowerCase()}`);
+};
+
 const toBabyCloudRow = (baby: Baby, userId: string) => ({
   id: baby.id,
   user_id: userId,
@@ -387,6 +399,9 @@ const upsertUserSettingsToCloud = async (userId: string, settings: UserSettings)
       throw error;
     }
   } catch (error) {
+    if (isTablePermissionDenied(error, 'user_settings')) {
+      return;
+    }
     console.warn('Unable to sync user settings directly to cloud:', error);
   }
 };
@@ -414,6 +429,9 @@ const getRemoteUserSettings = async (userId: string): Promise<UserSettings | und
 
     return fromUserSettingsCloudRow(data);
   } catch (error) {
+    if (isTablePermissionDenied(error, 'user_settings')) {
+      return undefined;
+    }
     console.warn('Unable to load user settings from cloud:', error);
     return undefined;
   }

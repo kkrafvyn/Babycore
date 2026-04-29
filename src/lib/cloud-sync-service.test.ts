@@ -268,4 +268,91 @@ describe('cloud-sync-service', () => {
     expect(getSyncStatus().syncError).toContain('Hint: Check the authenticated session on this device.');
     expect(getSyncStatus().syncError).toContain('Code: 42501');
   });
+
+  it('does not fail full sync when user_settings permissions are not ready', async () => {
+    const callOrder: string[] = [];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'babies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+          upsert: vi.fn(async () => {
+            callOrder.push('babies');
+            return { error: null };
+          }),
+        };
+      }
+
+      if (table === 'family_sharing_invites') {
+        return {
+          select: vi.fn().mockReturnValue(createInviteQuery()),
+        };
+      }
+
+      if (table === 'doctor_baby_assignments') {
+        return {
+          select: vi.fn().mockReturnValue(createDoctorAssignmentsQuery()),
+        };
+      }
+
+      if (table === 'user_settings') {
+        return {
+          upsert: vi.fn(async () => ({
+            error: {
+              code: '42501',
+              message: 'permission denied for table user_settings',
+            },
+          })),
+        };
+      }
+
+      return {
+        upsert: vi.fn(async () => {
+          callOrder.push(table);
+          return { error: null };
+        }),
+      };
+    });
+
+    const synced = await performFullSync({
+      babies: [
+        {
+          id: 'baby-1',
+          name: 'Unako',
+          dateOfBirth: '2024-09-01',
+          gender: 'girl',
+          country: 'US',
+          createdAt: '2026-04-29T00:00:00.000Z',
+        },
+      ],
+      sleepLogs: [
+        {
+          id: 'sleep-1',
+          babyId: 'baby-1',
+          startTime: '2026-04-29T00:00:00.000Z',
+          endTime: '2026-04-29T01:00:00.000Z',
+          duration: 60,
+          createdAt: '2026-04-29T01:00:00.000Z',
+        },
+      ],
+      feedLogs: [],
+      diaperLogs: [],
+      healthLogs: [],
+      growthMeasurements: [],
+      vaccinationRecords: [],
+      milestones: [],
+      memories: [],
+      journalEntries: [],
+      userSettings: {
+        units: 'metric',
+      },
+    });
+
+    expect(synced).toBe(true);
+    expect(callOrder).toContain('babies');
+    expect(callOrder).toContain('sleep_logs');
+    expect(getSyncStatus().syncError).toBeNull();
+  });
 });

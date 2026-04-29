@@ -222,6 +222,13 @@ function AppShell() {
     [navigateToPath],
   );
 
+  const handleDashboardViewChange = React.useCallback(
+    (view: AppView) => {
+      navigateToAppView(view, { preserveSearch: true });
+    },
+    [navigateToAppView],
+  );
+
   React.useEffect(() => {
     const handlePopState = () => setLocationRoute(getLocationRoute());
     window.addEventListener('popstate', handlePopState);
@@ -492,7 +499,7 @@ function AppShell() {
       <PrivacyLock>
         <EnhancedDashboard
           requestedView={appRouteView}
-          onViewChange={(view) => navigateToAppView(view, { preserveSearch: true })}
+          onViewChange={handleDashboardViewChange}
           onSignOut={handleSignOut}
         />
       </PrivacyLock>,
