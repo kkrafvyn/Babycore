@@ -4,13 +4,23 @@ const isLocalHost = (hostname: string): boolean =>
 const normalizeBaseUrl = (value: string): string => value.replace(/\/$/, '');
 const loggedWarnings = new Set<string>();
 
+const shouldLogRuntimeWarning = (): boolean => {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return Boolean(import.meta.env.DEV) || isLocalHost(window.location.hostname);
+};
+
 const warnOnce = (message: string): void => {
   if (loggedWarnings.has(message)) {
     return;
   }
 
   loggedWarnings.add(message);
-  console.warn(message);
+  if (shouldLogRuntimeWarning()) {
+    console.warn(message);
+  }
 };
 
 const shouldIgnoreCrossOriginConfiguredUrl = (

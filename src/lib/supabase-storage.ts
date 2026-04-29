@@ -50,6 +50,12 @@ const isTablePermissionDenied = (error: unknown, table: string): boolean => {
   return code === '42501' && message.includes(`permission denied for table ${table.toLowerCase()}`);
 };
 
+const isAnyTablePermissionDenied = (error: unknown, tables: string[]): boolean =>
+  tables.some((table) => isTablePermissionDenied(error, table));
+
+const isCloudBabyAccessPermissionDenied = (error: unknown): boolean =>
+  isAnyTablePermissionDenied(error, ['babies', 'family_sharing_invites', 'doctor_baby_assignments']);
+
 const toBabyCloudRow = (baby: Baby, userId: string) => ({
   id: baby.id,
   user_id: userId,
@@ -142,13 +148,23 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
     return [];
   }
 
+  const fallbackBabies: Baby[] = acceptedInvites.map((invite) => ({
+    id: String(invite.baby_id || ''),
+    name: invite.baby_name_snapshot?.trim() || `Baby ${String(invite.baby_id || '').slice(0, 8)}`,
+    dateOfBirth: invite.created_at || new Date().toISOString(),
+    gender: 'other',
+    photoUrl: invite.baby_photo_url_snapshot || undefined,
+    country: 'US',
+    createdAt: invite.created_at || new Date().toISOString(),
+  }));
+
   const { data: babyRows, error: babyRowsError } = await supabase
     .from('babies')
     .select('id,name,date_of_birth,gender,photo_url,country,created_at')
     .in('id', babyIds);
 
   if (babyRowsError) {
-    if (isTablePermissionDenied(babyRowsError, 'babies')) {
+    if (isCloudBabyAccessPermissionDenied(babyRowsError)) {
       return fallbackBabies;
     }
     console.warn('Failed to fetch shared babies from cloud:', babyRowsError);
@@ -167,27 +183,17 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
     });
   }
 
-  const fallbackBabies: Baby[] = acceptedInvites.map((invite) => {
-    const inviteBabyId = String(invite.baby_id || '');
-    const cloudBaby = cloudBabiesById.get(inviteBabyId);
-    if (cloudBaby) {
-      return cloudBaby;
-    }
-
-    return {
-      id: inviteBabyId,
-      name: invite.baby_name_snapshot?.trim() || `Baby ${inviteBabyId.slice(0, 8)}`,
-      dateOfBirth: invite.created_at || new Date().toISOString(),
-      gender: 'other',
-      photoUrl: invite.baby_photo_url_snapshot || undefined,
-      country: 'US',
-      createdAt: invite.created_at || new Date().toISOString(),
-    };
-  });
-
   const merged = new Map<string, Baby>();
   for (const baby of fallbackBabies) {
     merged.set(baby.id, baby);
+  }
+
+  for (const invite of acceptedInvites) {
+    const inviteBabyId = String(invite.baby_id || '');
+    const cloudBaby = cloudBabiesById.get(inviteBabyId);
+    if (cloudBaby) {
+      merged.set(inviteBabyId, cloudBaby);
+    }
   }
 
   return Array.from(merged.values());
@@ -208,7 +214,7 @@ const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
       throw error;
     }
   } catch (error) {
-    if (isTablePermissionDenied(error, 'babies')) {
+    if (isCloudBabyAccessPermissionDenied(error)) {
       return;
     }
     console.warn('Unable to sync baby profile directly to cloud:', error);
@@ -227,7 +233,7 @@ const deleteBabyFromCloud = async (id: string): Promise<void> => {
       throw error;
     }
   } catch (error) {
-    if (isTablePermissionDenied(error, 'babies')) {
+    if (isCloudBabyAccessPermissionDenied(error)) {
       return;
     }
     console.warn('Unable to delete baby profile from cloud:', error);
@@ -253,7 +259,7 @@ const getRemoteOwnedBabies = async (): Promise<Baby[]> => {
 
     return (data || []).map(fromBabyCloudRow);
   } catch (error) {
-    if (isTablePermissionDenied(error, 'babies')) {
+    if (isCloudBabyAccessPermissionDenied(error)) {
       return [];
     }
     console.warn('Unable to load owned babies from cloud:', error);
@@ -452,11 +458,17 @@ const getRemoteUserSettings = async (userId: string): Promise<UserSettings | und
   }
 };
 
+type SyncWriteOptions = {
+  skipCloudSync?: boolean;
+};
+
 // Baby operations
-export const addBaby = async (baby: Baby): Promise<void> => {
+export const addBaby = async (baby: Baby, options?: SyncWriteOptions): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
   await LocalStorage.addBaby(baby, scopeId);
-  await upsertBabyToCloud(baby);
+  if (!options?.skipCloudSync) {
+    await upsertBabyToCloud(baby);
+  }
 };
 
 export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
@@ -542,10 +554,12 @@ export const getBaby = async (id: string): Promise<Baby | undefined> => {
   return sharedAssignedBabies.find((baby) => baby.id === id);
 };
 
-export const updateBaby = async (baby: Baby): Promise<void> => {
+export const updateBaby = async (baby: Baby, options?: SyncWriteOptions): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
   await LocalStorage.updateBaby(baby, scopeId);
-  await upsertBabyToCloud(baby);
+  if (!options?.skipCloudSync) {
+    await upsertBabyToCloud(baby);
+  }
 };
 
 export const deleteBaby = async (id: string): Promise<void> => {
@@ -589,10 +603,6 @@ export const addMilestone = async (milestone: Milestone): Promise<void> => Local
 export const getMilestonesByBaby = async (babyId: string): Promise<Milestone[]> => LocalStorage.getMilestonesByBaby(babyId);
 export const updateMilestone = async (milestone: Milestone): Promise<void> => LocalStorage.updateMilestone(milestone);
 export const deleteMilestone = async (id: string): Promise<void> => LocalStorage.deleteMilestone(id);
-
-type SyncWriteOptions = {
-  skipCloudSync?: boolean;
-};
 
 // Memory log operations
 export const addMemoryLog = async (log: MemoryLog, options?: SyncWriteOptions): Promise<void> => {

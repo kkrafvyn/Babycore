@@ -32,7 +32,7 @@ vi.mock('./storage', () => ({
   transferBabyOwnerScope: transferBabyOwnerScopeMock,
 }));
 
-import { addBaby, getBabies, migrateGuestBabiesToCurrentUser } from './supabase-storage';
+import { addBaby, getBabies, migrateGuestBabiesToCurrentUser, updateBaby } from './supabase-storage';
 
 const createInviteQuery = () => ({
   eq: vi.fn().mockReturnValue({
@@ -138,6 +138,62 @@ describe('supabase-storage guest migration', () => {
       }),
       { onConflict: 'id' },
     );
+  });
+
+  it('suppresses invite-policy permission errors during direct baby sync', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    addBabyMock.mockResolvedValue(undefined);
+    upsertMock.mockResolvedValue({
+      error: {
+        code: '42501',
+        details: null,
+        hint: null,
+        message: 'permission denied for table family_sharing_invites',
+      },
+    });
+
+    await expect(
+      addBaby({
+        id: 'baby-1',
+        name: 'Ava',
+        dateOfBirth: '2024-01-01',
+        gender: 'girl',
+        country: 'US',
+        createdAt: '2026-04-29T00:00:00.000Z',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('hydrates baby updates locally without re-syncing to cloud when requested', async () => {
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    updateBabyMock.mockResolvedValue(undefined);
+
+    await expect(
+      updateBaby(
+        {
+          id: 'baby-1',
+          name: 'Ava',
+          dateOfBirth: '2024-01-01',
+          gender: 'girl',
+          country: 'US',
+          createdAt: '2026-04-29T00:00:00.000Z',
+        },
+        { skipCloudSync: true },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(updateBabyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'baby-1',
+        name: 'Ava',
+      }),
+      'user:user-123',
+    );
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it('merges owned babies from cloud into local storage on load', async () => {

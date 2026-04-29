@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppContext } from '../AppContext';
 import { AppLayout } from './AppLayout';
 import { Moon, Utensils, Droplets, Syringe, Heart, TrendingUp, ChevronDown, CheckCircle, ChevronLeft, Play, Sparkles, BookOpen, Activity, Mic, FileText, Users, Zap, Lock, Shield, Stethoscope, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -124,7 +124,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
-  const onViewChangeRef = useRef(onViewChange);
   const hasPremiumAccess = isPremiumSubscriptionActive(settings?.subscriptionStatus);
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
@@ -202,6 +201,18 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   ]);
   const showShellHeader = !viewsWithEmbeddedHeader.has(activeView);
 
+  const changeView = React.useCallback(
+    (view: ViewMode) => {
+      if (view === activeView) {
+        return;
+      }
+
+      setActiveView(view);
+      onViewChange?.(view);
+    },
+    [activeView, onViewChange],
+  );
+
   const openView = (view: ViewMode, label?: string) => {
     const premiumFeature = PREMIUM_FEATURE_BY_VIEW[view];
     if (premiumFeature && !hasPremiumAccess) {
@@ -209,28 +220,20 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       setPaywallFeature(label || 'Premium Feature');
       return;
     }
-    setActiveView(view);
+    changeView(view);
   };
 
   const handleNavChange = (navId: string) => {
     openView(navToView[navId] || 'dashboard');
   };
 
-  const backToDashboard = () => setActiveView('dashboard');
+  const backToDashboard = () => changeView('dashboard');
 
   useEffect(() => {
     if (requestedView !== activeView) {
       setActiveView(requestedView);
     }
   }, [requestedView, activeView]);
-
-  useEffect(() => {
-    onViewChangeRef.current = onViewChange;
-  }, [onViewChange]);
-
-  useEffect(() => {
-    onViewChangeRef.current?.(activeView);
-  }, [activeView]);
 
   useEffect(() => {
     if (!currentBaby) return;
@@ -321,8 +324,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     if (!isCareTeamProfile) return;
     if (babies.length > 0) return;
     if (activeView !== 'dashboard') return;
-    setActiveView('patients');
-  }, [isCareTeamProfile, babies.length, activeView]);
+    changeView('patients');
+  }, [isCareTeamProfile, babies.length, activeView, changeView]);
 
   const handleTimerComplete = async (side: 'left' | 'right' | 'both', duration: number) => {
     if (!currentBaby) return;
@@ -385,11 +388,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     return (
       <React.Suspense fallback={<ViewLoader label="Loading checkout..." />}>
         <PaymentScreen
-          onBack={() => setActiveView('dashboard')}
+          onBack={() => changeView('dashboard')}
           onSuccess={() => {
             const destination = pendingPremiumView || 'dashboard';
             setPendingPremiumView(null);
-            setActiveView(destination);
+            changeView(destination);
           }}
         />
       </React.Suspense>
@@ -619,7 +622,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             <h3 className="text-[10px] sm:text-[11px] font-black text-text-light uppercase tracking-[0.22em] sm:tracking-[0.3em]">{i18nT('dashboard.latestVitals')}</h3>
          </div>
          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <button onClick={() => setActiveView('sleep')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => changeView('sleep')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className={`w-11 h-11 sm:w-14 sm:h-14 ${isSleeping ? 'bg-indigo-500 text-white animate-pulse' : 'bg-accent-blue text-secondary'} rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform`}>
                      <Moon size={22} className="sm:h-7 sm:w-7" fill="currentColor" />
@@ -632,7 +635,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
             </button>
             
-            <div onClick={() => setActiveView('feeding')} className="cursor-pointer bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <div onClick={() => changeView('feeding')} className="cursor-pointer bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                      <Droplets size={22} className="sm:h-7 sm:w-7" fill="currentColor" />
@@ -652,7 +655,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                  </button>
             </div>
 
-            <button onClick={() => setActiveView('diaper')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => changeView('diaper')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                      <Utensils size={22} className="sm:h-7 sm:w-7" />
@@ -665,7 +668,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
             </button>
 
-            <button onClick={() => setActiveView('health-records')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => changeView('health-records')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                      <Heart size={22} className="sm:h-7 sm:w-7" fill="currentColor" />
@@ -678,7 +681,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
             </button>
 
-            <button onClick={() => setActiveView('memories')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => changeView('memories')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className="w-11 h-11 sm:w-14 sm:h-14 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                      <Sparkles size={22} className="sm:h-7 sm:w-7" fill="currentColor" />
@@ -691,7 +694,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                </div>
             </button>
 
-            <button onClick={() => setActiveView('vaccination')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
+            <button onClick={() => changeView('vaccination')} className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden">
                <div className="flex justify-between items-start">
                   <div className={`w-11 h-11 sm:w-14 sm:h-14 ${nextVaccine?.status === 'overdue' ? 'bg-red-50 text-red-500' : 'bg-rose-50 dark:bg-rose-900/10 text-rose-500'} rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform`}>
                      <Syringe size={22} className="sm:h-7 sm:w-7" />
@@ -721,15 +724,15 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             <h3 className="text-lg sm:text-xl font-headline font-black text-foreground tracking-tighter">{i18nT('dashboard.quickLog')}</h3>
          </div>
          <div className="grid grid-cols-3 gap-3 sm:gap-6">
-            <button onClick={() => setActiveView('sleep')} className="aspect-square bg-primary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
+            <button onClick={() => changeView('sleep')} className="aspect-square bg-primary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
                <Moon size={24} className="sm:h-9 sm:w-9" fill="currentColor" />
                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-widest">Sleep</span>
             </button>
-            <button onClick={() => setActiveView('feeding')} className="aspect-square bg-secondary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
+            <button onClick={() => changeView('feeding')} className="aspect-square bg-secondary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
                <Utensils size={24} className="sm:h-9 sm:w-9" />
                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-widest">Feed</span>
             </button>
-            <button onClick={() => setActiveView('diaper')} className="aspect-square bg-text-dim rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
+            <button onClick={() => changeView('diaper')} className="aspect-square bg-text-dim rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all">
                <Droplets size={24} className="sm:h-9 sm:w-9" />
                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-widest">Diaper</span>
             </button>
@@ -750,7 +753,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             showBackButton={false}
             onLogout={onSignOut || (() => window.location.reload())}
             isAdmin={userRole === 'admin'}
-            onOpenAdminPanel={() => setActiveView('admin')}
+            onOpenAdminPanel={() => changeView('admin')}
           />
         );
       case 'logs': return <HistoryLogs onBack={backToDashboard} showBackButton={false} />;
@@ -791,8 +794,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             babyId={currentBaby.id}
             babyName={currentBaby.name}
             onBack={backToDashboard}
-            onOpenVaccines={() => setActiveView('vaccination')}
-            onOpenHealthRecords={() => setActiveView('health-records')}
+            onOpenVaccines={() => changeView('vaccination')}
+            onOpenHealthRecords={() => changeView('health-records')}
           />
         ) : null;
       case 'activity-center':
@@ -825,7 +828,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           onClose={() => setPaywallFeature(null)}
           onUpgrade={async () => {
             setPaywallFeature(null);
-            setActiveView('payment');
+            changeView('payment');
           }}
         />
       )}

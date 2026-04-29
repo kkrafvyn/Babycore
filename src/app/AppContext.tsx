@@ -160,7 +160,9 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       const remoteSnapshot = await pullFromCloud();
 
       await Promise.all([
-        ...(remoteSnapshot?.babies || []).map((baby: Baby) => updateBaby(baby)),
+        ...(remoteSnapshot?.babies || []).map((baby: Baby) =>
+          updateBaby(baby, { skipCloudSync: true }),
+        ),
         ...(remoteSnapshot?.sleepLogs || []).map((log: SleepLog) => updateSleepLog(log)),
         ...(remoteSnapshot?.feedLogs || []).map((log: FeedLog) => updateFeedLog(log)),
         ...(remoteSnapshot?.diaperLogs || []).map((log: DiaperLog) => updateDiaperLog(log)),
