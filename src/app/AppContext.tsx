@@ -113,6 +113,10 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   const [vaccinationRecords, setVaccinationRecords] = useState<VaccinationRecord[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const currentBabyRef = useRef<Baby | null>(null);
+  const isApplyingRemoteSnapshotRef = useRef(false);
+  const skipNextCloudPushRef = useRef(false);
+  const syncLocalSnapshotPromiseRef = useRef<Promise<void> | null>(null);
+  const syncLocalSnapshotRunIdRef = useRef(0);
 
   useEffect(() => {
     currentBabyRef.current = currentBaby;
@@ -157,6 +161,13 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   };
 
   const mergeRemoteSnapshotIntoLocal = async () => {
+    if (isApplyingRemoteSnapshotRef.current) {
+      return;
+    }
+
+    isApplyingRemoteSnapshotRef.current = true;
+    skipNextCloudPushRef.current = true;
+
     try {
       const remoteSnapshot = await pullFromCloud();
 
@@ -195,82 +206,101 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       }
     } catch (error) {
       console.warn('Remote hydration skipped due to sync error:', error);
+    } finally {
+      isApplyingRemoteSnapshotRef.current = false;
     }
   };
 
   const syncLocalSnapshotToCloud = async (userId: string) => {
+    if (syncLocalSnapshotPromiseRef.current) {
+      await syncLocalSnapshotPromiseRef.current;
+      return;
+    }
+
     if (!navigator.onLine) {
       return;
     }
 
-    try {
-      const localBabies = await getLocalBabiesForActiveScope();
+    const syncRunId = syncLocalSnapshotRunIdRef.current + 1;
+    syncLocalSnapshotRunIdRef.current = syncRunId;
 
-      const aggregate = {
-        sleepLogs: [] as SleepLog[],
-        feedLogs: [] as FeedLog[],
-        diaperLogs: [] as DiaperLog[],
-        healthLogs: [] as HealthLog[],
-        growthMeasurements: [] as GrowthMeasurement[],
-        vaccinationRecords: [] as VaccinationRecord[],
-        milestones: [] as Milestone[],
-        memories: [] as MemoryLog[],
-        journalEntries: [] as any[],
-      };
+    const syncOperation = (async () => {
+      try {
+        const localBabies = await getLocalBabiesForActiveScope();
 
-      for (const baby of localBabies) {
-        const [
-          sleepEntries,
-          feedEntries,
-          diaperEntries,
-          healthEntries,
-          growthEntries,
-          vaccineEntries,
-          milestoneEntries,
-          memoryEntries,
-          journalEntries,
-        ] =
-          await Promise.all([
-            getSleepLogsByBaby(baby.id),
-            getFeedLogsByBaby(baby.id),
-            getDiaperLogsByBaby(baby.id),
-            getHealthLogsByBaby(baby.id),
-            getGrowthMeasurementsByBaby(baby.id),
-            getVaccinationRecordsByBaby(baby.id),
-            getMilestonesByBaby(baby.id),
-            getMemoryLogsByBaby(baby.id),
-            getJournalEntriesByBaby(baby.id),
-          ]);
+        const aggregate = {
+          sleepLogs: [] as SleepLog[],
+          feedLogs: [] as FeedLog[],
+          diaperLogs: [] as DiaperLog[],
+          healthLogs: [] as HealthLog[],
+          growthMeasurements: [] as GrowthMeasurement[],
+          vaccinationRecords: [] as VaccinationRecord[],
+          milestones: [] as Milestone[],
+          memories: [] as MemoryLog[],
+          journalEntries: [] as any[],
+        };
 
-        aggregate.sleepLogs.push(...sleepEntries);
-        aggregate.feedLogs.push(...feedEntries);
-        aggregate.diaperLogs.push(...diaperEntries);
-        aggregate.healthLogs.push(...healthEntries);
-        aggregate.growthMeasurements.push(...growthEntries);
-        aggregate.vaccinationRecords.push(...vaccineEntries);
-        aggregate.milestones.push(...milestoneEntries);
-        aggregate.memories.push(...memoryEntries);
-        aggregate.journalEntries.push(...journalEntries);
+        for (const baby of localBabies) {
+          const [
+            sleepEntries,
+            feedEntries,
+            diaperEntries,
+            healthEntries,
+            growthEntries,
+            vaccineEntries,
+            milestoneEntries,
+            memoryEntries,
+            journalEntries,
+          ] =
+            await Promise.all([
+              getSleepLogsByBaby(baby.id),
+              getFeedLogsByBaby(baby.id),
+              getDiaperLogsByBaby(baby.id),
+              getHealthLogsByBaby(baby.id),
+              getGrowthMeasurementsByBaby(baby.id),
+              getVaccinationRecordsByBaby(baby.id),
+              getMilestonesByBaby(baby.id),
+              getMemoryLogsByBaby(baby.id),
+              getJournalEntriesByBaby(baby.id),
+            ]);
+
+          aggregate.sleepLogs.push(...sleepEntries);
+          aggregate.feedLogs.push(...feedEntries);
+          aggregate.diaperLogs.push(...diaperEntries);
+          aggregate.healthLogs.push(...healthEntries);
+          aggregate.growthMeasurements.push(...growthEntries);
+          aggregate.vaccinationRecords.push(...vaccineEntries);
+          aggregate.milestones.push(...milestoneEntries);
+          aggregate.memories.push(...memoryEntries);
+          aggregate.journalEntries.push(...journalEntries);
+        }
+
+        const latestSettings = await getUserSettings(userId);
+
+        await performFullSync({
+          babies: localBabies,
+          sleepLogs: aggregate.sleepLogs,
+          feedLogs: aggregate.feedLogs,
+          diaperLogs: aggregate.diaperLogs,
+          healthLogs: aggregate.healthLogs,
+          growthMeasurements: aggregate.growthMeasurements,
+          vaccinationRecords: aggregate.vaccinationRecords,
+          milestones: aggregate.milestones,
+          memories: aggregate.memories,
+          journalEntries: aggregate.journalEntries,
+          userSettings: latestSettings || null,
+        });
+      } catch (error) {
+        console.warn('Cloud sync push failed:', error);
+      } finally {
+        if (syncLocalSnapshotRunIdRef.current === syncRunId) {
+          syncLocalSnapshotPromiseRef.current = null;
+        }
       }
+    })();
 
-      const latestSettings = await getUserSettings(userId);
-
-      await performFullSync({
-        babies: localBabies,
-        sleepLogs: aggregate.sleepLogs,
-        feedLogs: aggregate.feedLogs,
-        diaperLogs: aggregate.diaperLogs,
-        healthLogs: aggregate.healthLogs,
-        growthMeasurements: aggregate.growthMeasurements,
-        vaccinationRecords: aggregate.vaccinationRecords,
-        milestones: aggregate.milestones,
-        memories: aggregate.memories,
-        journalEntries: aggregate.journalEntries,
-        userSettings: latestSettings || null,
-      });
-    } catch (error) {
-      console.warn('Cloud sync push failed:', error);
-    }
+    syncLocalSnapshotPromiseRef.current = syncOperation;
+    await syncOperation;
   };
 
   // Listen for auth state changes
@@ -489,6 +519,15 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   // Near-real-time cloud push so other devices see changes quickly.
   useEffect(() => {
     if (!user?.id || !navigator.onLine) {
+      return;
+    }
+
+    if (isApplyingRemoteSnapshotRef.current) {
+      return;
+    }
+
+    if (skipNextCloudPushRef.current) {
+      skipNextCloudPushRef.current = false;
       return;
     }
 

@@ -27,6 +27,8 @@ import { getCurrentUser, supabase } from "./supabase";
 
 const STORAGE_SCOPE_PREFIX = 'user:';
 const GUEST_STORAGE_SCOPE = 'guest';
+const CLOUD_BABY_REPAIR_RETRY_MS = 30_000;
+const cloudBabyRepairAttemptedAt = new Map<string, number>();
 
 const resolveStorageScopeId = async (): Promise<string> => {
   const user = await getCurrentUser();
@@ -72,6 +74,15 @@ const isAnyTablePermissionDenied = (error: unknown, tables: string[]): boolean =
 
 const isCloudBabyAccessPermissionDenied = (error: unknown): boolean =>
   isAnyTablePermissionDenied(error, ['babies', 'family_sharing_invites', 'doctor_baby_assignments']);
+
+const isLocalBrowserHost = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+};
 
 const getActiveSessionAccessToken = async (): Promise<string | null> => {
   if (typeof window === 'undefined') {
@@ -132,6 +143,23 @@ const syncBabiesViaBackend = async (babies: Baby[]): Promise<boolean> => {
   } catch {
     return false;
   }
+};
+
+const markCloudBabyRepairAttempt = (babyId: string): void => {
+  cloudBabyRepairAttemptedAt.set(babyId, Date.now());
+};
+
+const clearCloudBabyRepairAttempt = (babyId: string): void => {
+  cloudBabyRepairAttemptedAt.delete(babyId);
+};
+
+const shouldAttemptCloudBabyRepair = (babyId: string): boolean => {
+  const lastAttemptAt = cloudBabyRepairAttemptedAt.get(babyId);
+  if (!lastAttemptAt) {
+    return true;
+  }
+
+  return Date.now() - lastAttemptAt >= CLOUD_BABY_REPAIR_RETRY_MS;
 };
 
 const toBabyCloudRow = (baby: Baby, userId: string) => ({
@@ -284,7 +312,16 @@ const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
   }
 
   try {
+    markCloudBabyRepairAttempt(baby.id);
+
     if (await syncBabiesViaBackend([baby])) {
+      clearCloudBabyRepairAttempt(baby.id);
+      return;
+    }
+
+    // Production browser sessions should rely on the backend sync route so
+    // users are not blocked by client-side RLS policy differences.
+    if (typeof window !== 'undefined' && !isLocalBrowserHost()) {
       return;
     }
 
@@ -295,6 +332,8 @@ const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
     if (error) {
       throw error;
     }
+
+    clearCloudBabyRepairAttempt(baby.id);
   } catch (error) {
     if (isCloudBabyAccessPermissionDenied(error)) {
       return;
@@ -358,7 +397,10 @@ const repairMissingOwnedBabiesInCloud = async (
   }
 
   const remoteIds = new Set(remoteOwnedBabies.map((baby) => baby.id));
-  const missingRemoteBabies = localBabies.filter((baby) => !remoteIds.has(baby.id));
+  remoteOwnedBabies.forEach((baby) => clearCloudBabyRepairAttempt(baby.id));
+  const missingRemoteBabies = localBabies.filter(
+    (baby) => !remoteIds.has(baby.id) && shouldAttemptCloudBabyRepair(baby.id),
+  );
 
   if (missingRemoteBabies.length === 0) {
     return;

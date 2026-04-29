@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getCurrentUserMock,
+  getSessionMock,
   getBabiesMock,
   transferBabyOwnerScopeMock,
   addBabyMock,
@@ -10,6 +11,7 @@ const {
   upsertMock,
 } = vi.hoisted(() => ({
   getCurrentUserMock: vi.fn(),
+  getSessionMock: vi.fn(),
   getBabiesMock: vi.fn(),
   transferBabyOwnerScopeMock: vi.fn(),
   addBabyMock: vi.fn(),
@@ -21,6 +23,9 @@ const {
 vi.mock('./supabase', () => ({
   getCurrentUser: getCurrentUserMock,
   supabase: {
+    auth: {
+      getSession: getSessionMock,
+    },
     from: supabaseFromMock,
   },
 }));
@@ -52,6 +57,12 @@ const createBabySelectQuery = (rows: any[]) => ({
 describe('supabase-storage guest migration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: null,
+      },
+      error: null,
+    });
     upsertMock.mockResolvedValue({ error: null });
     addBabyMock.mockResolvedValue(undefined);
     updateBabyMock.mockResolvedValue(undefined);
@@ -296,5 +307,73 @@ describe('supabase-storage guest migration', () => {
       { onConflict: 'id' },
     );
     expect(babies.map((baby) => baby.id)).toEqual(['phone-only-baby']);
+  });
+
+  it('avoids direct browser upserts on production hosts when backend sync is unavailable', async () => {
+    const originalWindow = globalThis.window;
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network offline'));
+
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: {
+          hostname: 'babycore.vercel.app',
+          origin: 'https://babycore.vercel.app',
+        },
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'fetch', {
+      value: fetchMock,
+      configurable: true,
+    });
+
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-123',
+        },
+      },
+      error: null,
+    });
+    addBabyMock.mockResolvedValue(undefined);
+
+    await expect(
+      addBaby({
+        id: 'baby-1',
+        name: 'Ava',
+        dateOfBirth: '2024-01-01',
+        gender: 'girl',
+        country: 'US',
+        createdAt: '2026-04-29T00:00:00.000Z',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/sync/full',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+    expect(upsertMock).not.toHaveBeenCalled();
+
+    if (typeof originalWindow === 'undefined') {
+      delete (globalThis as any).window;
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+
+    if (typeof originalFetch === 'undefined') {
+      delete (globalThis as any).fetch;
+    } else {
+      Object.defineProperty(globalThis, 'fetch', {
+        value: originalFetch,
+        configurable: true,
+      });
+    }
   });
 });

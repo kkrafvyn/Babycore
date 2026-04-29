@@ -31,6 +31,18 @@ export function getSyncStatus(): SyncStatus {
   return { ...syncStatus };
 }
 
+const isLocalBrowserHost = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+};
+
+const shouldAllowDirectSupabaseFallback = (): boolean =>
+  typeof window === 'undefined' || isLocalBrowserHost();
+
 const formatSyncError = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message || error.name;
@@ -289,7 +301,11 @@ export async function performFullSync(localData: {
         body: JSON.stringify({ localData }),
       });
     } catch (error) {
-      console.warn('Backend sync route failed; falling back to direct Supabase sync.', error);
+      console.warn('Backend sync route failed.', error);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        syncStatus.syncError = formatSyncError(error);
+        return false;
+      }
     }
 
     if (backendResult) {
@@ -452,7 +468,10 @@ export async function pullFromCloud(): Promise<any> {
         method: 'GET',
       });
     } catch (error) {
-      console.warn('Backend snapshot route failed; falling back to direct Supabase pull.', error);
+      console.warn('Backend snapshot route failed.', error);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        throw error;
+      }
     }
 
     if (backendSnapshot?.snapshot) {
