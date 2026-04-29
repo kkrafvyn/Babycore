@@ -64,15 +64,31 @@ const probeTable = async (table) => {
   };
 };
 
+const tableExistsWithProtectedAccess = (result) => {
+  if (result.ok) {
+    return true;
+  }
+
+  if (result.status !== 401 && result.status !== 403) {
+    return false;
+  }
+
+  const code = typeof result.body === 'object' && result.body ? result.body.code : '';
+  const message = typeof result.body === 'object' && result.body ? result.body.message : '';
+
+  return code === '42501' || String(message).toLowerCase().includes('permission denied');
+};
+
 console.log(`\nChecking Supabase schema with ${path.basename(envPath)}\n`);
 
 const results = await Promise.all(requiredTables.map((table) => probeTable(table)));
 const failures = [];
 
 for (const result of results) {
-  const exists = result.ok;
+  const exists = tableExistsWithProtectedAccess(result);
   const label = exists ? 'PASS' : 'FAIL';
-  console.log(`${label.padEnd(5)} ${result.table} -> HTTP ${result.status}`);
+  const suffix = exists && !result.ok ? ' (protected by RLS)' : '';
+  console.log(`${label.padEnd(5)} ${result.table} -> HTTP ${result.status}${suffix}`);
 
   if (!exists) {
     const details =
