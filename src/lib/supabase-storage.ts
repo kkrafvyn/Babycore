@@ -234,6 +234,24 @@ const getRemoteOwnedBabies = async (): Promise<Baby[]> => {
   }
 };
 
+const repairMissingOwnedBabiesInCloud = async (
+  localBabies: Baby[],
+  remoteOwnedBabies: Baby[],
+): Promise<void> => {
+  if (localBabies.length === 0) {
+    return;
+  }
+
+  const remoteIds = new Set(remoteOwnedBabies.map((baby) => baby.id));
+  const missingRemoteBabies = localBabies.filter((baby) => !remoteIds.has(baby.id));
+
+  if (missingRemoteBabies.length === 0) {
+    return;
+  }
+
+  await Promise.all(missingRemoteBabies.map((baby) => upsertBabyToCloud(baby)));
+};
+
 const upsertMemoryLogToCloud = async (log: MemoryLog): Promise<void> => {
   const user = await getCurrentUser();
   if (!user?.id) {
@@ -450,6 +468,12 @@ export const getBabies = async (): Promise<Baby[]> => {
     user?.id ? getRemoteOwnedBabies() : Promise.resolve([] as Baby[]),
   ]);
 
+  const localBabies = await LocalStorage.getBabies(scopeId);
+
+  if (user?.id) {
+    await repairMissingOwnedBabiesInCloud(localBabies, remoteOwnedBabies);
+  }
+
   if (user?.id && remoteOwnedBabies.length > 0) {
     await Promise.all(
       remoteOwnedBabies.map((baby) =>
@@ -459,8 +483,6 @@ export const getBabies = async (): Promise<Baby[]> => {
       ),
     );
   }
-
-  const localBabies = await LocalStorage.getBabies(scopeId);
 
   const merged = new Map<string, Baby>();
   for (const baby of remoteOwnedBabies) {
