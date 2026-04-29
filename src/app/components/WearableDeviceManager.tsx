@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -8,6 +8,8 @@ import {
   Footprints,
   Heart,
   Plus,
+  RefreshCw,
+  Smartphone,
   Thermometer,
   Trash2,
   Upload,
@@ -20,6 +22,7 @@ import {
   disconnectWearable,
   getConnectedWearables,
   getWearableData,
+  importNativeWearableData,
   importWearableDataEntries,
   type WearableData,
   type WearableDataInput,
@@ -27,6 +30,11 @@ import {
   type WearableDeviceType,
   type WearableIntegration,
 } from '@/lib/wearable-service';
+import {
+  isNativeWearablesSupported,
+  requestNativeWearablePermissions,
+  type NativeWearablesAvailability,
+} from '@/lib/native-wearables';
 import { useAuthStore } from '@/app/AppContext';
 import { toast } from 'sonner';
 
@@ -36,7 +44,8 @@ interface WearableDeviceManagerProps {
 }
 
 const DEVICE_OPTIONS: Array<{ type: WearableDeviceType; label: string; description: string }> = [
-  { type: 'apple_health', label: 'Apple Health', description: 'Import exported iPhone health metrics' },
+  { type: 'apple_health', label: 'Apple Health', description: 'Sync from iPhone HealthKit or import exports' },
+  { type: 'health_connect', label: 'Health Connect', description: 'Sync from Android Health Connect or import exports' },
   { type: 'fitbit', label: 'Fitbit', description: 'Import Fitbit exports or copied readings' },
   { type: 'oura_ring', label: 'Oura', description: 'Track sleep and recovery exports' },
   { type: 'garmin', label: 'Garmin', description: 'Track activity and heart-rate exports' },
@@ -123,6 +132,9 @@ const parseCsvRow = (line: string): string[] => {
 const inferSourceFromFileName = (fileName: string): string => {
   const normalized = fileName.toLowerCase();
   if (normalized.includes('apple')) return 'apple_health';
+  if (normalized.includes('healthconnect') || (normalized.includes('health') && normalized.includes('connect'))) {
+    return 'health_connect';
+  }
   if (normalized.includes('fitbit')) return 'fitbit';
   if (normalized.includes('oura')) return 'oura_ring';
   if (normalized.includes('garmin')) return 'garmin';
@@ -173,7 +185,7 @@ const parseWearableImportText = (text: string, fileName: string): WearableDataIn
           : [];
 
     return items
-      .map((item) => normalizeImportedEntry(item as Record<string, unknown>, fallbackSource))
+      .map((item: unknown) => normalizeImportedEntry(item as Record<string, unknown>, fallbackSource))
       .filter(Boolean) as WearableDataInput[];
   }
 
@@ -211,6 +223,12 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
   const [connecting, setConnecting] = useState<WearableDeviceType | null>(null);
   const [savingManual, setSavingManual] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [nativeStatus, setNativeStatus] = useState<NativeWearablesAvailability>({
+    available: false,
+    source: null,
+    reason: null,
+  });
+  const [syncingNative, setSyncingNative] = useState(false);
   const [manualType, setManualType] = useState<WearableDataType>('heart_rate');
   const [manualValue, setManualValue] = useState('');
   const [manualUnit, setManualUnit] = useState(defaultUnitForType('heart_rate'));
@@ -225,6 +243,10 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
   useEffect(() => {
     void loadWearableData();
   }, [babyId]);
+
+  useEffect(() => {
+    void loadNativeStatus();
+  }, []);
 
   const connectedTypes = useMemo(
     () => new Set(connectedDevices.map((device) => device.device_type)),
@@ -248,6 +270,14 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
     setLoading(false);
   };
 
+  const loadNativeStatus = async () => {
+    const status = await isNativeWearablesSupported();
+    setNativeStatus(status);
+    if (status.available && status.source) {
+      setManualSource(status.source);
+    }
+  };
+
   const handleConnectSource = async (deviceType: WearableDeviceType) => {
     if (!user?.id) return;
 
@@ -265,7 +295,52 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
       ...prev.filter((entry) => entry.device_type !== device.device_type),
     ]);
     setManualSource(deviceType);
-    toast.success(`${formatDeviceLabel(deviceType)} is ready for manual import.`);
+    const syncLabel =
+      deviceType === 'apple_health' || deviceType === 'health_connect'
+        ? 'native sync or import'
+        : 'manual import';
+    toast.success(`${formatDeviceLabel(deviceType)} is ready for ${syncLabel}.`);
+  };
+
+  const handleNativeSync = async () => {
+    if (!user?.id || !nativeStatus.source) {
+      toast.error('Native wearable sync is not available on this device.');
+      return;
+    }
+
+    setSyncingNative(true);
+    const permission = await requestNativeWearablePermissions();
+    if (!permission.granted) {
+      setSyncingNative(false);
+      toast.error(permission.reason || 'Wearable permissions were not granted.');
+      return;
+    }
+
+    await handleConnectSource(nativeStatus.source as WearableDeviceType);
+
+    const result = await importNativeWearableData(
+      babyId,
+      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+    setSyncingNative(false);
+
+    if (!result.imported.length) {
+      toast.message('No new wearable samples were found yet.');
+      return;
+    }
+
+    setWearableData((prev) =>
+      [...result.imported, ...prev].sort(
+        (left, right) => new Date(right.recorded_at).getTime() - new Date(left.recorded_at).getTime(),
+      ),
+    );
+    if (result.source) {
+      setManualSource(result.source);
+    }
+
+    toast.success(
+      `Imported ${result.imported.length} readings from ${formatDeviceLabel((result.source || nativeStatus.source) as WearableDeviceType)}.`,
+    );
   };
 
   const handleDisconnect = async (deviceType: WearableDeviceType) => {
@@ -420,14 +495,28 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
                   Import a phone or wearable export with headers like <code>data_type,value,unit,recorded_at,source</code>.
                 </p>
                 <div className="flex flex-wrap gap-2">
+                  {nativeStatus.available && nativeStatus.source ? (
+                    <Button onClick={handleNativeSync} disabled={syncingNative} className="h-9 text-xs">
+                      <Smartphone className="mr-2 h-3.5 w-3.5" />
+                      {syncingNative
+                        ? 'Syncing device...'
+                        : `Sync ${formatDeviceLabel(nativeStatus.source as WearableDeviceType)}`}
+                    </Button>
+                  ) : null}
                   <Button onClick={handleImportClick} disabled={importing} className="h-9 text-xs">
                     <Upload className="mr-2 h-3.5 w-3.5" />
                     {importing ? 'Importing...' : 'Import CSV or JSON'}
                   </Button>
                   <div className="inline-flex items-center rounded-full border px-3 py-2 text-[11px] text-gray-500 dark:text-gray-400">
                     <Download className="mr-2 h-3.5 w-3.5" />
-                    Apple Health, Fitbit, Oura, Garmin, or manual exports
+                    Apple Health, Health Connect, Fitbit, Oura, Garmin, or manual exports
                   </div>
+                  {!nativeStatus.available && nativeStatus.reason ? (
+                    <div className="inline-flex items-center rounded-full border px-3 py-2 text-[11px] text-gray-500 dark:text-gray-400">
+                      <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                      {nativeStatus.reason}
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -580,7 +669,7 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
                               {getMetricLabel(data.data_type)}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {new Date(data.recorded_at).toLocaleString()} · {data.source}
+                              {new Date(data.recorded_at).toLocaleString()} | {data.source}
                             </div>
                           </div>
                         </div>
@@ -600,3 +689,4 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
     </Card>
   );
 }
+

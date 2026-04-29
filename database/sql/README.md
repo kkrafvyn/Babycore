@@ -58,6 +58,7 @@ Run in this exact order:
 37. `36-babies-owner-policies-and-user-roles-access.sql`
 38. `37-activity-logs-access.sql`
 39. `38-wearables-client-access.sql`
+40. `39-health-connect-wearable-type.sql`
 
 ## Common Errors
 

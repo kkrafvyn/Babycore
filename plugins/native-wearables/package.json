@@ -1,0 +1,22 @@
+{
+  "name": "@babycore/native-wearables",
+  "version": "0.1.0",
+  "description": "Capacitor native wearable bridge for Apple HealthKit and Android Health Connect",
+  "license": "MIT",
+  "files": [
+    "android",
+    "ios",
+    "README.md"
+  ],
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^8.3.1"
+  }
+}

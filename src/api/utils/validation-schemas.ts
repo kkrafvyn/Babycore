@@ -173,8 +173,8 @@ export const ConnectFitbitSchema = z.object({
 
 export const GetWearableDataSchema = z.object({
   babyId: UUIDSchema,
-  deviceType: z.enum(['apple_health', 'fitbit']).optional(),
-  dataType: z.enum(['heart_rate', 'steps', 'sleep', 'temperature']).optional(),
+  deviceType: z.enum(['apple_health', 'health_connect', 'fitbit', 'oura_ring', 'garmin']).optional(),
+  dataType: z.enum(['heart_rate', 'steps', 'sleep', 'temperature', 'activity']).optional(),
   startDate: DateSchema.optional(),
   endDate: DateSchema.optional(),
 });

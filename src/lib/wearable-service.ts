@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
+import { syncNativeWearableSamples, type NativeWearableSample } from './native-wearables';
 
-export type WearableDeviceType = 'apple_health' | 'fitbit' | 'oura_ring' | 'garmin';
+export type WearableDeviceType = 'apple_health' | 'health_connect' | 'fitbit' | 'oura_ring' | 'garmin';
 export type WearableDataType = 'heart_rate' | 'temperature' | 'activity' | 'sleep' | 'steps';
 
 export interface WearableIntegration {
@@ -32,6 +33,14 @@ export interface WearableDataInput {
   recordedAt: string;
   source?: string;
 }
+
+const mapNativeSampleToInput = (sample: NativeWearableSample): WearableDataInput => ({
+  dataType: sample.dataType,
+  value: sample.value,
+  unit: sample.unit,
+  recordedAt: sample.recordedAt,
+  source: sample.source,
+});
 
 const normalizeTimestamp = (value: string): string => {
   const parsed = new Date(value);
@@ -71,6 +80,10 @@ export async function connectAppleHealth(userId: string): Promise<WearableIntegr
 
 export async function connectFitbit(userId: string, _accessToken?: string): Promise<WearableIntegration | null> {
   return connectWearableSource(userId, 'fitbit');
+}
+
+export async function connectHealthConnect(userId: string): Promise<WearableIntegration | null> {
+  return connectWearableSource(userId, 'health_connect');
 }
 
 export async function syncWearableData(userId: string, deviceType: WearableDeviceType): Promise<boolean> {
@@ -177,6 +190,31 @@ export async function importWearableDataEntries(
   } catch (err) {
     console.error('Error importing wearable data:', err);
     return [];
+  }
+}
+
+export async function importNativeWearableData(
+  babyId: string,
+  since?: string | null,
+): Promise<{ source: WearableDeviceType | null; imported: WearableData[] }> {
+  try {
+    const result = await syncNativeWearableSamples(since);
+    if (!result?.samples?.length) {
+      return { source: (result?.source as WearableDeviceType | null) || null, imported: [] };
+    }
+
+    const imported = await importWearableDataEntries(
+      babyId,
+      result.samples.map(mapNativeSampleToInput),
+    );
+
+    return {
+      source: result.source as WearableDeviceType,
+      imported,
+    };
+  } catch (err) {
+    console.error('Error importing native wearable data:', err);
+    return { source: null, imported: [] };
   }
 }
 
