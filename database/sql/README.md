@@ -55,6 +55,7 @@ Run in this exact order:
 34. `33-health-logs-and-user-settings.sql`
 35. `34-table-grants-for-health-logs-and-user-settings.sql`
 36. `35-core-client-table-grants.sql`
+37. `36-babies-owner-policies-and-user-roles-access.sql`
 
 ## Common Errors
 

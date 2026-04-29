@@ -139,17 +139,25 @@ export const getCurrentUserRole = async (): Promise<string> => {
 
     if (!user?.id) return 'user';
 
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error || !data?.role) {
-      return user.user_metadata?.role || 'user';
+    const fallbackRole = user.user_metadata?.role || 'user';
+    const accessToken = await getAdminAuthToken();
+    if (!accessToken) {
+      return fallbackRole;
     }
 
-    return data.role;
+    const response = await fetch(`${getApiBaseUrl()}/admin/current-role`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return fallbackRole;
+    }
+
+    const payload = (await response.json()) as { success?: boolean; role?: string };
+    return payload.success && payload.role ? payload.role : fallbackRole;
   } catch (error) {
     console.error('Failed to get user role:', error);
     return 'user';

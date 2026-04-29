@@ -22,6 +22,7 @@ import {
   toHealthLogCloudRow,
   toUserSettingsCloudRow,
 } from './cloud-sync-mappers';
+import { getApiBaseUrl } from './api-base-url';
 import { getCurrentUser, supabase } from "./supabase";
 
 const STORAGE_SCOPE_PREFIX = 'user:';
@@ -50,11 +51,88 @@ const isTablePermissionDenied = (error: unknown, table: string): boolean => {
   return code === '42501' && message.includes(`permission denied for table ${table.toLowerCase()}`);
 };
 
+const isTableRlsViolation = (error: unknown, table: string): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  const code = typeof candidate.code === 'string' ? candidate.code.trim() : '';
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : '';
+
+  return (
+    code === '42501' &&
+    message.includes('row-level security policy') &&
+    message.includes(`table "${table.toLowerCase()}"`)
+  );
+};
+
 const isAnyTablePermissionDenied = (error: unknown, tables: string[]): boolean =>
-  tables.some((table) => isTablePermissionDenied(error, table));
+  tables.some((table) => isTablePermissionDenied(error, table) || isTableRlsViolation(error, table));
 
 const isCloudBabyAccessPermissionDenied = (error: unknown): boolean =>
   isAnyTablePermissionDenied(error, ['babies', 'family_sharing_invites', 'doctor_baby_assignments']);
+
+const getActiveSessionAccessToken = async (): Promise<string | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const auth = supabase.auth as any;
+  const {
+    data: { session },
+    error,
+  } = await auth.getSession();
+
+  if (error || !session?.access_token) {
+    return null;
+  }
+
+  return session.access_token;
+};
+
+const syncBabiesViaBackend = async (babies: Baby[]): Promise<boolean> => {
+  if (babies.length === 0 || typeof window === 'undefined') {
+    return false;
+  }
+
+  const accessToken = await getActiveSessionAccessToken();
+  if (!accessToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/sync/full`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        babies,
+        sleepLogs: [],
+        feedLogs: [],
+        diaperLogs: [],
+        healthLogs: [],
+        growthMeasurements: [],
+        vaccinationRecords: [],
+        milestones: [],
+        memories: [],
+        journalEntries: [],
+        userSettings: null,
+      }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const payload = await response.json().catch(() => null);
+    return Boolean(payload?.success);
+  } catch {
+    return false;
+  }
+};
 
 const toBabyCloudRow = (baby: Baby, userId: string) => ({
   id: baby.id,
@@ -206,6 +284,10 @@ const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
   }
 
   try {
+    if (await syncBabiesViaBackend([baby])) {
+      return;
+    }
+
     const { error } = await supabase
       .from('babies')
       .upsert(toBabyCloudRow(baby, user.id), { onConflict: 'id' });
@@ -463,6 +545,11 @@ type SyncWriteOptions = {
 };
 
 // Baby operations
+export const getLocalBabiesForActiveScope = async (): Promise<Baby[]> => {
+  const scopeId = await resolveStorageScopeId();
+  return LocalStorage.getBabies(scopeId);
+};
+
 export const addBaby = async (baby: Baby, options?: SyncWriteOptions): Promise<void> => {
   const scopeId = await resolveStorageScopeId();
   await LocalStorage.addBaby(baby, scopeId);
