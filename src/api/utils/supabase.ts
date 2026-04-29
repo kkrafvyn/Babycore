@@ -12,27 +12,37 @@ const supabaseServiceKey =
   process.env.SUPABASE_SECRET_KEY ||
   '';
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error(
-    'Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY)'
+const createMissingConfigProxy = (label: string) =>
+  new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(`Missing required environment variables: ${label}`);
+      },
+    }
   );
-}
 
 // Create Supabase client with service role key (for backend operations)
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+const hasServiceConfig = Boolean(supabaseUrl && supabaseServiceKey);
+
+export const supabase = hasServiceConfig
+  ? createClient(
+      supabaseUrl,
+      supabaseServiceKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    )
+  : (createMissingConfigProxy(
+      'SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY)'
+    ) as ReturnType<typeof createClient>);
 
 // Create Supabase client with anon key (for public operations)
 export const supabasePublic = createClient(
-  supabaseUrl,
+  supabaseUrl || 'https://example.supabase.co',
   process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   {
     auth: {

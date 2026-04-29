@@ -12,11 +12,22 @@ const supabaseKey =
   process.env.SUPABASE_SERVICE_KEY ||
   '';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables');
-  console.error('Required: SUPABASE_URL and one of SUPABASE_ANON_KEY/SUPABASE_SERVICE_KEY');
-}
+const createMissingConfigProxy = (label: string) =>
+  new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(`Missing required environment variables: ${label}`);
+      },
+    }
+  );
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseKey);
+
+export const supabase = hasSupabaseConfig
+  ? createClient(supabaseUrl, supabaseKey)
+  : (createMissingConfigProxy(
+      'SUPABASE_URL and one of SUPABASE_ANON_KEY/SUPABASE_SERVICE_KEY'
+    ) as ReturnType<typeof createClient>);
 
 export default supabase;
