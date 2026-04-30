@@ -10,6 +10,7 @@ Set these in Vercel Project Settings before production deployment:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `VITE_SUPABASE_AUTH_REDIRECT_URL`
+- Supabase Auth allow-list entry for native mobile: `com.babylog.app://auth/callback`
 - `VITE_PAYSTACK_PUBLIC_KEY`
 - `PAYSTACK_SECRET_KEY`
 - `VITE_API_BASE_URL` (or keep relative `/api`)

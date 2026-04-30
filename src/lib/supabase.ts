@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 
 export interface AuthenticatedUser {
@@ -14,6 +15,10 @@ const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 const SUPABASE_AUTH_REDIRECT_URL = import.meta.env.VITE_SUPABASE_AUTH_REDIRECT_URL || '';
 const CANONICAL_VERCEL_ORIGIN = 'https://babycore.vercel.app';
+const MOBILE_AUTH_CALLBACK_SCHEME = 'com.babylog.app';
+const MOBILE_AUTH_CALLBACK_HOST = 'auth';
+const MOBILE_AUTH_CALLBACK_PATH = '/callback';
+export const MOBILE_AUTH_CALLBACK_URL = `${MOBILE_AUTH_CALLBACK_SCHEME}://${MOBILE_AUTH_CALLBACK_HOST}${MOBILE_AUTH_CALLBACK_PATH}`;
 
 const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
 const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
@@ -35,6 +40,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      flowType: typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'pkce' : 'implicit',
     },
     realtime: {
       params: {
@@ -51,6 +57,36 @@ const missingSupabaseConfigError = () =>
 
 const isLocalHost = (hostname: string) =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+const isNativeMobileApp = () => typeof window !== 'undefined' && Capacitor.isNativePlatform();
+
+const getUrlParameters = (url: URL) => {
+  const params = new URLSearchParams(url.search);
+  const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
+  const hashParams = new URLSearchParams(hash);
+
+  hashParams.forEach((value, key) => {
+    params.set(key, value);
+  });
+
+  return params;
+};
+
+const getAuthRedirectError = (params: URLSearchParams) =>
+  params.get('error_description') || params.get('error') || params.get('error_code');
+
+export const isMobileAuthCallbackUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === `${MOBILE_AUTH_CALLBACK_SCHEME}:` &&
+      parsed.host === MOBILE_AUTH_CALLBACK_HOST &&
+      parsed.pathname === MOBILE_AUTH_CALLBACK_PATH
+    );
+  } catch {
+    return false;
+  }
+};
 
 const sanitizeConfiguredRedirectUrl = (url: string): string | undefined => {
   try {
@@ -77,6 +113,10 @@ const sanitizeConfiguredRedirectUrl = (url: string): string | undefined => {
 };
 
 const getOAuthRedirectUrl = () => {
+  if (isNativeMobileApp()) {
+    return MOBILE_AUTH_CALLBACK_URL;
+  }
+
   if (SUPABASE_AUTH_REDIRECT_URL) {
     const safeConfiguredUrl = sanitizeConfiguredRedirectUrl(SUPABASE_AUTH_REDIRECT_URL);
     if (safeConfiguredUrl) {
@@ -95,6 +135,44 @@ const getOAuthRedirectUrl = () => {
 
   const redirectUrl = new URL(window.location.origin + window.location.pathname + window.location.search);
   return redirectUrl.toString();
+};
+
+export const completeMobileAuthSession = async (url: string) => {
+  if (!hasSupabaseConfig || !isMobileAuthCallbackUrl(url)) {
+    return false;
+  }
+
+  const parsedUrl = new URL(url);
+  const params = getUrlParameters(parsedUrl);
+  const redirectError = getAuthRedirectError(params);
+
+  if (redirectError) {
+    throw new Error(redirectError);
+  }
+
+  const auth = supabase.auth as any;
+  const code = params.get('code');
+
+  if (code) {
+    const { data, error } = await auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    return Boolean(data?.session);
+  }
+
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+
+  if (!accessToken || !refreshToken) {
+    return false;
+  }
+
+  const { data, error } = await auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) throw error;
+  return Boolean(data?.session);
 };
 
 const getProviderOAuthOptions = (provider: SocialAuthProvider) => {
@@ -175,15 +253,27 @@ export const signInWithSocialProvider = async (provider: SocialAuthProvider) => 
   const auth = supabase.auth as any;
   const redirectTo = getOAuthRedirectUrl();
   const providerOptions = getProviderOAuthOptions(provider);
+  const isNative = isNativeMobileApp();
   const { data, error } = await auth.signInWithOAuth({
     provider,
     options: {
       ...(redirectTo ? { redirectTo } : {}),
+      ...(isNative ? { skipBrowserRedirect: true } : {}),
       ...providerOptions,
     },
   });
 
   if (error) throw error;
+
+  if (isNative) {
+    if (!data?.url) {
+      throw new Error('Unable to start mobile sign-in because Supabase did not return an auth URL.');
+    }
+
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url: data.url });
+  }
+
   return data;
 };
 

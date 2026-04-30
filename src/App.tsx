@@ -11,7 +11,7 @@ import {
   saveSettingsToOnboarding,
 } from './lib/onboarding-storage';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
-import { signOut } from './lib/supabase';
+import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
 import {
   type AppView,
   type PublicRoute,
@@ -549,6 +549,56 @@ function AppShell() {
 }
 
 function App() {
+  React.useEffect(() => {
+    let isDisposed = false;
+    let appUrlListener: { remove: () => Promise<void> } | null = null;
+
+    const setupMobileAuth = async () => {
+      const { Capacitor } = await import('@capacitor/core');
+
+      if (!Capacitor.isNativePlatform()) {
+        return;
+      }
+
+      const [{ App: CapacitorApp }, { Browser }] = await Promise.all([
+        import('@capacitor/app'),
+        import('@capacitor/browser'),
+      ]);
+
+      const handleAuthRedirect = async (url?: string | null) => {
+        if (!url || !isMobileAuthCallbackUrl(url)) {
+          return;
+        }
+
+        try {
+          await completeMobileAuthSession(url);
+        } catch (error) {
+          console.error('Failed to complete mobile auth session:', error);
+          toast.error(error instanceof Error ? error.message : 'Unable to complete sign in.');
+        } finally {
+          await Browser.close().catch(() => undefined);
+        }
+      };
+
+      const launchUrl = await CapacitorApp.getLaunchUrl();
+      if (!isDisposed) {
+        await handleAuthRedirect(launchUrl?.url);
+        appUrlListener = await CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+          void handleAuthRedirect(url);
+        });
+      }
+    };
+
+    void setupMobileAuth();
+
+    return () => {
+      isDisposed = true;
+      if (appUrlListener) {
+        void appUrlListener.remove();
+      }
+    };
+  }, []);
+
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableColorScheme enableSystem>
       <AppErrorBoundary>

@@ -27,7 +27,7 @@ VITE_SUPABASE_ANON_KEY=<your_anon_key>
 1. In Supabase dashboard, go to **SQL Editor**
 2. Click **New Query**
 3. Follow the exact file order in `database/sql/README.md`
-4. Run each migration file in sequence through `database/sql/33-health-logs-and-user-settings.sql`
+4. Run each migration file in sequence through the latest file listed in `database/sql/README.md` (currently `database/sql/39-health-connect-wearable-type.sql`)
 5. Click **Run** button
 6. Wait for all migrations to complete
 7. Check for any errors

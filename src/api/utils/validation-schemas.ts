@@ -163,18 +163,43 @@ export const GetNearbyPlaydatesSchema = z.object({
 // WEARABLE
 // ============================================================================
 
+const WearableDeviceTypeSchema = z.enum(['apple_health', 'health_connect', 'fitbit', 'oura_ring', 'garmin']);
+const WearableMetricSchema = z.enum(['heart_rate', 'steps', 'sleep', 'temperature', 'activity']);
+const WearableSampleSchema = z.object({
+  type: WearableMetricSchema,
+  value: z.number(),
+  unit: z.string().optional(),
+  timestamp: z.string().datetime().optional(),
+});
+
 export const ConnectAppleHealthSchema = z.object({
-  healthKitToken: z.string(),
+  healthKitToken: z.string().optional(),
+  babyId: UUIDSchema.optional(),
+  samples: z.array(WearableSampleSchema).optional(),
+});
+
+export const ConnectHealthConnectSchema = z.object({
+  healthConnectToken: z.string().optional(),
+  babyId: UUIDSchema.optional(),
+  samples: z.array(WearableSampleSchema).optional(),
 });
 
 export const ConnectFitbitSchema = z.object({
-  fitbitAuthCode: z.string(),
+  fitbitAccessToken: z.string(),
+  fitbitRefreshToken: z.string().optional(),
+  babyId: UUIDSchema.optional(),
+});
+
+export const TriggerWearableSyncSchema = z.object({
+  babyId: UUIDSchema.optional(),
+  deviceType: WearableDeviceTypeSchema.optional(),
+  samples: z.array(WearableSampleSchema).optional(),
 });
 
 export const GetWearableDataSchema = z.object({
   babyId: UUIDSchema,
-  deviceType: z.enum(['apple_health', 'health_connect', 'fitbit', 'oura_ring', 'garmin']).optional(),
-  dataType: z.enum(['heart_rate', 'steps', 'sleep', 'temperature', 'activity']).optional(),
+  deviceType: WearableDeviceTypeSchema.optional(),
+  dataType: WearableMetricSchema.optional(),
   startDate: DateSchema.optional(),
   endDate: DateSchema.optional(),
 });

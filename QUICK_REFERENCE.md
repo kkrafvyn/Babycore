@@ -214,8 +214,12 @@ POST   /webhooks/flutterwave
 ### Integrations
 ```
 POST   /api/wearable/connect-apple-health
+POST   /api/wearable/connect-health-connect
 POST   /api/wearable/connect-fitbit
 POST   /api/wearable/sync
+GET    /api/wearable/data
+GET    /api/wearable/integrations
+POST   /api/wearable/disconnect
 POST   /api/voice/analyze-cry
 ```
 

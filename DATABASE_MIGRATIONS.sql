@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS user_content_preferences (
 CREATE TABLE IF NOT EXISTS wearable_integrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  device_type TEXT CHECK (device_type IN ('apple_health', 'fitbit', 'oura_ring', 'garmin')),
+  device_type TEXT CHECK (device_type IN ('apple_health', 'health_connect', 'fitbit', 'oura_ring', 'garmin')),
   access_token TEXT,
   refresh_token TEXT,
   last_synced TIMESTAMP,
