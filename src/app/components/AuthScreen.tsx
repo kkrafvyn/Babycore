@@ -23,6 +23,7 @@ interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
   onGuestMode: () => void;
   onViewPolicies: () => void;
+  postAuthDestinationLabel?: string | null;
 }
 
 type AuthMode = 'signin' | 'signup';
@@ -52,7 +53,12 @@ const socialProviders: Array<{
   { provider: 'apple', label: 'Apple', Icon: Apple },
 ];
 
-export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScreenProps) {
+export function AuthScreen({
+  onSuccess,
+  onGuestMode,
+  onViewPolicies,
+  postAuthDestinationLabel,
+}: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>(() => consumeAuthModeHint());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -125,7 +131,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
   };
 
   return (
-    <div className="fit-screen bg-background overflow-hidden">
+    <div className="fit-screen overflow-x-hidden bg-background">
       <MotionDiv
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -136,25 +142,30 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
         <div className="absolute bottom-[-10%] left-[-10%] h-[60%] w-[60%] rounded-full bg-accent-pink/10 blur-[120px] dark:bg-rose-900/10" />
       </MotionDiv>
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-8">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-start px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:justify-center sm:px-8 sm:py-10">
         <MotionDiv
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-10"
+          className="mb-6 sm:mb-10"
         >
-          <div className="flex h-24 w-24 items-center justify-center rounded-[2.5rem] border border-border-gray bg-white p-6 shadow-2xl shadow-primary/5 dark:border-zinc-700/50 dark:bg-zinc-800">
+          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] border border-border-gray bg-white p-5 shadow-2xl shadow-primary/5 dark:border-zinc-700/50 dark:bg-zinc-800 sm:h-24 sm:w-24 sm:rounded-[2.5rem] sm:p-6">
             <img src="/logo.png" alt="BabyLog" className="h-full w-full object-contain" />
           </div>
         </MotionDiv>
 
-        <div className="mb-12 space-y-3 text-center">
-          <h1 className="text-4xl font-headline font-black leading-none tracking-tighter text-foreground">
+        <div className="mb-8 space-y-2 text-center sm:mb-12 sm:space-y-3">
+          <h1 className="text-3xl font-headline font-black leading-none tracking-tighter text-foreground sm:text-4xl">
             {mode === 'signin' ? 'Welcome Back' : 'Join BabyLog'}
           </h1>
-          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-text-light">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light sm:text-[11px] sm:tracking-[0.3em]">
             {mode === 'signin' ? 'Identity Verification' : 'Provision Access'}
           </p>
+          {postAuthDestinationLabel && (
+            <div className="mx-auto max-w-sm rounded-3xl border border-secondary/20 bg-secondary/10 px-5 py-4 text-[10px] font-black uppercase tracking-widest text-secondary">
+              Continue to {postAuthDestinationLabel} after sign in
+            </div>
+          )}
         </div>
 
         <AnimatePresence>
@@ -187,8 +198,8 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
           )}
         </AnimatePresence>
 
-        <form onSubmit={handleAuth} className="w-full max-w-sm space-y-6">
-          <div className="space-y-3">
+        <form onSubmit={handleAuth} className="w-full max-w-sm space-y-4 sm:space-y-6">
+          <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
               Registry Email
             </span>
@@ -202,13 +213,13 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isAuthBusy}
-                className="h-20 w-full rounded-3xl border border-border-gray bg-surface-gray pl-16 pr-8 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900"
+                className="h-16 w-full rounded-[1.75rem] border border-border-gray bg-surface-gray pl-16 pr-8 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900 sm:h-20 sm:rounded-3xl"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
               Access Key
             </span>
@@ -222,7 +233,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isAuthBusy}
-                className="h-20 w-full rounded-3xl border border-border-gray bg-surface-gray pl-16 pr-14 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900"
+                className="h-16 w-full rounded-[1.75rem] border border-border-gray bg-surface-gray pl-16 pr-14 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900 sm:h-20 sm:rounded-3xl"
                 required
               />
               <button
@@ -239,7 +250,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
           <button
             type="submit"
             disabled={isAuthBusy}
-            className="btn-primary mt-6 h-20 w-full shadow-2xl shadow-primary/20 active:scale-95 disabled:opacity-70"
+            className="btn-primary mt-4 h-16 w-full text-lg shadow-2xl shadow-primary/20 active:scale-95 disabled:opacity-70 sm:mt-6 sm:h-20 sm:text-xl"
           >
             {loading ? (
               <div className="flex items-center gap-3">
@@ -255,7 +266,47 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
           </button>
         </form>
 
-        <div className="mt-8 w-full max-w-sm space-y-3">
+        <div className="mt-5 w-full max-w-sm space-y-3 text-center sm:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'signin' ? 'signup' : 'signin');
+              setError(null);
+              setNotice(null);
+            }}
+            disabled={isAuthBusy}
+            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
+          >
+            {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
+            <span className="ml-1 font-black uppercase tracking-widest text-primary underline">
+              {mode === 'signin' ? 'Create Account' : 'Sign In Portal'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onGuestMode}
+            disabled={isAuthBusy}
+            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
+          >
+            <span className="font-black uppercase tracking-widest text-secondary underline">
+              Continue as Guest
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onViewPolicies}
+            disabled={isAuthBusy}
+            className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
+          >
+            <span className="font-black uppercase tracking-[0.22em] text-primary underline">
+              Privacy, Terms & Policies
+            </span>
+          </button>
+        </div>
+
+        <div className="mt-6 w-full max-w-sm space-y-3 sm:mt-8">
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
             <span className="text-[9px] font-black uppercase tracking-[0.28em] text-text-light">
@@ -271,7 +322,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
                 type="button"
                 onClick={() => handleSocialAuth(provider)}
                 disabled={isAuthBusy}
-                className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-border-gray bg-surface-gray px-5 font-bold text-foreground transition-all hover:border-primary/40 hover:bg-white active:scale-[0.99] disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border-gray bg-surface-gray px-5 font-bold text-foreground transition-all hover:border-primary/40 hover:bg-white active:scale-[0.99] disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 sm:h-14"
               >
                 {socialLoadingProvider === provider ? (
                   <>
@@ -289,7 +340,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
           </div>
         </div>
 
-        <div className="mt-12 w-full max-w-sm space-y-4 text-center">
+        <div className="mt-8 hidden w-full max-w-sm space-y-3 text-center sm:block sm:mt-12 sm:space-y-4">
           <button
             type="button"
             onClick={() => {
@@ -328,7 +379,7 @@ export function AuthScreen({ onSuccess, onGuestMode, onViewPolicies }: AuthScree
             </span>
           </button>
 
-          <div className="flex flex-col items-center gap-2 pt-6">
+          <div className="flex flex-col items-center gap-2 pt-4 sm:pt-6">
             <div className="h-1 w-8 rounded-full bg-border-gray dark:bg-zinc-800" />
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-text-light">
               BABYLOG BIOMETRIC ACCESS - V3.0

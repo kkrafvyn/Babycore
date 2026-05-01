@@ -24,7 +24,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npx vite preview --host ${host} --port ${port} --strictPort`,
+    command: `npm run build && node scripts/serve-spa.mjs --host ${host} --port ${port}`,
     url: baseURL,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI,

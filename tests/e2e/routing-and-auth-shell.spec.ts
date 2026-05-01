@@ -8,9 +8,7 @@ test.describe('Routing and auth shell', () => {
     ).toBeVisible();
 
     await page.goto('/login');
-    await expect(
-      page.getByText(/Continue as Guest|Create Account|Sign In|Need to register/i).first(),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Continue as Guest/i }).first()).toBeVisible();
   });
 
   test('unauthenticated app route redirects to public auth', async ({ page }) => {

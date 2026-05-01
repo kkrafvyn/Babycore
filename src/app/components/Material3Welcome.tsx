@@ -83,6 +83,45 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
               </p>
             </div>
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-4 lg:hidden"
+          >
+            <button
+              onClick={onGetStarted}
+              className="group flex w-full items-center justify-between rounded-full bg-primary px-6 py-5 text-left text-white shadow-[0_24px_44px_rgba(94,95,97,0.28)] transition-all hover:bg-primary-hover hover:shadow-[0_28px_54px_rgba(94,95,97,0.32)] active:scale-[0.99]"
+            >
+              <span className="text-sm font-black uppercase tracking-[0.22em] sm:text-base">
+                Begin the Journey
+              </span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/14 transition-transform group-hover:translate-x-1">
+                <ArrowRight size={20} />
+              </span>
+            </button>
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-text-dim">
+              <span>Already tracking?</span>
+              <button
+                onClick={onLogIn}
+                className="text-secondary transition-colors hover:text-foreground"
+              >
+                Sign In
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-text-dim">
+              <span>Before you start:</span>
+              <button
+                onClick={onViewPolicies}
+                className="text-primary transition-colors hover:text-foreground"
+              >
+                Privacy, Terms & Policies
+              </button>
+            </div>
+          </motion.div>
         </section>
 
         <motion.section
@@ -166,7 +205,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.28, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="space-y-4"
+            className="hidden space-y-4 lg:block"
           >
             <button
               onClick={onGetStarted}

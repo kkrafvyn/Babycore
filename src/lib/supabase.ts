@@ -200,12 +200,17 @@ export const getCurrentUser = async (): Promise<AuthenticatedUser | null> => {
   }
 
   const auth = supabase.auth as any;
-  const { data, error } = await auth.getUser();
+  const {
+    data: { session },
+    error,
+  } = await auth.getSession();
+
   if (error) {
-    console.error('Error getting user:', error);
+    console.error('Error getting session:', error);
     return null;
   }
-  return data.user;
+
+  return session?.user || null;
 };
 
 export const signUpWithEmail = async (
