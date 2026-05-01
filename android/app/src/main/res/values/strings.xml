@@ -4,4 +4,12 @@
     <string name="title_activity_main">BabyLog</string>
     <string name="package_name">com.babylog.app</string>
     <string name="custom_url_scheme">com.babylog.app</string>
+    <string name="shortcut_feed_short">Log Feed</string>
+    <string name="shortcut_feed_long">Open feeding tracker</string>
+    <string name="shortcut_sleep_short">Log Sleep</string>
+    <string name="shortcut_sleep_long">Open sleep tracker</string>
+    <string name="shortcut_diaper_short">Log Diaper</string>
+    <string name="shortcut_diaper_long">Open diaper tracker</string>
+    <string name="shortcut_emergency_short">Emergency</string>
+    <string name="shortcut_emergency_long">Open the emergency card</string>
 </resources>

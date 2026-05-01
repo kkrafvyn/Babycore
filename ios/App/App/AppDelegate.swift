@@ -5,9 +5,34 @@ import Capacitor
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private var pendingShortcutItem: UIApplicationShortcutItem?
+
+    private func routeShortcut(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
+        let shortcutRoutes: [String: String] = [
+            "com.babylog.app.open.feeding": "com.babylog.app://open/feeding?source=shortcut",
+            "com.babylog.app.open.sleep": "com.babylog.app://open/sleep?source=shortcut",
+            "com.babylog.app.open.diaper": "com.babylog.app://open/diaper?source=shortcut",
+            "com.babylog.app.open.emergency-card": "com.babylog.app://open/emergency-card?source=shortcut"
+        ]
+
+        guard let route = shortcutRoutes[shortcutItem.type], let url = URL(string: route) else {
+            return false
+        }
+
+        let payload: [String: Any?] = [
+            "url": url as NSURL,
+            "options": [:]
+        ]
+        NotificationCenter.default.post(name: .capacitorOpenURL, object: payload)
+        return true
+    }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        if let shortcutItem = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] as? UIApplicationShortcutItem {
+            pendingShortcutItem = shortcutItem
+            return false
+        }
         return true
     }
 
@@ -27,6 +52,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        if let shortcutItem = pendingShortcutItem {
+            pendingShortcutItem = nil
+            _ = routeShortcut(shortcutItem)
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -44,6 +73,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Feel free to add additional processing here, but if you want the App API to support
         // tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+    func application(
+        _ application: UIApplication,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(routeShortcut(shortcutItem))
     }
 
 }

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
 import { supabase } from './supabase';
 import { getApiBaseUrl } from './api-base-url';
+import { buildNativeAppUrl } from './native-app-links';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 const API_BASE_URL = getApiBaseUrl();
@@ -249,6 +250,20 @@ type NativePushBridge = {
   };
 };
 
+type NativeLocalNotificationsBridge = {
+  Capacitor: {
+    isNativePlatform: () => boolean;
+  };
+  LocalNotifications: {
+    checkPermissions: () => Promise<{ display: 'granted' | 'denied' | 'prompt' }>;
+    requestPermissions: () => Promise<{ display: 'granted' | 'denied' | 'prompt' }>;
+    schedule: (options: { notifications: any[] }) => Promise<any>;
+    registerActionTypes: (options: { types: any[] }) => Promise<void>;
+    createChannel: (channel: any) => Promise<void>;
+    addListener: (eventName: string, listener: (event: any) => void) => Promise<any> | any;
+  };
+};
+
 type MedicationScheduleReminderRow = {
   id: string;
   medication_name: string;
@@ -266,6 +281,8 @@ type MedicationDoseLogReminderRow = {
 
 export class NotificationsManager {
   private static nativeBridgePromise: Promise<NativePushBridge | null> | null = null;
+  private static nativeLocalBridgePromise: Promise<NativeLocalNotificationsBridge | null> | null = null;
+  private static nativeNotificationsInitialized = false;
   private static reminderThrottle = new Map<string, number>();
   private static medicationContextCache = new Map<
     string,
@@ -314,6 +331,165 @@ export class NotificationsManager {
     }
 
     return this.nativeBridgePromise;
+  }
+
+  private static async getNativeLocalNotificationsBridge(): Promise<NativeLocalNotificationsBridge | null> {
+    if (typeof window === 'undefined') return null;
+
+    if (!this.nativeLocalBridgePromise) {
+      this.nativeLocalBridgePromise = (async () => {
+        try {
+          const [coreModule, notificationsModule] = await Promise.all([
+            dynamicImport('@capacitor/core'),
+            dynamicImport('@capacitor/local-notifications'),
+          ]);
+
+          const capacitor = coreModule?.Capacitor || coreModule?.default?.Capacitor;
+          const localNotifications =
+            notificationsModule?.LocalNotifications || notificationsModule?.default?.LocalNotifications;
+
+          if (!capacitor?.isNativePlatform || !localNotifications) {
+            return null;
+          }
+
+          if (!capacitor.isNativePlatform()) {
+            return null;
+          }
+
+          return {
+            Capacitor: capacitor,
+            LocalNotifications: localNotifications,
+          } as NativeLocalNotificationsBridge;
+        } catch {
+          return null;
+        }
+      })();
+    }
+
+    return this.nativeLocalBridgePromise;
+  }
+
+  private static createNotificationRequestId(): number {
+    return Math.floor(Date.now() % 2147483000);
+  }
+
+  private static enrichNotificationData(
+    data?: Record<string, any>,
+    type?: NotificationType,
+  ): Record<string, any> | undefined {
+    if (!data && !type) {
+      return data;
+    }
+
+    const nextData = { ...(data || {}) } as Record<string, any>;
+    if (typeof nextData.deepLink === 'string' && nextData.deepLink.trim() && !nextData.routeUrl) {
+      nextData.routeUrl = buildNativeAppUrl(nextData.deepLink.trim(), {
+        source: nextData.source || 'notification',
+      });
+    }
+    if (type && !nextData.notificationType) {
+      nextData.notificationType = type;
+    }
+    if (!nextData.snoozeMinutes) {
+      nextData.snoozeMinutes = 15;
+    }
+    return nextData;
+  }
+
+  private static showInAppToast(notification: BabyLogNotification): void {
+    const deepLink = notification.data?.deepLink;
+    toast(notification.title, {
+      description: notification.body,
+      duration: 5000,
+      action: deepLink
+        ? {
+            label: 'View',
+            onClick: () =>
+              window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } })),
+          }
+        : undefined,
+    });
+  }
+
+  private static async handleNativeNotificationAction(event: any): Promise<void> {
+    const actionId = String(event?.actionId || 'tap').trim().toLowerCase();
+    const notification = event?.notification || {};
+    const extra = (notification.extra || {}) as Record<string, any>;
+    const notificationType = (extra.notificationType || notification?.extra?.notificationType || 'summary') as NotificationType;
+    const historyId = typeof extra.notificationHistoryId === 'string' ? extra.notificationHistoryId : '';
+
+    if (historyId) {
+      markNotificationRead(historyId);
+    }
+
+    if (actionId === 'dismiss') {
+      return;
+    }
+
+    if (actionId === 'snooze') {
+      const snoozeMinutes = Math.max(1, Math.floor(Number(extra.snoozeMinutes || 15)));
+      this.scheduleLocalNotification({
+        title: String(notification.title || ''),
+        body: String(notification.body || ''),
+        data: {
+          ...extra,
+          snoozedAt: new Date().toISOString(),
+        },
+        delayMs: snoozeMinutes * 60 * 1000,
+        type: notificationType,
+      });
+      toast('Reminder snoozed', {
+        description: `We will remind you again in ${snoozeMinutes} minute${snoozeMinutes === 1 ? '' : 's'}.`,
+      });
+      return;
+    }
+
+    const routeUrl = typeof extra.routeUrl === 'string' ? extra.routeUrl : '';
+    if (routeUrl) {
+      window.dispatchEvent(new CustomEvent('babylog_native_url', { detail: { url: routeUrl } }));
+      return;
+    }
+
+    const deepLink = typeof extra.deepLink === 'string' ? extra.deepLink : '';
+    if (deepLink) {
+      window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } }));
+    }
+  }
+
+  static async initializeNativeNotifications(): Promise<void> {
+    const bridge = await this.getNativeLocalNotificationsBridge();
+    if (!bridge || this.nativeNotificationsInitialized) {
+      return;
+    }
+
+    await bridge.LocalNotifications.registerActionTypes({
+      types: [
+        {
+          id: 'babylog-reminder',
+          actions: [
+            { id: 'open', title: 'Open', foreground: true },
+            { id: 'snooze', title: 'Snooze' },
+          ],
+        },
+      ],
+    }).catch(() => undefined);
+
+    await bridge.LocalNotifications.createChannel({
+      id: 'babylog-reminders',
+      name: 'Baby reminders',
+      description: 'Feeding, sleep, health, and care reminders.',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+    }).catch(() => undefined);
+
+    await Promise.resolve(
+      bridge.LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+        void this.handleNativeNotificationAction(event);
+      }),
+    );
+
+    this.nativeNotificationsInitialized = true;
   }
 
   private static isIOS(): boolean {
@@ -458,6 +634,22 @@ export class NotificationsManager {
    * Request permission from the user to show notifications
    */
   static async requestPermission(): Promise<boolean> {
+    const nativeLocalBridge = await this.getNativeLocalNotificationsBridge();
+    if (nativeLocalBridge) {
+      try {
+        await this.initializeNativeNotifications();
+        const current = await nativeLocalBridge.LocalNotifications.checkPermissions();
+        if (current.display === 'granted') {
+          return true;
+        }
+        const requested = await nativeLocalBridge.LocalNotifications.requestPermissions();
+        return requested.display === 'granted';
+      } catch (error) {
+        console.warn('Native local notification permission request failed:', error);
+        return false;
+      }
+    }
+
     const nativeBridge = await this.getNativePushBridge();
     if (nativeBridge) {
       try {
@@ -497,6 +689,9 @@ export class NotificationsManager {
    * Get current permission status
    */
   static getPermissionStatus(): NotificationPermission {
+    if (this.nativeNotificationsInitialized) {
+      return 'granted';
+    }
     if (this.getCachedNativeTokenPayload()) {
       return 'granted';
     }
@@ -837,22 +1032,44 @@ export class NotificationsManager {
    */
   static async sendLocalNotification(payload: { title: string; body: string; data?: any; type?: NotificationType }): Promise<void> {
     if (typeof window === 'undefined') return;
-    const { notification, isDuplicate } = persistNotification(payload);
+    const enrichedData = this.enrichNotificationData(payload.data, payload.type);
+    const { notification, isDuplicate } = persistNotification({
+      ...payload,
+      data: enrichedData,
+    });
     if (isDuplicate) return;
 
+    const nativeLocalBridge = await this.getNativeLocalNotificationsBridge();
+    if (nativeLocalBridge) {
+      await this.initializeNativeNotifications();
+
+      const isVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
+      if (isVisible) {
+        this.showInAppToast(notification);
+        return;
+      }
+
+      const notificationId = this.createNotificationRequestId();
+      await nativeLocalBridge.LocalNotifications.schedule({
+        notifications: [
+          {
+            id: notificationId,
+            title: notification.title,
+            body: notification.body,
+            actionTypeId: 'babylog-reminder',
+            channelId: 'babylog-reminders',
+            extra: {
+              ...(notification.data || {}),
+              notificationHistoryId: notification.id,
+            },
+          },
+        ],
+      });
+      return;
+    }
+
     // 1. Show In-App Toast (Always show if app is active)
-    const deepLink = notification.data?.deepLink;
-    toast(notification.title, {
-      description: notification.body,
-      duration: 5000,
-      action: deepLink
-        ? {
-            label: 'View',
-            onClick: () =>
-              window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: deepLink } })),
-          }
-        : undefined,
-    });
+    this.showInAppToast(notification);
 
     // 2. Fallback to System Notification (if background or permission granted)
     if (this.isSupported() && Notification.permission === 'granted') {
@@ -895,6 +1112,49 @@ export class NotificationsManager {
     type?: NotificationType;
   }): number {
     if (typeof window === 'undefined') return -1;
+    const nativeWindow = window as Window & {
+      Capacitor?: {
+        isNativePlatform?: () => boolean;
+      };
+    };
+    const nativeNotificationId = this.createNotificationRequestId();
+    void (async () => {
+      const nativeLocalBridge = await this.getNativeLocalNotificationsBridge();
+      if (!nativeLocalBridge) {
+        return;
+      }
+
+      await this.initializeNativeNotifications();
+      const permission = await nativeLocalBridge.LocalNotifications.checkPermissions().catch(() => ({
+        display: 'denied' as const,
+      }));
+      if (permission.display !== 'granted') {
+        return;
+      }
+
+      const extra = this.enrichNotificationData(payload.data, payload.type);
+      await nativeLocalBridge.LocalNotifications.schedule({
+        notifications: [
+          {
+            id: nativeNotificationId,
+            title: payload.title,
+            body: payload.body,
+            actionTypeId: 'babylog-reminder',
+            channelId: 'babylog-reminders',
+            schedule: {
+              at: new Date(Date.now() + Math.max(1000, payload.delayMs)),
+              allowWhileIdle: true,
+            },
+            extra,
+          },
+        ],
+      }).catch(() => undefined);
+    })();
+
+    if (nativeWindow.Capacitor?.isNativePlatform?.()) {
+      return nativeNotificationId;
+    }
+
     return window.setTimeout(() => {
       void this.sendLocalNotification(payload);
     }, payload.delayMs);
@@ -1110,7 +1370,10 @@ export const syncNotifications = async (
       await NotificationsManager.sendReminderWithRules(
         settings,
         reminderPrefs,
-        NotificationsManager.createFeedingAlert(currentBaby.name),
+        {
+          ...NotificationsManager.createFeedingAlert(currentBaby.name),
+          data: { babyId: currentBaby.id, deepLink: 'feeding' },
+        },
         {
           cooldownKey: `feed:${currentBaby.id}:${settings.feedingInterval}`,
           cooldownMs: 60 * 60 * 1000,
@@ -1149,7 +1412,10 @@ export const syncNotifications = async (
       await NotificationsManager.sendReminderWithRules(
         settings,
         reminderPrefs,
-        NotificationsManager.createDiaperAlert(currentBaby.name),
+        {
+          ...NotificationsManager.createDiaperAlert(currentBaby.name),
+          data: { babyId: currentBaby.id, deepLink: 'diaper' },
+        },
         {
           cooldownKey: `diaper:${currentBaby.id}`,
           cooldownMs: 2 * 60 * 60 * 1000,

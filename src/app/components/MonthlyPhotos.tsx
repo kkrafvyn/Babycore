@@ -4,6 +4,7 @@ import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
 import { addMemoryLog } from '../../lib/supabase-storage';
 import { getBabyPhotos, uploadBabyPhoto } from '../../lib/photo-management-service';
+import { captureNativePhoto, chooseNativePhoto, isNativeAppRuntime } from '../../lib/native-media';
 
 const MotionDiv = motion.div as any;
 
@@ -17,6 +18,7 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [pendingMonth, setPendingMonth] = useState<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const supportsNativeCamera = isNativeAppRuntime();
 
   useEffect(() => {
     // Attempt to map existing memories with photos to months
@@ -82,11 +84,6 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
     }
   };
 
-  const handleSelectMonth = (month: number) => {
-    setPendingMonth(month);
-    fileInputRef.current?.click();
-  };
-
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -95,12 +92,9 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
       reader.readAsDataURL(file);
     });
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    const month = pendingMonth;
-    event.target.value = '';
-
+  const uploadMonthPhoto = async (file: File | null | undefined, month: number | null) => {
     if (!file || !currentBaby || !month) {
+      setPendingMonth(null);
       return;
     }
 
@@ -154,6 +148,37 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
     }
   };
 
+  const handleSelectMonth = async (month: number) => {
+    setPendingMonth(month);
+
+    if (!supportsNativeCamera) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    const shouldUseCamera = window.confirm(
+      `Take a new photo for month ${month}? Press Cancel to choose one from your library instead.`,
+    );
+
+    try {
+      const asset = shouldUseCamera
+        ? await captureNativePhoto(`month-${month}-milestone`)
+        : await chooseNativePhoto(`month-${month}-milestone`);
+      await uploadMonthPhoto(asset?.file, month);
+    } catch (error) {
+      console.error('Native month photo selection failed:', error);
+      alert('Could not open your camera or photo library.');
+      setPendingMonth(null);
+    }
+  };
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const month = pendingMonth;
+    event.target.value = '';
+    await uploadMonthPhoto(file, month);
+  };
+
   return (
     <div className="fit-screen bg-background">
       <header className="fixed top-0 w-full z-40 bg-background/80 backdrop-blur-xl h-20 px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
@@ -185,6 +210,11 @@ export const MonthlyPhotos: React.FC<MonthlyPhotosProps> = ({ onBack }) => {
             <p className="text-sm font-bold text-text-dim">
               Capture one photo each month to build a beautiful timeline of their first year.
             </p>
+            {supportsNativeCamera && (
+              <p className="text-[11px] font-bold text-text-light mt-2">
+                Tap a month tile to take a fresh photo or choose one from your library.
+              </p>
+            )}
             {isUploading && (
               <p className="text-xs font-black uppercase tracking-widest text-secondary mt-3">
                 Uploading month {pendingMonth}...

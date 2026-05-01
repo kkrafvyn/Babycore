@@ -9,6 +9,7 @@ import { useAppContext } from '../AppContext';
 import { addBaby } from '../../lib/supabase-storage';
 import { getOnboardingCache } from '../../lib/onboarding-storage';
 import type { Baby } from '../../types';
+import { captureNativePhoto, isNativeAppRuntime } from '../../lib/native-media';
 
 interface AddBabyFormData {
   name: string;
@@ -35,7 +36,10 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const supportsNativeCamera = isNativeAppRuntime();
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,6 +53,29 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
         });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleNativeCapture = async () => {
+    setError(null);
+    setIsCapturing(true);
+
+    try {
+      const captured = await captureNativePhoto('baby-profile');
+      if (!captured) {
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        photo: captured.file,
+        photoPreview: captured.previewUrl,
+      }));
+    } catch (err) {
+      console.error('Failed to capture baby profile photo:', err);
+      setError('Could not open the camera right now.');
+    } finally {
+      setIsCapturing(false);
     }
   };
 
@@ -150,6 +177,7 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
               </div>
               <input
                 id="photo"
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handlePhotoSelect}
@@ -166,6 +194,26 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
                   <span className="material-symbols-outlined">close</span>
                 </button>
               )}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {supportsNativeCamera && (
+                <button
+                  type="button"
+                  onClick={handleNativeCapture}
+                  disabled={isCapturing || isLoading}
+                  className="rounded-full border border-[#e0e2e8] bg-white px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#45627d] shadow-sm transition-all hover:bg-[#f8fbff] disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-blue-300"
+                >
+                  {isCapturing ? 'Opening Camera...' : 'Take Photo'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isCapturing || isLoading}
+                className="rounded-full border border-[#e0e2e8] bg-white px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#5e5f61] shadow-sm transition-all hover:bg-[#f3f3f7] disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Choose Image
+              </button>
             </div>
           </section>
 

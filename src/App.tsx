@@ -1,4 +1,5 @@
 import React from 'react';
+import { Capacitor } from '@capacitor/core';
 import { ThemeProvider } from 'next-themes';
 import { Toaster, toast } from 'sonner';
 import { AppContextProvider, useAppContext } from './app/AppContext';
@@ -23,6 +24,9 @@ import {
   normalizePathname,
   resolveAppViewIntent,
 } from './lib/app-routing';
+import { isNativeAppUrl, parseNativeAppUrl } from './lib/native-app-links';
+import { importNativeWearableData, getConnectedWearables, syncWearableData } from './lib/wearable-service';
+import { NotificationsManager } from './lib/notifications';
 
 type LocationRoute =
   | {
@@ -113,6 +117,12 @@ const setAuthModeHint = (mode: 'signin' | 'signup') => {
   window.sessionStorage.setItem(AUTH_MODE_HINT_KEY, mode);
 };
 
+const formatAppViewLabel = (view: AppView): string =>
+  view
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
 const shouldShowMobileSplash = () => {
   if (typeof window === 'undefined') {
     return false;
@@ -165,8 +175,9 @@ const renderWithSuspense = (node: React.ReactNode, label: string) => (
 );
 
 function AppShell() {
-  const { user, babies, isLoading, refreshBabies } = useAppContext();
+  const { user, babies, currentBaby, isLoading, refreshBabies, refreshAllLogs } = useAppContext();
   const handledInviteTokenRef = React.useRef<string | null>(null);
+  const lastNativeWearableSyncAtRef = React.useRef(0);
   const [locationRoute, setLocationRoute] = React.useState<LocationRoute>(() => getLocationRoute());
   const [guestSession, setGuestSession] = React.useState(
     () => localStorage.getItem(GUEST_SESSION_KEY) === 'true',
@@ -234,6 +245,81 @@ function AppShell() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  React.useEffect(() => {
+    const handleNativeUrl = (event: Event) => {
+      const customEvent = event as CustomEvent<{ url?: string | null }>;
+      const parsed = parseNativeAppUrl(customEvent.detail?.url);
+      if (!parsed) {
+        return;
+      }
+
+      if (parsed.appView) {
+        navigateToAppView(parsed.appView, { replace: true });
+        return;
+      }
+
+      if (parsed.publicRoute) {
+        navigateToPublicRoute(parsed.publicRoute, { replace: true });
+      }
+    };
+
+    window.addEventListener('babylog_native_url', handleNativeUrl as EventListener);
+    return () => window.removeEventListener('babylog_native_url', handleNativeUrl as EventListener);
+  }, [navigateToAppView, navigateToPublicRoute]);
+
+  React.useEffect(() => {
+    const syncNativeWearablesOnResume = async () => {
+      if (!user?.id || !currentBaby?.id) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastNativeWearableSyncAtRef.current < 5 * 60 * 1000) {
+        return;
+      }
+
+      lastNativeWearableSyncAtRef.current = now;
+
+      try {
+        const wearables = await getConnectedWearables(user.id);
+        const nativeIntegration = wearables.find(
+          (integration) =>
+            integration.is_active &&
+            (integration.device_type === 'apple_health' || integration.device_type === 'health_connect'),
+        );
+
+        if (!nativeIntegration) {
+          return;
+        }
+
+        const { source, imported } = await importNativeWearableData(
+          currentBaby.id,
+          nativeIntegration.last_synced || null,
+        );
+
+        if (source) {
+          await syncWearableData(user.id, source);
+        }
+
+        if (imported.length > 0) {
+          await refreshAllLogs();
+          toast.success(`Imported ${imported.length} wearable reading${imported.length === 1 ? '' : 's'}.`);
+        }
+      } catch (error) {
+        console.warn('Native wearable resume sync failed:', error);
+      }
+    };
+
+    const handleNativeResume = () => {
+      void refreshBabies();
+      void refreshAllLogs();
+      void syncNativeWearablesOnResume();
+    };
+
+    window.addEventListener('babylog_native_resume', handleNativeResume);
+    return () => window.removeEventListener('babylog_native_resume', handleNativeResume);
+  }, [currentBaby?.id, refreshAllLogs, refreshBabies, user?.id]);
 
   React.useEffect(() => {
     if (!window.location.hash) {
@@ -530,6 +616,7 @@ function AppShell() {
         }}
         onGuestMode={handleGuestMode}
         onViewPolicies={openPolicies}
+        postAuthDestinationLabel={locationRoute.kind === 'app' ? formatAppViewLabel(locationRoute.appView) : null}
       />,
       'Loading sign-in...',
     );
@@ -552,10 +639,10 @@ function App() {
   React.useEffect(() => {
     let isDisposed = false;
     let appUrlListener: { remove: () => Promise<void> } | null = null;
+    let resumeListener: { remove: () => Promise<void> } | null = null;
+    let pauseListener: { remove: () => Promise<void> } | null = null;
 
     const setupMobileAuth = async () => {
-      const { Capacitor } = await import('@capacitor/core');
-
       if (!Capacitor.isNativePlatform()) {
         return;
       }
@@ -564,27 +651,41 @@ function App() {
         import('@capacitor/app'),
         import('@capacitor/browser'),
       ]);
+      await NotificationsManager.initializeNativeNotifications();
 
-      const handleAuthRedirect = async (url?: string | null) => {
-        if (!url || !isMobileAuthCallbackUrl(url)) {
+      const handleNativeLaunch = async (url?: string | null) => {
+        if (!url) {
           return;
         }
 
-        try {
-          await completeMobileAuthSession(url);
-        } catch (error) {
-          console.error('Failed to complete mobile auth session:', error);
-          toast.error(error instanceof Error ? error.message : 'Unable to complete sign in.');
-        } finally {
-          await Browser.close().catch(() => undefined);
+        if (isMobileAuthCallbackUrl(url)) {
+          try {
+            await completeMobileAuthSession(url);
+          } catch (error) {
+            console.error('Failed to complete mobile auth session:', error);
+            toast.error(error instanceof Error ? error.message : 'Unable to complete sign in.');
+          } finally {
+            await Browser.close().catch(() => undefined);
+          }
+          return;
+        }
+
+        if (isNativeAppUrl(url)) {
+          window.dispatchEvent(new CustomEvent('babylog_native_url', { detail: { url } }));
         }
       };
 
       const launchUrl = await CapacitorApp.getLaunchUrl();
       if (!isDisposed) {
-        await handleAuthRedirect(launchUrl?.url);
+        await handleNativeLaunch(launchUrl?.url);
         appUrlListener = await CapacitorApp.addListener('appUrlOpen', ({ url }) => {
-          void handleAuthRedirect(url);
+          void handleNativeLaunch(url);
+        });
+        resumeListener = await CapacitorApp.addListener('resume', () => {
+          window.dispatchEvent(new CustomEvent('babylog_native_resume'));
+        });
+        pauseListener = await CapacitorApp.addListener('pause', () => {
+          window.dispatchEvent(new CustomEvent('babylog_native_pause'));
         });
       }
     };
@@ -595,6 +696,12 @@ function App() {
       isDisposed = true;
       if (appUrlListener) {
         void appUrlListener.remove();
+      }
+      if (resumeListener) {
+        void resumeListener.remove();
+      }
+      if (pauseListener) {
+        void pauseListener.remove();
       }
     };
   }, []);

@@ -1,8 +1,55 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 apply plugin: 'com.android.application'
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def resolveSigningValue = { propertyName, envKeys ->
+    def propertyValue = keystoreProperties.getProperty(propertyName)
+    if (propertyValue?.trim()) {
+        return propertyValue.trim()
+    }
+
+    for (def envKey : envKeys) {
+        def envValue = System.getenv(envKey)
+        if (envValue?.trim()) {
+            return envValue.trim()
+        }
+    }
+
+    return null
+}
+
+def releaseStoreFilePath = resolveSigningValue('storeFile', ['ANDROID_SIGNING_STORE_FILE', 'ANDROID_KEYSTORE_PATH'])
+def releaseStorePassword = resolveSigningValue('storePassword', ['ANDROID_SIGNING_STORE_PASSWORD', 'ANDROID_KEYSTORE_PASSWORD'])
+def releaseKeyAlias = resolveSigningValue('keyAlias', ['ANDROID_SIGNING_KEY_ALIAS', 'ANDROID_KEY_ALIAS'])
+def releaseKeyPassword = resolveSigningValue('keyPassword', ['ANDROID_SIGNING_KEY_PASSWORD', 'ANDROID_KEY_PASSWORD'])
+def hasReleaseSigningValues = [releaseStoreFilePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
+def releaseStoreFile = releaseStoreFilePath ? rootProject.file(releaseStoreFilePath) : null
+def hasReleaseSigning = hasReleaseSigningValues && releaseStoreFile?.exists()
+
+if (hasReleaseSigningValues && !hasReleaseSigning) {
+    logger.lifecycle("Release signing config found, but keystore file is missing at ${releaseStoreFilePath}.")
+}
 
 android {
     namespace = "com.babylog.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     defaultConfig {
         applicationId "com.babylog.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -18,6 +65,11 @@ android {
     }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.lifecycle('Release signing is not configured. Release artifacts will be unsigned.')
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

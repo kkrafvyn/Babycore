@@ -29,8 +29,18 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
+    const handleNativePause = () => {
+      if (lockEnabled) {
+        setIsLocked(true);
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('babylog_native_pause', handleNativePause);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('babylog_native_pause', handleNativePause);
+    };
   }, [lockEnabled]);
 
   const handleUnlock = async () => {

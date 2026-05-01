@@ -3,6 +3,91 @@ import { format, differenceInDays, differenceInMonths, differenceInYears, parse 
 
 export const cn = (...inputs: ClassValue[]): string => clsx(inputs);
 
+type CryptoWithOptionalRandomUuid = Crypto & {
+  randomUUID?: () => string;
+};
+
+const getCryptoObject = (): CryptoWithOptionalRandomUuid | undefined => {
+  if (typeof globalThis === 'undefined') {
+    return undefined;
+  }
+
+  return (globalThis as typeof globalThis & { crypto?: CryptoWithOptionalRandomUuid }).crypto;
+};
+
+const formatUuidFromBytes = (bytes: Uint8Array): string => {
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
+};
+
+const createUuidFromRandomValues = (): string | null => {
+  const cryptoObject = getCryptoObject();
+  if (!cryptoObject?.getRandomValues) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(16);
+  cryptoObject.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  return formatUuidFromBytes(bytes);
+};
+
+const createFallbackUuid = (): string =>
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+
+const createCompatibleUuid = (): string => createUuidFromRandomValues() ?? createFallbackUuid();
+
+export const ensureCryptoRandomUUID = (): void => {
+  if (typeof globalThis === 'undefined') {
+    return;
+  }
+
+  const globalObject = globalThis as typeof globalThis & {
+    crypto?: CryptoWithOptionalRandomUuid;
+  };
+
+  if (typeof globalObject.crypto?.randomUUID === 'function') {
+    return;
+  }
+
+  const randomUUID = () => createCompatibleUuid();
+
+  if (globalObject.crypto) {
+    try {
+      Object.defineProperty(globalObject.crypto, 'randomUUID', {
+        value: randomUUID,
+        configurable: true,
+        writable: true,
+      });
+      return;
+    } catch {
+      // Fall through to a best-effort global replacement below.
+    }
+  }
+
+  try {
+    Object.defineProperty(globalObject, 'crypto', {
+      value: { randomUUID },
+      configurable: true,
+      writable: true,
+    });
+  } catch {
+    // Some runtimes lock down global crypto; direct helper usage still works there.
+  }
+};
+
 /**
  * Calculate baby's age in a human-readable format
  * Weeks for < 3 months, months for 3-24 months, years for > 24 months
@@ -179,7 +264,16 @@ export const isWithinQuietHours = (quietHourStart?: string, quietHourEnd?: strin
  * Generate unique ID
  */
 export const generateId = (): string => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const cryptoObject = getCryptoObject();
+  if (typeof cryptoObject?.randomUUID === 'function') {
+    try {
+      return cryptoObject.randomUUID();
+    } catch {
+      // Fall back below if the runtime exposes crypto but not a working randomUUID implementation.
+    }
+  }
+
+  return createCompatibleUuid();
 };
 
 /**

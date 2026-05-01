@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Image, Plus, Calendar, Search, Link2, Copy, UserPlus2 } from 'lucide-react';
+import { Image, Plus, Camera, Search, Link2, Copy, UserPlus2 } from 'lucide-react';
 import { BabyPhoto, uploadBabyPhoto, getBabyPhotos, deletePhoto } from '@/lib/photo-management-service';
 import {
   createPublicFamilyInviteLink,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/family-sharing-service';
 import { useAppContext } from '../AppContext';
 import { toast } from 'sonner';
+import { captureNativePhoto, chooseNativePhoto, isNativeAppRuntime } from '@/lib/native-media';
 
 interface PhotoGalleryProps {
   babyId: string;
@@ -24,6 +25,7 @@ export function PhotoGallery({ babyId, babyName }: PhotoGalleryProps) {
   const [photos, setPhotos] = useState<BabyPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [inviteRole, setInviteRole] = useState<Extract<FamilySharingRole, 'viewer' | 'caregiver' | 'doctor'>>(
     'viewer',
   );
@@ -35,6 +37,7 @@ export function PhotoGallery({ babyId, babyName }: PhotoGalleryProps) {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [creatingLink, setCreatingLink] = useState(false);
   const [generatedInviteLink, setGeneratedInviteLink] = useState('');
+  const supportsNativeCamera = isNativeAppRuntime();
 
   useEffect(() => {
     loadPhotos();
@@ -64,8 +67,7 @@ export function PhotoGallery({ babyId, babyName }: PhotoGalleryProps) {
     setLoading(false);
   };
 
-  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handlePhotoFile = async (file: File | null | undefined) => {
     if (!file) return;
 
     setUploading(true);
@@ -79,9 +81,41 @@ export function PhotoGallery({ babyId, babyName }: PhotoGalleryProps) {
     );
 
     if (photo) {
-      setPhotos([photo, ...photos]);
+      setPhotos((prev) => [photo, ...prev]);
     }
     setUploading(false);
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    await handlePhotoFile(file);
+  };
+
+  const handleNativeCapture = async () => {
+    setCapturing(true);
+    try {
+      const captured = await captureNativePhoto(`${babyName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-gallery`);
+      await handlePhotoFile(captured?.file);
+    } catch (error) {
+      console.error('Native camera capture failed:', error);
+      toast.error('Could not open the camera.');
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const handleNativeLibraryPick = async () => {
+    setCapturing(true);
+    try {
+      const selected = await chooseNativePhoto(`${babyName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-gallery`);
+      await handlePhotoFile(selected?.file);
+    } catch (error) {
+      console.error('Native photo picker failed:', error);
+      toast.error('Could not open your photo library.');
+    } finally {
+      setCapturing(false);
+    }
   };
 
   const handleDeletePhoto = async (photoId: string, storageKey: string) => {
@@ -185,21 +219,59 @@ export function PhotoGallery({ babyId, babyName }: PhotoGalleryProps) {
             </CardTitle>
             <CardDescription>Monthly milestone photos and memories</CardDescription>
           </div>
-          <label>
-            <Button asChild disabled={uploading}>
-              <span>
+          <div className="flex flex-wrap items-center gap-2">
+            {supportsNativeCamera && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleNativeCapture}
+                disabled={uploading || capturing}
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                {capturing ? 'Opening...' : 'Take Photo'}
+              </Button>
+            )}
+            {supportsNativeCamera ? (
+              <Button type="button" onClick={handleNativeLibraryPick} disabled={uploading || capturing}>
                 <Plus className="mr-2 h-4 w-4" />
-                {uploading ? 'Uploading...' : 'Add Photo'}
-              </span>
-            </Button>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              disabled={uploading}
-              className="hidden"
-            />
-          </label>
+                {uploading ? 'Uploading...' : 'Choose Photo'}
+              </Button>
+            ) : (
+              <label>
+                <Button asChild disabled={uploading}>
+                  <span>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {uploading ? 'Uploading...' : 'Add Photo'}
+                  </span>
+                </Button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {!supportsNativeCamera && (
+              <label>
+                <Button asChild variant="outline" disabled={uploading}>
+                  <span>
+                    <Camera className="mr-2 h-4 w-4" />
+                    Camera
+                  </span>
+                </Button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>

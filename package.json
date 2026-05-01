@@ -44,11 +44,14 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
-    "@capacitor/app": "^8.1.0",
+    "@babycore/native-wearables": "file:plugins/native-wearables",
     "@capacitor/android": "^8.3.1",
+    "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
+    "@capacitor/camera": "^8.2.0",
     "@capacitor/core": "^8.3.1",
     "@capacitor/ios": "^8.3.1",
+    "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.3",
     "@hookform/resolvers": "^3.3.4",
     "@radix-ui/react-dialog": "^1.1.0",
@@ -83,8 +86,7 @@
     "three": "^0.158.0",
     "uuid": "^9.0.1",
     "web-push": "^3.6.7",
-    "zod": "^3.22.4",
-    "@babycore/native-wearables": "file:plugins/native-wearables"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.1",

@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import { ensureCryptoRandomUUID } from './lib/utils'
 import './styles/index.css'
 
 if ('serviceWorker' in navigator) {
@@ -41,8 +41,18 @@ if ('serviceWorker' in navigator) {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+const root = ReactDOM.createRoot(document.getElementById('root')!)
+
+const bootstrap = async () => {
+  ensureCryptoRandomUUID()
+
+  const { default: App } = await import('./App')
+
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+}
+
+void bootstrap()

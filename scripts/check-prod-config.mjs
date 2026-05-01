@@ -1,9 +1,35 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
+import path from 'node:path';
+import dotenv from 'dotenv';
+
+const repoRoot = process.cwd();
+
+const readEnvFile = (filename) => {
+  const filePath = path.join(repoRoot, filename);
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+
+  try {
+    return dotenv.parse(fs.readFileSync(filePath));
+  } catch {
+    return {};
+  }
+};
+
+const fileEnv = {
+  ...readEnvFile('.env'),
+  ...readEnvFile('.env.production'),
+};
+
+const getEnv = (key) => process.env[key] ?? fileEnv[key];
+
 const APP_URL =
-  process.env.VITE_APP_URL ||
-  process.env.CLIENT_URL ||
-  process.env.VITE_SUPABASE_AUTH_REDIRECT_URL ||
+  getEnv('VITE_APP_URL') ||
+  getEnv('CLIENT_URL') ||
+  getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL') ||
   'https://babycore.vercel.app';
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');
@@ -34,92 +60,150 @@ const isLocalUrl = (value) => {
   }
 };
 
+const fileExists = (relativePath) => fs.existsSync(path.join(repoRoot, relativePath));
+
+const readPropertiesFile = (relativePath) => {
+  const absolutePath = path.join(repoRoot, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    return {};
+  }
+
+  try {
+    return dotenv.parse(fs.readFileSync(absolutePath));
+  } catch {
+    return {};
+  }
+};
+
+const androidKeystoreProperties = readPropertiesFile(path.join('android', 'keystore.properties'));
+const androidStoreFileSetting =
+  androidKeystoreProperties.storeFile ||
+  getEnv('ANDROID_SIGNING_STORE_FILE') ||
+  getEnv('ANDROID_KEYSTORE_PATH');
+const androidStoreFileExists = Boolean(
+  androidStoreFileSetting &&
+    fs.existsSync(path.resolve(repoRoot, 'android', androidStoreFileSetting)),
+);
+
 const checks = [
   {
     key: 'VITE_SUPABASE_URL',
     critical: true,
-    valid: hasValue(process.env.VITE_SUPABASE_URL) && !isPlaceholder(process.env.VITE_SUPABASE_URL),
+    valid: hasValue(getEnv('VITE_SUPABASE_URL')) && !isPlaceholder(getEnv('VITE_SUPABASE_URL')),
     help: 'Supabase project URL for frontend auth/data.',
   },
   {
     key: 'VITE_SUPABASE_PUBLISHABLE_KEY_OR_ANON',
     critical: true,
     valid:
-      (hasValue(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) &&
-        !isPlaceholder(process.env.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
-      (hasValue(process.env.VITE_SUPABASE_ANON_KEY) && !isPlaceholder(process.env.VITE_SUPABASE_ANON_KEY)),
+      (hasValue(getEnv('VITE_SUPABASE_PUBLISHABLE_KEY')) &&
+        !isPlaceholder(getEnv('VITE_SUPABASE_PUBLISHABLE_KEY'))) ||
+      (hasValue(getEnv('VITE_SUPABASE_ANON_KEY')) && !isPlaceholder(getEnv('VITE_SUPABASE_ANON_KEY'))),
     help: 'Set either VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY.',
   },
   {
     key: 'SUPABASE_URL',
     critical: true,
-    valid: hasValue(process.env.SUPABASE_URL) && !isPlaceholder(process.env.SUPABASE_URL),
+    valid: hasValue(getEnv('SUPABASE_URL')) && !isPlaceholder(getEnv('SUPABASE_URL')),
     help: 'Supabase project URL for server-side /api routes.',
   },
   {
     key: 'SUPABASE_SERVICE_KEY_OR_ROLE',
     critical: true,
     valid:
-      (hasValue(process.env.SUPABASE_SERVICE_KEY) &&
-        !isPlaceholder(process.env.SUPABASE_SERVICE_KEY)) ||
-      (hasValue(process.env.SUPABASE_SERVICE_ROLE_KEY) &&
-        !isPlaceholder(process.env.SUPABASE_SERVICE_ROLE_KEY)),
+      (hasValue(getEnv('SUPABASE_SERVICE_KEY')) &&
+        !isPlaceholder(getEnv('SUPABASE_SERVICE_KEY'))) ||
+      (hasValue(getEnv('SUPABASE_SERVICE_ROLE_KEY')) &&
+        !isPlaceholder(getEnv('SUPABASE_SERVICE_ROLE_KEY'))),
     help: 'Set SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY).',
   },
   {
     key: 'VITE_SUPABASE_AUTH_REDIRECT_URL',
     critical: true,
     valid:
-      hasValue(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL) &&
-      !isPlaceholder(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL) &&
-      !isLocalUrl(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL),
+      hasValue(getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL')) &&
+      !isPlaceholder(getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL')) &&
+      !isLocalUrl(getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL')),
     help: `Use ${APP_URL} for production; avoid localhost.`,
   },
   {
     key: 'VITE_PAYSTACK_PUBLIC_KEY',
     critical: true,
     valid:
-      (hasValue(process.env.VITE_PAYSTACK_PUBLIC_KEY) &&
-        !isPlaceholder(process.env.VITE_PAYSTACK_PUBLIC_KEY)) ||
-      (hasValue(process.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY) &&
-        !isPlaceholder(process.env.VITE_PAYSTACK_LIVE_PUBLIC_KEY)),
+      (hasValue(getEnv('VITE_PAYSTACK_PUBLIC_KEY')) &&
+        !isPlaceholder(getEnv('VITE_PAYSTACK_PUBLIC_KEY'))) ||
+      (hasValue(getEnv('VITE_PAYSTACK_LIVE_PUBLIC_KEY')) &&
+        !isPlaceholder(getEnv('VITE_PAYSTACK_LIVE_PUBLIC_KEY'))),
     help: 'Public Paystack key used by checkout widget.',
   },
   {
     key: 'PAYSTACK_SECRET_KEY',
     critical: true,
     valid:
-      (hasValue(process.env.PAYSTACK_SECRET_KEY) && !isPlaceholder(process.env.PAYSTACK_SECRET_KEY)) ||
-      (hasValue(process.env.PAYSTACK_SERVICE_KEY) && !isPlaceholder(process.env.PAYSTACK_SERVICE_KEY)),
+      (hasValue(getEnv('PAYSTACK_SECRET_KEY')) && !isPlaceholder(getEnv('PAYSTACK_SECRET_KEY'))) ||
+      (hasValue(getEnv('PAYSTACK_SERVICE_KEY')) && !isPlaceholder(getEnv('PAYSTACK_SERVICE_KEY'))),
     help: 'Server-side Paystack secret for finalize + webhook verification.',
   },
   {
     key: 'VITE_VAPID_PUBLIC_KEY',
     critical: false,
-    valid: hasValue(process.env.VITE_VAPID_PUBLIC_KEY) && !isPlaceholder(process.env.VITE_VAPID_PUBLIC_KEY),
+    valid: hasValue(getEnv('VITE_VAPID_PUBLIC_KEY')) && !isPlaceholder(getEnv('VITE_VAPID_PUBLIC_KEY')),
     help: 'Required for browser push subscription.',
   },
   {
     key: 'VAPID_PRIVATE_KEY',
     critical: false,
-    valid: hasValue(process.env.VAPID_PRIVATE_KEY) && !isPlaceholder(process.env.VAPID_PRIVATE_KEY),
+    valid: hasValue(getEnv('VAPID_PRIVATE_KEY')) && !isPlaceholder(getEnv('VAPID_PRIVATE_KEY')),
     help: 'Required for server-side push sending.',
   },
   {
     key: 'FCM_SERVER_KEY',
     critical: false,
-    valid: hasValue(process.env.FCM_SERVER_KEY) && !isPlaceholder(process.env.FCM_SERVER_KEY),
+    valid: hasValue(getEnv('FCM_SERVER_KEY')) && !isPlaceholder(getEnv('FCM_SERVER_KEY')),
     help: 'Required for Android/iOS push delivery via Firebase.',
+  },
+];
+
+const nativeChecks = [
+  {
+    key: 'ANDROID_GOOGLE_SERVICES_JSON',
+    valid: fileExists(path.join('android', 'app', 'google-services.json')),
+    help: 'Place Firebase google-services.json in android/app before enabling native Android push.',
+  },
+  {
+    key: 'IOS_GOOGLE_SERVICE_INFO_PLIST',
+    valid: fileExists(path.join('ios', 'App', 'App', 'GoogleService-Info.plist')),
+    help: 'Place Firebase GoogleService-Info.plist in ios/App/App before enabling native iOS push.',
+  },
+  {
+    key: 'ANDROID_RELEASE_SIGNING',
+    valid:
+      (fileExists(path.join('android', 'keystore.properties')) && androidStoreFileExists) ||
+      (hasValue(getEnv('ANDROID_SIGNING_STORE_FILE')) &&
+        hasValue(getEnv('ANDROID_SIGNING_STORE_PASSWORD')) &&
+        hasValue(getEnv('ANDROID_SIGNING_KEY_ALIAS')) &&
+        hasValue(getEnv('ANDROID_SIGNING_KEY_PASSWORD'))),
+    help:
+      'Provide android/keystore.properties plus the keystore file, or set ANDROID_SIGNING_* env vars for signed Play uploads.',
   },
 ];
 
 const criticalFailures = checks.filter((check) => check.critical && !check.valid);
 const optionalFailures = checks.filter((check) => !check.critical && !check.valid);
+const nativeWarnings = nativeChecks.filter((check) => !check.valid);
 
 console.log('\nBabyCore Production Config Check\n');
 for (const check of checks) {
   const symbol = check.valid ? 'PASS' : check.critical ? 'FAIL' : 'WARN';
   console.log(`${symbol.padEnd(5)} ${check.key}`);
+}
+
+if (nativeChecks.length > 0) {
+  console.log('\nNative Mobile Readiness');
+  for (const check of nativeChecks) {
+    const symbol = check.valid ? 'PASS' : 'WARN';
+    console.log(`${symbol.padEnd(5)} ${check.key}`);
+  }
 }
 
 console.log('\nExpected Provider URLs');
@@ -140,6 +224,13 @@ if (criticalFailures.length > 0) {
 if (optionalFailures.length > 0) {
   console.log('\nOptional but recommended:');
   for (const item of optionalFailures) {
+    console.log(`- ${item.key}: ${item.help}`);
+  }
+}
+
+if (nativeWarnings.length > 0) {
+  console.log('\nNative release follow-up:');
+  for (const item of nativeWarnings) {
     console.log(`- ${item.key}: ${item.help}`);
   }
 }

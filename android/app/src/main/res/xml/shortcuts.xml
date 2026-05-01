@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="feeding"
+        android:shortcutLongLabel="@string/shortcut_feed_long"
+        android:shortcutShortLabel="@string/shortcut_feed_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="com.babylog.app://open/feeding?source=shortcut" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="sleep"
+        android:shortcutLongLabel="@string/shortcut_sleep_long"
+        android:shortcutShortLabel="@string/shortcut_sleep_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="com.babylog.app://open/sleep?source=shortcut" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="diaper"
+        android:shortcutLongLabel="@string/shortcut_diaper_long"
+        android:shortcutShortLabel="@string/shortcut_diaper_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="com.babylog.app://open/diaper?source=shortcut" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="emergency"
+        android:shortcutLongLabel="@string/shortcut_emergency_long"
+        android:shortcutShortLabel="@string/shortcut_emergency_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="com.babylog.app://open/emergency-card?source=shortcut" />
+    </shortcut>
+</shortcuts>

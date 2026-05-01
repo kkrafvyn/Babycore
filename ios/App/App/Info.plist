@@ -35,6 +35,55 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Open the feeding tracker</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Log Feed</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.babylog.app.open.feeding</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeTime</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Open the sleep tracker</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Log Sleep</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.babylog.app.open.sleep</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeTask</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Open the diaper tracker</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Log Diaper</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.babylog.app.open.diaper</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeLove</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Open the emergency card</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Emergency</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.babylog.app.open.emergency-card</string>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>BabyLog uses the camera so you can capture baby profile photos and monthly milestone memories directly in the app.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>BabyLog saves the photos you choose so your baby's timeline and gallery stay complete across devices.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BabyLog opens your photo library so you can attach baby photos, gallery memories, and milestone images.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>BabyLog reads the Apple Health data you choose to share so you can import sleep, steps, heart rate, activity, and temperature into your baby's care timeline.</string>
 	<key>NSHealthUpdateUsageDescription</key>
