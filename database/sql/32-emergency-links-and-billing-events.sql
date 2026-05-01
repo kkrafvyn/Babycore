@@ -9,19 +9,24 @@ DO $$
 DECLARE
   request_type_constraint_name TEXT;
 BEGIN
-  SELECT conname
-  INTO request_type_constraint_name
-  FROM pg_constraint
-  WHERE conrelid = 'public.care_approval_requests'::regclass
-    AND contype = 'c'
-    AND pg_get_constraintdef(oid) ILIKE '%request_type IN%';
+  ALTER TABLE public.care_approval_requests
+    DROP CONSTRAINT IF EXISTS care_approval_requests_request_type_check;
 
-  IF request_type_constraint_name IS NOT NULL THEN
+  FOR request_type_constraint_name IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.care_approval_requests'::regclass
+      AND contype = 'c'
+      AND (
+        conname <> 'care_approval_requests_request_type_check'
+        AND pg_get_constraintdef(oid) ILIKE '%request_type%'
+      )
+  LOOP
     EXECUTE format(
       'ALTER TABLE public.care_approval_requests DROP CONSTRAINT %I',
       request_type_constraint_name
     );
-  END IF;
+  END LOOP;
 
   ALTER TABLE public.care_approval_requests
     ADD CONSTRAINT care_approval_requests_request_type_check
