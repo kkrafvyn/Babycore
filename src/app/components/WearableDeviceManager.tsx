@@ -9,6 +9,7 @@ import {
   Heart,
   Plus,
   RefreshCw,
+  ShieldCheck,
   Smartphone,
   Thermometer,
   Trash2,
@@ -60,6 +61,17 @@ const DATA_TYPE_OPTIONS: Array<{ value: WearableDataType; label: string; default
 ];
 
 const SOURCE_OPTIONS = ['manual', ...DEVICE_OPTIONS.map((option) => option.type)];
+const APPLE_HEALTH_PERMISSION_COPY =
+  "BabyLog requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Apple Health at any time by disconnecting the source in Wearables.";
+const HEALTH_CONNECT_PERMISSION_COPY =
+  "BabyLog requests read-only access to heart rate, steps, sleep, exercise duration, and body temperature from Android Health Connect. We use these readings only to import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Health Connect at any time by disconnecting the source in Wearables.";
+const WEARABLE_HEALTH_FIELDS = [
+  'heart rate',
+  'steps',
+  'sleep sessions',
+  'exercise duration',
+  'body temperature',
+] as const;
 
 const defaultUnitForType = (type: WearableDataType): string =>
   DATA_TYPE_OPTIONS.find((option) => option.value === type)?.defaultUnit || '';
@@ -252,6 +264,19 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
     () => new Set(connectedDevices.map((device) => device.device_type)),
     [connectedDevices],
   );
+  const activeNativeHealthSource = nativeStatus.source === 'apple_health' || nativeStatus.source === 'health_connect'
+    ? nativeStatus.source
+    : connectedTypes.has('apple_health')
+      ? 'apple_health'
+      : connectedTypes.has('health_connect')
+        ? 'health_connect'
+        : null;
+  const activeNativeHealthPermissionCopy =
+    activeNativeHealthSource === 'apple_health'
+      ? APPLE_HEALTH_PERMISSION_COPY
+      : activeNativeHealthSource === 'health_connect'
+        ? HEALTH_CONNECT_PERMISSION_COPY
+        : null;
 
   const loadConnectedDevices = async () => {
     if (!user?.id) {
@@ -309,6 +334,18 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
     }
 
     setSyncingNative(true);
+    if (nativeStatus.source === 'apple_health' || nativeStatus.source === 'health_connect') {
+      const permissionCopy =
+        nativeStatus.source === 'apple_health' ? APPLE_HEALTH_PERMISSION_COPY : HEALTH_CONNECT_PERMISSION_COPY;
+      const destinationLabel =
+        nativeStatus.source === 'apple_health' ? 'Apple Health' : 'Android Health Connect';
+      const accepted = window.confirm(`${permissionCopy}\n\nContinue to ${destinationLabel} permissions?`);
+      if (!accepted) {
+        setSyncingNative(false);
+        return;
+      }
+    }
+
     const permission = await requestNativeWearablePermissions();
     if (!permission.granted) {
       setSyncingNative(false);
@@ -520,6 +557,36 @@ export function WearableDeviceManager({ babyId, babyName }: WearableDeviceManage
                 </div>
               </CardContent>
             </Card>
+
+            {activeNativeHealthPermissionCopy && activeNativeHealthSource ? (
+              <Card className="border-amber-200 bg-amber-50/70 dark:border-amber-800/60 dark:bg-amber-950/20">
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                        {formatDeviceLabel(activeNativeHealthSource as WearableDeviceType)} access
+                      </div>
+                      <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+                        {activeNativeHealthPermissionCopy}
+                      </p>
+                      <div className="flex flex-wrap gap-2 text-[11px] text-amber-900 dark:text-amber-200">
+                        {WEARABLE_HEALTH_FIELDS.map((field) => (
+                          <span
+                            key={field}
+                            className="rounded-full border border-amber-300/80 bg-white/80 px-2.5 py-1 dark:border-amber-700 dark:bg-amber-950/30"
+                          >
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
             {connectedDevices.length === 0 ? (
               <div className="rounded-2xl border border-dashed p-5 text-center text-sm text-gray-600 dark:text-gray-400">

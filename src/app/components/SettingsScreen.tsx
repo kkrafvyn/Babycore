@@ -108,15 +108,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const isEnabled = !settings?.notificationsEnabled;
     if (isEnabled) {
       const permissionGranted = await NotificationsManager.requestPermission();
-      const subscription = await NotificationsManager.subscribeToPush();
       await updateSettings({ notificationsEnabled: true });
 
-      if (subscription) {
-        toast.success(i18nT('settings.pushEnabled'));
-      } else if (!permissionGranted) {
-        toast('In-app reminders were enabled, but browser push is still unavailable on this device.');
+      if (permissionGranted) {
+        toast.success('Local reminders enabled.');
       } else {
-        toast('Notifications are enabled. Push delivery could not be fully activated yet.');
+        toast('Local reminders are on, but system notification permissions are limited on this device.');
       }
       return;
     } else {
@@ -145,15 +142,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       }
     }
     await updateSettings({ biometricLockEnabled: isEnabled });
-  };
-
-  const handlePushSubscribe = async () => {
-    const subscription = await NotificationsManager.subscribeToPush();
-    if (subscription) {
-      toast.success(i18nT('settings.pushEnabled'));
-    } else {
-      toast.error(i18nT('settings.pushDisabled'));
-    }
   };
 
   const openEditBaby = (baby: any) => {
@@ -499,17 +487,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       </button>
                     </div>
                  </div>
-                 {settings?.notificationsEnabled && (
-                    <div className="p-4 sm:p-8 bg-surface-gray/30 dark:bg-zinc-900/10">
-                       <button 
-                         onClick={handlePushSubscribe}
-                         title="Subscribe to push notifications"
-                         className="w-full py-3.5 sm:py-4 bg-secondary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                       >
-                         {i18nT('settings.subscribe')}
-                       </button>
-                    </div>
-                 )}
+                  {settings?.notificationsEnabled && (
+                     <div className="p-4 sm:p-8 bg-surface-gray/30 dark:bg-zinc-900/10">
+                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-text-light leading-relaxed">
+                          Local reminders stay on this device. Remote push is currently turned off.
+                        </p>
+                     </div>
+                  )}
                  {/* Partner Sync */}
                  <button onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { screen: 'partner-sync' } }))} className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left">
                     <div className="flex items-center gap-3 sm:gap-5 min-w-0">

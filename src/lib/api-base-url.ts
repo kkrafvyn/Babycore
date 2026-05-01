@@ -1,8 +1,11 @@
+import { Capacitor } from '@capacitor/core';
+
 const isLocalHost = (hostname: string): boolean =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/$/, '');
 const loggedWarnings = new Set<string>();
+const isNativeRuntime = (): boolean => typeof window !== 'undefined' && Capacitor.isNativePlatform();
 
 const shouldLogRuntimeWarning = (): boolean => {
   if (typeof window === 'undefined') {
@@ -72,11 +75,44 @@ const sanitizeConfiguredBaseUrl = (
   }
 };
 
+const sanitizeNativeBaseUrl = (configuredUrl: string): string | undefined => {
+  const sanitized = sanitizeConfiguredBaseUrl(configuredUrl, false);
+  if (!sanitized) {
+    return undefined;
+  }
+
+  if (sanitized.startsWith('/')) {
+    warnOnce(
+      `Ignoring native API base URL "${configuredUrl}" because bundled native apps require an absolute hosted API URL.`,
+    );
+    return undefined;
+  }
+
+  return sanitized;
+};
+
 export const getApiBaseUrl = (): string => {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
   const configuredProductionBaseUrl = import.meta.env.VITE_API_BASE_URL_PROD || '';
+  const configuredNativeBaseUrl = import.meta.env.VITE_NATIVE_API_BASE_URL || '';
 
   if (typeof window !== 'undefined') {
+    if (isNativeRuntime()) {
+      const safeNativeBaseUrl =
+        sanitizeNativeBaseUrl(configuredNativeBaseUrl) ||
+        sanitizeNativeBaseUrl(configuredProductionBaseUrl) ||
+        sanitizeNativeBaseUrl(configuredBaseUrl);
+
+      if (safeNativeBaseUrl) {
+        return safeNativeBaseUrl;
+      }
+
+      warnOnce(
+        'Native app is falling back to "/api". Set VITE_NATIVE_API_BASE_URL to your hosted API root for production mobile builds.',
+      );
+      return '/api';
+    }
+
     const appIsLocal = isLocalHost(window.location.hostname);
     const appOrigin = window.location.origin;
     const currentHostname = window.location.hostname.toLowerCase();

@@ -85,9 +85,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>BabyLog opens your photo library so you can attach baby photos, gallery memories, and milestone images.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>BabyLog reads the Apple Health data you choose to share so you can import sleep, steps, heart rate, activity, and temperature into your baby's care timeline.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>BabyLog may save wearable-linked health entries you confirm so your baby's care timeline stays in sync across devices.</string>
+	<string>BabyLog requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

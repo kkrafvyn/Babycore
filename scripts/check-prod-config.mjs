@@ -19,10 +19,24 @@ const readEnvFile = (filename) => {
   }
 };
 
+const readJsonFile = (filename) => {
+  const filePath = path.join(repoRoot, filename);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+};
+
 const fileEnv = {
   ...readEnvFile('.env'),
   ...readEnvFile('.env.production'),
 };
+const capacitorConfig = readJsonFile('capacitor.config.json');
 
 const getEnv = (key) => process.env[key] ?? fileEnv[key];
 
@@ -34,6 +48,9 @@ const APP_URL =
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');
 const hasValue = (value) => toStringValue(value).length > 0;
+const isTruthy = (value) => ['1', 'true', 'yes', 'on'].includes(toStringValue(value).toLowerCase());
+const nativeRemotePushEnabled =
+  isTruthy(getEnv('VITE_NATIVE_REMOTE_PUSH_ENABLED')) || isTruthy(getEnv('NATIVE_REMOTE_PUSH_ENABLED'));
 
 const isPlaceholder = (value) => {
   const normalized = toStringValue(value).toLowerCase();
@@ -55,6 +72,18 @@ const isLocalUrl = (value) => {
   try {
     const parsed = new URL(raw);
     return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const isHostedUrl = (value) => {
+  const raw = toStringValue(value);
+  if (!raw) return false;
+
+  try {
+    const parsed = new URL(raw);
+    return !['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
   } catch {
     return false;
   }
@@ -84,6 +113,7 @@ const androidStoreFileExists = Boolean(
   androidStoreFileSetting &&
     fs.existsSync(path.resolve(repoRoot, 'android', androidStoreFileSetting)),
 );
+const nativeBundledShell = !toStringValue(capacitorConfig?.server?.url);
 
 const checks = [
   {
@@ -156,24 +186,27 @@ const checks = [
     valid: hasValue(getEnv('VAPID_PRIVATE_KEY')) && !isPlaceholder(getEnv('VAPID_PRIVATE_KEY')),
     help: 'Required for server-side push sending.',
   },
-  {
+];
+
+if (nativeRemotePushEnabled) {
+  checks.push({
     key: 'FCM_SERVER_KEY',
     critical: false,
     valid: hasValue(getEnv('FCM_SERVER_KEY')) && !isPlaceholder(getEnv('FCM_SERVER_KEY')),
-    help: 'Required for Android/iOS push delivery via Firebase.',
-  },
-];
+    help: 'Required for Android/iOS remote push delivery when native remote push is enabled.',
+  });
+}
 
 const nativeChecks = [
   {
-    key: 'ANDROID_GOOGLE_SERVICES_JSON',
-    valid: fileExists(path.join('android', 'app', 'google-services.json')),
-    help: 'Place Firebase google-services.json in android/app before enabling native Android push.',
-  },
-  {
-    key: 'IOS_GOOGLE_SERVICE_INFO_PLIST',
-    valid: fileExists(path.join('ios', 'App', 'App', 'GoogleService-Info.plist')),
-    help: 'Place Firebase GoogleService-Info.plist in ios/App/App before enabling native iOS push.',
+    key: 'NATIVE_API_BASE_URL',
+    valid:
+      !nativeBundledShell ||
+      (hasValue(getEnv('VITE_NATIVE_API_BASE_URL')) &&
+        !isPlaceholder(getEnv('VITE_NATIVE_API_BASE_URL')) &&
+        isHostedUrl(getEnv('VITE_NATIVE_API_BASE_URL'))),
+    help:
+      'Set VITE_NATIVE_API_BASE_URL to a hosted API root such as https://babycore.vercel.app/api because this Capacitor app bundles local web assets.',
   },
   {
     key: 'ANDROID_RELEASE_SIGNING',
@@ -187,6 +220,21 @@ const nativeChecks = [
       'Provide android/keystore.properties plus the keystore file, or set ANDROID_SIGNING_* env vars for signed Play uploads.',
   },
 ];
+
+if (nativeRemotePushEnabled) {
+  nativeChecks.unshift(
+    {
+      key: 'ANDROID_GOOGLE_SERVICES_JSON',
+      valid: fileExists(path.join('android', 'app', 'google-services.json')),
+      help: 'Place Firebase google-services.json in android/app before enabling native Android remote push.',
+    },
+    {
+      key: 'IOS_GOOGLE_SERVICE_INFO_PLIST',
+      valid: fileExists(path.join('ios', 'App', 'App', 'GoogleService-Info.plist')),
+      help: 'Place Firebase GoogleService-Info.plist in ios/App/App before enabling native iOS remote push.',
+    },
+  );
+}
 
 const criticalFailures = checks.filter((check) => check.critical && !check.valid);
 const optionalFailures = checks.filter((check) => !check.critical && !check.valid);
@@ -203,6 +251,9 @@ if (nativeChecks.length > 0) {
   for (const check of nativeChecks) {
     const symbol = check.valid ? 'PASS' : 'WARN';
     console.log(`${symbol.padEnd(5)} ${check.key}`);
+  }
+  if (!nativeRemotePushEnabled) {
+    console.log('INFO  NATIVE_REMOTE_PUSH_DISABLED (local notifications only)');
   }
 }
 

@@ -11,6 +11,8 @@ import { getApiBaseUrl } from './api-base-url';
 import { buildNativeAppUrl } from './native-app-links';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+const NATIVE_REMOTE_PUSH_ENABLED =
+  String(import.meta.env.VITE_NATIVE_REMOTE_PUSH_ENABLED || '').toLowerCase() === 'true';
 const API_BASE_URL = getApiBaseUrl();
 const hasSupabaseClientConfig = Boolean(
   import.meta.env.VITE_SUPABASE_URL &&
@@ -705,6 +707,10 @@ export class NotificationsManager {
     try {
       const nativeBridge = await this.getNativePushBridge();
       if (nativeBridge) {
+        if (!NATIVE_REMOTE_PUSH_ENABLED) {
+          return null;
+        }
+
         const nativeToken = await this.registerNativePushToken();
         if (!nativeToken) {
           return null;
