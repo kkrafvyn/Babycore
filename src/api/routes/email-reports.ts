@@ -7,6 +7,8 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabase.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendTransactionalEmail } from '../utils/email.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
+import type { AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -58,7 +60,7 @@ const resolveUserEmail = async (
  * POST /api/email-reports/generate-weekly
  * Generate and send weekly digest email
  */
-export async function generateWeeklyDigest(req: Request, res: Response) {
+export async function generateWeeklyDigest(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const requesterEmail = req.user?.email as string | undefined;
@@ -68,12 +70,14 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const access = await ensureBabyAccess(req, res, String(babyId), {
+      write: true,
+      forbiddenMessage: 'You do not have permission to email reports for this baby',
+    });
+    if (!access) return;
+
     const userEmail = await resolveUserEmail(userId, requesterEmail);
-    const { data: baby } = await supabase
-      .from('babies')
-      .select('*')
-      .eq('id', babyId)
-      .single();
+    const baby = access.baby;
 
     if (!userEmail || !baby) {
       return res.status(404).json({ error: 'User or baby not found' });
@@ -152,7 +156,7 @@ export async function generateWeeklyDigest(req: Request, res: Response) {
  * POST /api/email-reports/send-milestone-announcement
  * Send announcement when baby reaches milestone
  */
-export async function sendMilestoneAnnouncement(req: Request, res: Response) {
+export async function sendMilestoneAnnouncement(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const requesterEmail = req.user?.email as string | undefined;
@@ -162,12 +166,14 @@ export async function sendMilestoneAnnouncement(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const access = await ensureBabyAccess(req, res, String(babyId), {
+      write: true,
+      forbiddenMessage: 'You do not have permission to send milestone announcements for this baby',
+    });
+    if (!access) return;
+
     const userEmail = await resolveUserEmail(userId, requesterEmail);
-    const { data: baby } = await supabase
-      .from('babies')
-      .select('*')
-      .eq('id', babyId)
-      .single();
+    const baby = access.baby;
 
     if (!userEmail || !baby) {
       return res.status(404).json({ error: 'User or baby not found' });
@@ -251,7 +257,7 @@ export async function scheduleNewsletter(req: Request, res: Response) {
  * POST /api/email-reports/preview
  * Get preview of email report
  */
-export async function getReportPreview(req: Request, res: Response) {
+export async function getReportPreview(req: AuthRequest, res: Response) {
   try {
     const { babyId, reportType = 'weekly' } = req.body;
 
@@ -259,12 +265,11 @@ export async function getReportPreview(req: Request, res: Response) {
       return res.status(400).json({ error: 'Baby ID required' });
     }
 
+    const access = await ensureBabyAccess(req, res, String(babyId));
+    if (!access) return;
+
     // Get report data for the selected preview window.
-    const { data: baby } = await supabase
-      .from('babies')
-      .select('*')
-      .eq('id', babyId)
-      .single();
+    const baby = access.baby;
 
     const startDate = new Date();
     if (reportType === 'weekly') {

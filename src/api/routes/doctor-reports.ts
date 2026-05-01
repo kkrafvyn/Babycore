@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuid } from 'uuid';
 import { sendTransactionalEmail } from '../utils/email.js';
+import { buildStorageReference, createSignedStorageUrl, ensureBabyAccess } from '../utils/baby-access.js';
+import type { AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -102,7 +104,7 @@ const hasBabyAccess = async (userId: string, userEmail: string | undefined, baby
  * POST /api/reports/generate
  * Generate a doctor/pediatrician report PDF
  */
-export async function generateDoctorReport(req: Request, res: Response) {
+export async function generateDoctorReport(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const userEmail = req.user?.email as string | undefined;
@@ -312,7 +314,6 @@ export async function generateDoctorReport(req: Request, res: Response) {
       throw upload.error;
     }
 
-    const publicUrl = supabase.storage.from('doctor-reports').getPublicUrl(fileName).data.publicUrl;
     const shareToken = uuid();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -320,7 +321,7 @@ export async function generateDoctorReport(req: Request, res: Response) {
       .from('doctor_reports')
       .insert({
         baby_id: babyId,
-        report_url: publicUrl,
+        report_url: buildStorageReference('doctor-reports', fileName),
         storage_key: fileName,
         report_type: reportType,
         date_range_start: start ? start.slice(0, 10) : null,
@@ -338,7 +339,10 @@ export async function generateDoctorReport(req: Request, res: Response) {
 
     return res.json({
       success: true,
-      report: insertResult.data,
+      report: {
+        ...insertResult.data,
+        report_url: await createSignedStorageUrl('doctor-reports', fileName, 24 * 60 * 60),
+      },
     });
   } catch (error: any) {
     console.error('Report generation error:', error);
@@ -365,7 +369,13 @@ export async function getSharedReport(req: Request, res: Response) {
       return res.status(404).json({ error: 'Report not found or expired' });
     }
 
-    return res.json(report);
+    const signedUrl = await createSignedStorageUrl('doctor-reports', report.storage_key, 60 * 60);
+    const { storage_key, shared_token, ...safeReport } = report as any;
+
+    return res.json({
+      ...safeReport,
+      report_url: signedUrl || report.report_url || null,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -375,7 +385,7 @@ export async function getSharedReport(req: Request, res: Response) {
  * POST /api/reports/email
  * Email report to pediatrician
  */
-export async function emailReportToDoctor(req: Request, res: Response) {
+export async function emailReportToDoctor(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { reportId, doctorEmail } = req.body;
@@ -394,7 +404,17 @@ export async function emailReportToDoctor(req: Request, res: Response) {
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    const reportUrl = report.report_url;
+    if (
+      !(await ensureBabyAccess(req, res, String(report.baby_id || ''), {
+        write: true,
+        forbiddenMessage: 'You do not have permission to share this report',
+      }))
+    )
+      return;
+
+    const reportUrl =
+      (await createSignedStorageUrl('doctor-reports', report.storage_key, 24 * 60 * 60)) ||
+      report.report_url;
     if (!reportUrl) {
       return res.status(400).json({ error: 'Report URL is missing' });
     }

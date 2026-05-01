@@ -7,6 +7,13 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import type { AuthRequest } from '../middleware/auth.js';
+import {
+  buildStorageReference,
+  createSignedStorageUrl,
+  ensureBabyAccess,
+  ensureRecordBabyAccess,
+} from '../utils/baby-access.js';
 
 const router = Router();
 
@@ -33,14 +40,22 @@ const extractVoiceStoragePath = (storageUrl: string): string | null => {
     return storageUrl.split(legacyMarker)[1] || null;
   }
 
+  const internalMarker = 'storage://voice-logs/';
+  if (storageUrl.startsWith(internalMarker)) {
+    return storageUrl.slice(internalMarker.length) || null;
+  }
+
   return null;
 };
+
+const getVoiceStoragePath = (voiceLog: { storage_key?: string | null; storage_url?: string | null }): string | null =>
+  String(voiceLog?.storage_key || '').trim() || extractVoiceStoragePath(String(voiceLog?.storage_url || ''));
 
 /**
  * POST /api/voice/upload
  * Upload and transcribe voice memo
  */
-export async function uploadVoiceMemo(req: Request, res: Response) {
+export async function uploadVoiceMemo(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { babyId, category = 'general' } = req.body;
@@ -48,6 +63,14 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
     if (!userId || !babyId || !req.file) {
       return res.status(400).json({ error: 'Missing required fields or file' });
     }
+
+    if (
+      !(await ensureBabyAccess(req, res, String(babyId), {
+        write: true,
+        forbiddenMessage: 'You do not have permission to upload voice logs for this baby',
+      }))
+    )
+      return;
 
     // Upload to Supabase Storage
     const fileName = `${babyId}/${Date.now()}-${uuidv4()}.wav`;
@@ -63,11 +86,6 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
       });
 
     if (uploadError) throw uploadError;
-
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from('voice-logs')
-      .getPublicUrl(fileName);
 
     // Transcribe audio
     const transcription = await transcribeAudio(req.file.buffer);
@@ -85,7 +103,8 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
         id: uuidv4(),
         baby_id: babyId,
         user_id: userId,
-        storage_url: publicUrl.publicUrl,
+        storage_key: fileName,
+        storage_url: buildStorageReference('voice-logs', fileName),
         category,
         transcription: transcription.text,
         confidence: transcription.confidence,
@@ -98,9 +117,15 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
 
     if (dbError) throw dbError;
 
+    const signedUrl = await createSignedStorageUrl('voice-logs', fileName);
+
     return res.status(201).json({
       success: true,
-      voiceLog,
+      voiceLog: {
+        ...voiceLog,
+        storage_url: signedUrl,
+        audio_url: signedUrl,
+      },
       transcription: transcription.text,
       cryAnalysis,
       message: 'Voice memo uploaded and transcribed',
@@ -115,7 +140,7 @@ export async function uploadVoiceMemo(req: Request, res: Response) {
  * GET /api/voice/logs
  * Get voice logs for a baby
  */
-export async function getVoiceLogs(req: Request, res: Response) {
+export async function getVoiceLogs(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { babyId, category, limit = 20, offset = 0 } = req.query;
@@ -123,6 +148,8 @@ export async function getVoiceLogs(req: Request, res: Response) {
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     let query = supabase
       .from('voice_logs')
@@ -140,10 +167,22 @@ export async function getVoiceLogs(req: Request, res: Response) {
 
     if (error) throw error;
 
+    const signedLogs = await Promise.all(
+      (logs || []).map(async (log: any) => {
+        const storagePath = getVoiceStoragePath(log);
+        const signedUrl = await createSignedStorageUrl('voice-logs', storagePath);
+        return {
+          ...log,
+          storage_url: signedUrl || log.storage_url || null,
+          audio_url: signedUrl || log.audio_url || null,
+        };
+      }),
+    );
+
     return res.json({
       success: true,
-      logs: logs || [],
-      count: logs?.length || 0,
+      logs: signedLogs,
+      count: signedLogs.length,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -154,7 +193,7 @@ export async function getVoiceLogs(req: Request, res: Response) {
  * POST /api/voice/analyze-cry
  * Analyze crying pattern from audio
  */
-export async function analyzeCry(req: Request, res: Response) {
+export async function analyzeCry(req: AuthRequest, res: Response) {
   try {
     const { voiceLogId } = req.body;
 
@@ -163,18 +202,22 @@ export async function analyzeCry(req: Request, res: Response) {
     }
 
     // Get voice log
-    const { data: voiceLog, error: fetchError } = await supabase
-      .from('voice_logs')
-      .select('*')
-      .eq('id', voiceLogId)
-      .single();
-
-    if (fetchError || !voiceLog) {
-      return res.status(404).json({ error: 'Voice log not found' });
-    }
+    const voiceLog = await ensureRecordBabyAccess<{
+      id: string;
+      baby_id: string;
+      storage_key?: string | null;
+      storage_url?: string | null;
+    }>(req, res, {
+      table: 'voice_logs',
+      idValue: String(voiceLogId),
+      select: 'id,baby_id,storage_key,storage_url',
+      write: true,
+      missingMessage: 'Voice log not found',
+    });
+    if (!voiceLog) return;
 
     // Download audio file
-    const storagePath = extractVoiceStoragePath(voiceLog.storage_url);
+    const storagePath = getVoiceStoragePath(voiceLog);
     if (!storagePath) {
       return res.status(400).json({ error: 'Voice file path is invalid' });
     }
@@ -212,7 +255,7 @@ export async function analyzeCry(req: Request, res: Response) {
  * GET /api/voice/cry-patterns
  * Get cry pattern trends over time
  */
-export async function getCryPatterns(req: Request, res: Response) {
+export async function getCryPatterns(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { babyId, daysBack = 30 } = req.query;
@@ -220,6 +263,8 @@ export async function getCryPatterns(req: Request, res: Response) {
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(daysBack));
@@ -253,7 +298,7 @@ export async function getCryPatterns(req: Request, res: Response) {
  * POST /api/voice/export-memories
  * Export voice logs as memories/scrapbook
  */
-export async function exportVoiceLogsAsMemories(req: Request, res: Response) {
+export async function exportVoiceLogsAsMemories(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { babyId, startDate, endDate } = req.body;
@@ -261,6 +306,14 @@ export async function exportVoiceLogsAsMemories(req: Request, res: Response) {
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    if (
+      !(await ensureBabyAccess(req, res, String(babyId), {
+        write: true,
+        forbiddenMessage: 'You do not have permission to export memories for this baby',
+      }))
+    )
+      return;
 
     let query = supabase
       .from('voice_logs')
@@ -319,7 +372,7 @@ export async function exportVoiceLogsAsMemories(req: Request, res: Response) {
  * DELETE /api/voice/:voiceLogId
  * Delete a voice log
  */
-export async function deleteVoiceLog(req: Request, res: Response) {
+export async function deleteVoiceLog(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const { voiceLogId } = req.params;
@@ -328,20 +381,22 @@ export async function deleteVoiceLog(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get log to get storage path
-    const { data: log, error: fetchError } = await supabase
-      .from('voice_logs')
-      .select('storage_url')
-      .eq('id', voiceLogId)
-      .eq('user_id', userId)
-      .single();
-
-    if (fetchError || !log) {
-      return res.status(404).json({ error: 'Voice log not found' });
-    }
+    const log = await ensureRecordBabyAccess<{
+      id: string;
+      baby_id: string;
+      storage_key?: string | null;
+      storage_url?: string | null;
+    }>(req, res, {
+      table: 'voice_logs',
+      idValue: String(voiceLogId),
+      select: 'id,baby_id,storage_key,storage_url',
+      write: true,
+      missingMessage: 'Voice log not found',
+    });
+    if (!log) return;
 
     // Delete from storage
-    const fileName = extractVoiceStoragePath(log.storage_url);
+    const fileName = getVoiceStoragePath(log);
     if (fileName) {
       await supabase.storage.from('voice-logs').remove([fileName]);
     }

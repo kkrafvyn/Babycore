@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +22,8 @@ router.post('/record', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId || !vaccineName) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
 
     const hasGivenDate = Boolean(dateGiven);
     const { data: record, error } = await supabase
@@ -58,6 +61,8 @@ router.get('/records', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId) {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const { data: records, error } = await supabase
       .from('vaccination_records')

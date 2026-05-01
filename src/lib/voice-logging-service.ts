@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { buildStorageReference, createSignedStorageUrl } from './storage-signed-url';
 
 export interface VoiceLog {
   id: string;
@@ -17,6 +18,12 @@ export interface VoiceRecognitionResult {
   cry_type?: 'hunger' | 'tired' | 'diaper' | 'pain' | 'unknown';
   confidence_score: number;
 }
+
+const hydrateVoiceLog = async (log: VoiceLog): Promise<VoiceLog> => ({
+  ...log,
+  audio_url:
+    (await createSignedStorageUrl('voice-logs', log.storage_key, log.audio_url)) || log.audio_url,
+});
 
 const getJsonHeaders = async (): Promise<Record<string, string>> => {
   const auth = supabase.auth as any;
@@ -54,17 +61,12 @@ export async function uploadVoiceMemo(
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from('voice-logs')
-      .getPublicUrl(fileName);
-
     // Save to database
     const { data, error } = await supabase
       .from('voice_logs')
       .insert({
         baby_id: babyId,
-        audio_url: publicUrl.publicUrl,
+        audio_url: buildStorageReference('voice-logs', fileName),
         storage_key: fileName,
         duration_seconds: durationSeconds,
         log_type: logType,
@@ -74,10 +76,14 @@ export async function uploadVoiceMemo(
 
     if (error) throw error;
 
-    // Queue for transcription (async)
-    transcribeVoiceLog(data.id, publicUrl.publicUrl);
+    const hydratedLog = await hydrateVoiceLog(data as VoiceLog);
 
-    return data;
+    // Queue for transcription (async)
+    if (hydratedLog.audio_url) {
+      transcribeVoiceLog(hydratedLog.id, hydratedLog.audio_url);
+    }
+
+    return hydratedLog;
   } catch (err) {
     console.error('Error uploading voice memo:', err);
     return null;
@@ -187,7 +193,7 @@ export async function getVoiceLogs(
     const { data, error } = await query;
 
     if (error) throw error;
-    return data || [];
+    return await Promise.all(((data || []) as VoiceLog[]).map((log) => hydrateVoiceLog(log)));
   } catch (err) {
     console.error('Error fetching voice logs:', err);
     return [];

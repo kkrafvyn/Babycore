@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 
 const router = Router();
@@ -20,6 +21,8 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
     if (!babyId) {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const [feedingStats, sleepStats, diaperStats, healthAlerts] = await Promise.all([
       supabase
@@ -95,6 +98,8 @@ router.get('/trends', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Baby ID and metric required' });
     }
 
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
+
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(daysBack));
 
@@ -127,6 +132,8 @@ router.get('/export', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId) {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const [feeding, sleep, diaper] = await Promise.all([
       supabase.from('feed_logs').select('*').eq('baby_id', babyId),

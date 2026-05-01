@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess, ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +22,8 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId || !type || !datetime) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
 
     const { data: appointment, error } = await supabase
       .from('doctor_appointments')
@@ -60,6 +63,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
 
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
+
     const { data: appointments, error } = await supabase
       .from('doctor_appointments')
       .select('*')
@@ -83,6 +88,16 @@ router.put('/:appointmentId', requireAuth, async (req: AuthRequest, res: Respons
     const { appointmentId } = req.params;
     const { datetime, notes, status } = req.body;
 
+    if (
+      !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+        table: 'doctor_appointments',
+        idValue: appointmentId,
+        write: true,
+        missingMessage: 'Appointment not found',
+      }))
+    )
+      return;
+
     const { data: appointment, error } = await supabase
       .from('doctor_appointments')
       .update({ scheduled_datetime: datetime, notes, status })
@@ -105,6 +120,16 @@ router.put('/:appointmentId', requireAuth, async (req: AuthRequest, res: Respons
 router.delete('/:appointmentId', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { appointmentId } = req.params;
+
+    if (
+      !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+        table: 'doctor_appointments',
+        idValue: appointmentId,
+        write: true,
+        missingMessage: 'Appointment not found',
+      }))
+    )
+      return;
 
     const { error } = await supabase
       .from('doctor_appointments')

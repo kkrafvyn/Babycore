@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
+import { resolveBabyAccessForIdentity } from '../utils/baby-access.js';
 
 const router = Router();
 
@@ -19,6 +20,10 @@ export async function analyzeSleepPatterns(req: Request, res: Response) {
 
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!(await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId))).allowed) {
+      return res.status(403).json({ error: 'Unauthorized baby access' });
     }
 
     // Fetch sleep logs
@@ -67,6 +72,10 @@ export async function predictNextSleep(req: Request, res: Response) {
 
     if (!userId || !babyId) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!(await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId))).allowed) {
+      return res.status(403).json({ error: 'Unauthorized baby access' });
     }
 
     // Fetch recent sleep logs
@@ -121,6 +130,10 @@ export async function predictMilestone(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    if (!(await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId))).allowed) {
+      return res.status(403).json({ error: 'Unauthorized baby access' });
+    }
+
     // Fetch baby growth data
     const { data: baby } = await supabase
       .from('babies')
@@ -168,7 +181,16 @@ export async function predictMilestone(req: Request, res: Response) {
  */
 export async function analyzeGrowthTrajectory(req: Request, res: Response) {
   try {
+    const userId = req.user?.id;
     const { babyId } = req.body;
+
+    if (!userId || !babyId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!(await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId))).allowed) {
+      return res.status(403).json({ error: 'Unauthorized baby access' });
+    }
 
     const { data: measurements } = await supabase
       .from('growth_measurements')
@@ -207,30 +229,18 @@ export async function generateScrapbookSummary(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const access = await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId));
+    if (!access.allowed) {
+      return res.status(403).json({ error: 'Unauthorized baby access' });
+    }
+
     const targetYear = Number.isFinite(Number(year)) ? Number(year) : new Date().getFullYear();
     const targetMonth = Number.isFinite(Number(month)) ? Number(month) : new Date().getMonth() + 1;
     const monthStart = new Date(targetYear, Math.max(0, targetMonth - 1), 1);
     const monthEnd = new Date(targetYear, Math.max(0, targetMonth), 1);
 
-    const ownerCheck = await supabase
-      .from('babies')
-      .select('id,name')
-      .eq('id', babyId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!ownerCheck.data) {
-      const sharedCheck = await supabase
-        .from('family_sharing_invites')
-        .select('id')
-        .eq('baby_id', babyId)
-        .eq('accepted_by', userId)
-        .not('accepted_at', 'is', null)
-        .maybeSingle();
-
-      if (!sharedCheck.data) {
-        return res.status(403).json({ error: 'Unauthorized baby access' });
-      }
+    if (!access.baby) {
+      return res.status(404).json({ error: 'Baby not found' });
     }
 
     const safeQuery = async (table: string, dateField: string, columns = '*') => {
@@ -264,7 +274,7 @@ export async function generateScrapbookSummary(req: Request, res: Response) {
     const sleeps = sleepsRaw as any[];
     const diapers = diapersRaw as any[];
 
-    const babyName = ownerCheck.data?.name || 'Baby';
+    const babyName = access.baby?.name || 'Baby';
     const monthLabel = monthStart.toLocaleString('default', { month: 'long' });
 
     const firstEntry = entries[0]?.text || memories[0]?.text || '';
@@ -328,8 +338,8 @@ export async function careCopilot(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    const babyAccess = await resolveBabyAccess(userId, babyId, req.user?.email);
-    if (!babyAccess) {
+    const babyAccess = await resolveBabyAccessForIdentity(userId, req.user?.email, String(babyId));
+    if (!babyAccess.allowed || !babyAccess.baby) {
       return res.status(403).json({ success: false, error: 'Unauthorized baby access' });
     }
 
@@ -367,8 +377,8 @@ export async function careCopilot(req: Request, res: Response) {
     ]);
 
     const contextSummary = buildCareContextSummary({
-      babyName: babyAccess.name || 'Baby',
-      dateOfBirth: babyAccess.date_of_birth || babyAccess.dateOfBirth || undefined,
+      babyName: babyAccess.baby?.name || 'Baby',
+      dateOfBirth: babyAccess.baby?.date_of_birth || babyAccess.baby?.dateOfBirth || undefined,
       feeds: recentFeeds.data || [],
       sleeps: recentSleeps.data || [],
       diapers: recentDiapers.data || [],
@@ -445,66 +455,6 @@ export async function careCopilot(req: Request, res: Response) {
 }
 
 // Helper functions
-async function resolveBabyAccess(
-  userId: string,
-  babyId: string,
-  userEmail?: string,
-): Promise<any | null> {
-  const owner = await supabase
-    .from('babies')
-    .select('id,name,date_of_birth')
-    .eq('id', babyId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (owner.data) {
-    return owner.data;
-  }
-
-  const normalizedEmail = String(userEmail || '').toLowerCase();
-  const [inviteByUser, inviteByEmail, doctorAssignment] = await Promise.all([
-    supabase
-      .from('family_sharing_invites')
-      .select('id,baby_name_snapshot')
-      .eq('baby_id', babyId)
-      .eq('accepted_by', userId)
-      .not('accepted_at', 'is', null)
-      .maybeSingle(),
-    normalizedEmail
-      ? supabase
-          .from('family_sharing_invites')
-          .select('id,baby_name_snapshot')
-          .eq('baby_id', babyId)
-          .ilike('invited_email', normalizedEmail)
-          .not('accepted_at', 'is', null)
-          .maybeSingle()
-      : Promise.resolve({ data: null } as any),
-    supabase
-      .from('doctor_baby_assignments')
-      .select('id,status')
-      .eq('baby_id', babyId)
-      .eq('doctor_id', userId)
-      .in('status', ['active', 'pending'])
-      .maybeSingle(),
-  ]);
-
-  if (inviteByUser.data || inviteByEmail.data || doctorAssignment.data) {
-    const baby = await supabase
-      .from('babies')
-      .select('id,name,date_of_birth')
-      .eq('id', babyId)
-      .maybeSingle();
-    return (
-      baby.data || {
-        id: babyId,
-        name: inviteByUser.data?.baby_name_snapshot || inviteByEmail.data?.baby_name_snapshot || 'Baby',
-      }
-    );
-  }
-
-  return null;
-}
-
 function summarizeLastTimestamp(rows: any[], field: string): string {
   if (!rows.length) return 'none';
   const latest = new Date(rows[0][field] || rows[0].created_at || rows[0].date || Date.now());

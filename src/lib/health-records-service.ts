@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { buildStorageReference, createSignedStorageUrl } from './storage-signed-url';
 
 export interface HealthRecord {
   id: string;
@@ -53,6 +54,39 @@ const isMissingRelationError = (error: unknown): boolean => {
   return value.includes('does not exist') || value.includes('relation');
 };
 
+const hydrateHealthRecord = async (record: HealthRecord): Promise<HealthRecord> => ({
+  ...record,
+  file_url:
+    (await createSignedStorageUrl('health-records', record.storage_key, record.file_url)) ||
+    record.file_url,
+});
+
+const extractBucketStorageKey = (bucket: string, value?: string | null): string | null => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  if (!/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  const marker = `/${bucket}/`;
+  if (!raw.includes(marker)) {
+    return null;
+  }
+
+  return raw.split(marker)[1] || null;
+};
+
+const hydrateAllergy = async (allergy: Allergy): Promise<Allergy> => ({
+  ...allergy,
+  photo_url:
+    (await createSignedStorageUrl(
+      'allergy-photos',
+      extractBucketStorageKey('allergy-photos', allergy.photo_url),
+      allergy.photo_url,
+    )) || allergy.photo_url,
+});
+
 /**
  * Create health record
  */
@@ -65,7 +99,6 @@ export async function createHealthRecord(
   tags?: string[]
 ): Promise<HealthRecord | null> {
   try {
-    let fileUrl: string | undefined;
     let storageKey: string | undefined;
 
     if (file) {
@@ -76,11 +109,6 @@ export async function createHealthRecord(
 
       if (uploadError) throw uploadError;
 
-      const { data: publicUrl } = supabase.storage
-        .from('health-records')
-        .getPublicUrl(fileName);
-
-      fileUrl = publicUrl.publicUrl;
       storageKey = fileName;
     }
 
@@ -91,7 +119,7 @@ export async function createHealthRecord(
         record_type: recordType,
         title,
         description,
-        file_url: fileUrl,
+        file_url: buildStorageReference('health-records', storageKey),
         storage_key: storageKey,
         date_recorded: new Date().toISOString().split('T')[0],
         tags: tags || [],
@@ -130,7 +158,7 @@ export async function getHealthRecords(
     const { data, error } = await query;
 
     if (error) throw error;
-    return data || [];
+    return await Promise.all(((data || []) as HealthRecord[]).map((record) => hydrateHealthRecord(record)));
   } catch (err) {
     console.error('Error fetching health records:', err);
     return [];
@@ -158,11 +186,7 @@ export async function addAllergy(
 
       if (uploadError) throw uploadError;
 
-      const { data: publicUrl } = supabase.storage
-        .from('allergy-photos')
-        .getPublicUrl(fileName);
-
-      photoUrl = publicUrl.publicUrl;
+      photoUrl = fileName;
     }
 
     const { data, error } = await supabase
@@ -198,7 +222,7 @@ export async function getAllergies(babyId: string): Promise<Allergy[]> {
       .order('discovered_date', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return await Promise.all(((data || []) as Allergy[]).map((allergy) => hydrateAllergy(allergy)));
   } catch (err) {
     console.error('Error fetching allergies:', err);
     return [];

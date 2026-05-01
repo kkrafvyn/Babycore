@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +22,8 @@ router.post('/log', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId || !category || !amount) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
 
     const { data: expense, error } = await supabase
       .from('baby_expenses')
@@ -58,6 +61,8 @@ router.get('/logs', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
 
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
+
     const { data: expenses, error, count } = await supabase
       .from('baby_expenses')
       .select('*', { count: 'exact' })
@@ -84,6 +89,8 @@ router.get('/analytics', requireAuth, async (req: AuthRequest, res: Response) =>
     if (!babyId) {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const { data: expenses, error } = await supabase
       .from('baby_expenses')

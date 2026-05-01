@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import crypto from 'crypto';
 import { supabase } from '../utils/supabase.js';
 import type { AuthRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, rateLimit } from '../middleware/auth.js';
 import {
   calculateEmergencyShareTtlMinutes,
   buildEmergencyShareLocationSummary,
@@ -109,6 +109,37 @@ type ActivityCenterEvent = {
 
 const hashSensitiveValue = (value: string): string =>
   crypto.createHash('sha256').update(value).digest('hex');
+
+const EMERGENCY_SHARE_MIGRATION_MESSAGE =
+  'Emergency share security schema is not deployed. Run database/sql/32-emergency-links-and-billing-events.sql against Supabase.';
+
+const isSchemaCacheErrorFor = (error: any, schemaObject: string): boolean =>
+  Boolean(
+    error &&
+      (error.code === 'PGRST204' || error.code === 'PGRST205') &&
+      String(error.message || '').includes(schemaObject),
+  );
+
+const hasEmergencyShareSchemaMismatch = (error: any): boolean =>
+  [
+    'token_hash',
+    'token_prefix',
+    'preset_key',
+    'max_views',
+    'requires_pin',
+    'access_pin_hash',
+    'allowed_sections',
+    'view_count',
+    'last_access_result',
+    'revoked_reason',
+    'emergency_share_link_access_logs',
+  ].some((schemaObject) => isSchemaCacheErrorFor(error, schemaObject));
+
+const sendEmergencyShareSchemaUnavailable = (res: Response) =>
+  res.status(503).json({
+    success: false,
+    error: EMERGENCY_SHARE_MIGRATION_MESSAGE,
+  });
 
 const normalizeEmergencyShareSections = (input: unknown): EmergencyShareSection[] => {
   const requested = Array.isArray(input) ? input : [];
@@ -225,7 +256,9 @@ const findEmergencyShareLinkByToken = async (token: string) => {
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
-  if (hashedLookup.error) throw hashedLookup.error;
+  if (hashedLookup.error && !isSchemaCacheErrorFor(hashedLookup.error, 'token_hash')) {
+    throw hashedLookup.error;
+  }
   if (hashedLookup.data) return hashedLookup.data;
 
   const legacyLookup = await supabase
@@ -384,6 +417,29 @@ const detectEmergencyShareRisk = async (params: {
 const validateEmergencySharePin = (pin: string, accessPinHash?: string | null): boolean => {
   if (!pin || !accessPinHash) return false;
   return hashSensitiveValue(pin) === accessPinHash;
+};
+
+const isEmergencySharePinTemporarilyLocked = async (linkId?: string | null): Promise<boolean> => {
+  if (!linkId) {
+    return false;
+  }
+
+  const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from('emergency_share_link_access_logs')
+    .select('id', { head: true, count: 'exact' })
+    .eq('link_id', linkId)
+    .eq('result', 'pin_failed')
+    .gte('accessed_at', windowStart);
+
+  if (error) {
+    if (isSchemaCacheErrorFor(error, 'emergency_share_link_access_logs')) {
+      return false;
+    }
+    throw error;
+  }
+
+  return Number(count || 0) >= 3;
 };
 
 const logEmergencyShareAccess = async (params: {
@@ -578,6 +634,21 @@ const resolvePublicEmergencyShareRequest = async (
       viewerLabel,
     });
     return { ok: false, status: 410, error: 'Share link view limit has been reached' };
+  }
+
+  if (Boolean(linkRow.requires_pin) && (await isEmergencySharePinTemporarilyLocked(linkRow.id))) {
+    await logEmergencyShareAccess({
+      linkRow,
+      result: 'pin_failed',
+      req,
+      viewerLabel,
+    });
+    return {
+      ok: false,
+      status: 429,
+      error: 'Too many incorrect PIN attempts. Try again in 10 minutes.',
+      pinRequired: true,
+    };
   }
 
   if (Boolean(linkRow.requires_pin) && !sharePin) {
@@ -2386,6 +2457,9 @@ router.get('/emergency-card/:babyId/share-links', requireAuth, async (req: AuthR
       ),
     });
   } catch (error: any) {
+    if (hasEmergencyShareSchemaMismatch(error)) {
+      return sendEmergencyShareSchemaUnavailable(res);
+    }
     return res.status(500).json({ success: false, error: error?.message || 'Failed to load share links' });
   }
 });
@@ -2442,7 +2516,7 @@ router.post('/emergency-card/:babyId/share-link', requireAuth, async (req: AuthR
     const { error: insertError } = await supabase.from('emergency_share_links').insert({
       baby_id: babyId,
       created_by: userId,
-      token: null,
+      token,
       token_hash: hashSensitiveValue(token),
       token_prefix: token.slice(0, 8),
       preset_key: presetKey,
@@ -2479,6 +2553,9 @@ router.post('/emergency-card/:babyId/share-link', requireAuth, async (req: AuthR
       },
     });
   } catch (error: any) {
+    if (hasEmergencyShareSchemaMismatch(error)) {
+      return sendEmergencyShareSchemaUnavailable(res);
+    }
     return res.status(500).json({ success: false, error: error?.message || 'Failed to create share link' });
   }
 });
@@ -2541,11 +2618,14 @@ router.post('/emergency-card/:babyId/share-links/:linkId/revoke', requireAuth, a
       data: serializeEmergencyShareLinkSummary(updatedLink, accessLogs || []),
     });
   } catch (error: any) {
+    if (hasEmergencyShareSchemaMismatch(error)) {
+      return sendEmergencyShareSchemaUnavailable(res);
+    }
     return res.status(500).json({ success: false, error: error?.message || 'Failed to revoke share link' });
   }
 });
 
-router.get('/public/emergency-card/:token', async (req: Request, res: Response) => {
+router.get('/public/emergency-card/:token', rateLimit(10, '1m'), async (req: Request, res: Response) => {
   try {
     const token = String(req.params.token || '').trim();
     if (!token) {
@@ -2588,7 +2668,7 @@ router.get('/public/emergency-card/:token', async (req: Request, res: Response) 
   }
 });
 
-router.get('/public/emergency-card/:token/pdf', async (req: Request, res: Response) => {
+router.get('/public/emergency-card/:token/pdf', rateLimit(6, '1m'), async (req: Request, res: Response) => {
   try {
     const token = String(req.params.token || '').trim();
     if (!token) {

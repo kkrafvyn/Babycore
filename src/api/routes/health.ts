@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +22,8 @@ router.post('/alerts', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId || !alertType) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
 
     const { data: alert, error } = await supabase
       .from('health_records')
@@ -57,6 +60,8 @@ router.get('/alerts', requireAuth, async (req: AuthRequest, res: Response) => {
     if (!babyId) {
       return res.status(400).json({ success: false, error: 'Baby ID required' });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const { data: alerts, error } = await supabase
       .from('health_records')

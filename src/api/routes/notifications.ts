@@ -4,8 +4,8 @@
  */
 
 import { Router, Request, Response } from 'express';
+import webpush from 'web-push';
 import { supabase } from '../lib/supabase.js';
-import * as webpush from 'web-push';
 
 const router = Router();
 

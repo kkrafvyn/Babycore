@@ -75,7 +75,7 @@
     "lucide-react": "^0.263.0",
     "motion": "^12.38.0",
     "next-themes": "^0.4.6",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^8.0.7",
     "pdfkit": "^0.13.0",
     "qrcode": "^1.5.3",
     "react": "^18.2.0",
@@ -84,7 +84,7 @@
     "recharts": "^2.10.3",
     "sonner": "^2.0.7",
     "three": "^0.158.0",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "web-push": "^3.6.7",
     "zod": "^3.22.4"
   },

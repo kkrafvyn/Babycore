@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,7 +18,7 @@ const router = Router();
 router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { name, dateOfBirth, gender, weight, height } = req.body;
+    const { name, dateOfBirth, gender } = req.body;
 
     if (!name || !dateOfBirth) {
       return res.status(400).json({ success: false, error: 'Name and date of birth required' });
@@ -31,8 +32,6 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
         name,
         date_of_birth: dateOfBirth,
         gender,
-        weight,
-        height,
       })
       .select()
       .single();
@@ -113,11 +112,11 @@ router.put('/:babyId', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { babyId } = req.params;
     const userId = req.user?.id;
-    const { name, weight, height, gender } = req.body;
+    const { name, gender } = req.body;
 
     const { data: baby, error } = await supabase
       .from('babies')
-      .update({ name, weight, height, gender })
+      .update({ name, gender })
       .eq('id', babyId)
       .eq('user_id', userId)
       .select()
@@ -167,6 +166,8 @@ router.delete('/:babyId', requireAuth, async (req: AuthRequest, res: Response) =
 router.get('/:babyId/summary', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { babyId } = req.params;
+
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
     const [baby, feeding, sleep, diaper, health] = await Promise.all([
       supabase.from('babies').select('*').eq('id', babyId).single(),

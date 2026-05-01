@@ -6,6 +6,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
+import { ensureBabyAccess, ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -297,6 +298,8 @@ router.post('/diagnoses', requireAuth, async (req: AuthRequest, res: Response) =
       });
     }
 
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
+
     const { data: diagnosis, error } = await supabase
       .from('diagnoses')
       .insert({
@@ -336,6 +339,8 @@ router.get('/diagnoses/:babyId', requireAuth, async (req: AuthRequest, res: Resp
   try {
     const { babyId } = req.params;
 
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
+
     const { data: diagnoses, error } = await supabase
       .from('diagnoses')
       .select('*')
@@ -361,6 +366,16 @@ router.put('/diagnoses/:diagnosisId', requireAuth, async (req: AuthRequest, res:
   try {
     const { diagnosisId } = req.params;
     const { status, notes } = req.body;
+
+    if (
+      !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+        table: 'diagnoses',
+        idValue: diagnosisId,
+        write: true,
+        missingMessage: 'Diagnosis not found',
+      }))
+    )
+      return;
 
     const { data: diagnosis, error } = await supabase
       .from('diagnoses')
@@ -419,6 +434,8 @@ router.post('/medications', requireAuth, async (req: AuthRequest, res: Response)
       });
     }
 
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
+
     const { data: medication, error } = await supabase
       .from('medications')
       .insert({
@@ -463,6 +480,8 @@ router.get('/medications/:babyId', requireAuth, async (req: AuthRequest, res: Re
   try {
     const { babyId } = req.params;
 
+    if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
+
     const { data: medications, error } = await supabase
       .rpc('get_baby_active_medications', { baby_id_param: babyId });
 
@@ -489,6 +508,16 @@ router.post(
       const { medicationId } = req.params;
       const { givenAt, notes } = req.body;
       const parentId = req.user?.id;
+
+      if (
+        !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+          table: 'medications',
+          idValue: medicationId,
+          write: true,
+          missingMessage: 'Medication not found',
+        }))
+      )
+        return;
 
       const { data: adherence, error } = await supabase
         .from('medication_adherence')
@@ -526,6 +555,16 @@ router.put('/medications/:medicationId/stop', requireAuth, async (req: AuthReque
   try {
     const { medicationId } = req.params;
     const { reason } = req.body;
+
+    if (
+      !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+        table: 'medications',
+        idValue: medicationId,
+        write: true,
+        missingMessage: 'Medication not found',
+      }))
+    )
+      return;
 
     const { data: medication, error } = await supabase
       .from('medications')
@@ -570,6 +609,8 @@ router.post('/appointments/reminders', requireAuth, async (req: AuthRequest, res
         error: 'All appointment fields are required',
       });
     }
+
+    if (!(await ensureBabyAccess(req, res, String(babyId), { write: true }))) return;
 
     const { data: reminder, error } = await supabase
       .from('appointment_reminders')
@@ -645,6 +686,16 @@ router.put(
         return res.status(400).json({ success: false, error: 'Invalid status' });
       }
 
+      if (
+        !(await ensureRecordBabyAccess<{ id: string; baby_id: string }>(req, res, {
+          table: 'appointment_reminders',
+          idValue: reminderId,
+          write: true,
+          missingMessage: 'Reminder not found',
+        }))
+      )
+        return;
+
       const { data: reminder, error } = await supabase
         .from('appointment_reminders')
         .update({
@@ -681,16 +732,23 @@ router.post(
     try {
       const { reminderId } = req.params;
 
-      // Fetch reminder
-      const { data: reminder } = await supabase
-        .from('appointment_reminders')
-        .select('*')
-        .eq('id', reminderId)
-        .single();
+      const reminder = await ensureRecordBabyAccess<{
+        id: string;
+        baby_id: string;
+        parent_id: string;
+        doctor_id: string;
+        appointment_type: string;
+        scheduled_date: string;
+        scheduled_time?: string | null;
+      }>(req, res, {
+        table: 'appointment_reminders',
+        idValue: reminderId,
+        select: 'id,baby_id,parent_id,doctor_id,appointment_type,scheduled_date,scheduled_time',
+        write: true,
+        missingMessage: 'Reminder not found',
+      });
 
-      if (!reminder) {
-        return res.status(404).json({ success: false, error: 'Reminder not found' });
-      }
+      if (!reminder) return;
 
       // Update reminder to mark as sent
       const { data: updated } = await supabase

@@ -1,5 +1,6 @@
 import { getBaby as getStoredBaby } from './supabase-storage';
 import { supabase } from './supabase';
+import { buildStorageReference, createSignedStorageUrl } from './storage-signed-url';
 
 export interface BabyPhoto {
   id: string;
@@ -39,6 +40,11 @@ const escapeXml = (value: string): string =>
 
 const toDataUrl = (svg: string): string =>
   `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+
+const hydratePhoto = async (photo: BabyPhoto): Promise<BabyPhoto> => ({
+  ...photo,
+  url: (await createSignedStorageUrl('baby-photos', photo.storage_key, photo.url)) || photo.url,
+});
 
 const getTileLayout = (count: number): CollageTile[] => {
   if (count <= 1) {
@@ -128,11 +134,6 @@ export async function uploadBabyPhoto(
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from('baby-photos')
-      .getPublicUrl(fileName);
-
     // Calculate age in days
     const birthDate = await getBabyBirthDate(babyId);
     const ageDays = birthDate
@@ -144,7 +145,7 @@ export async function uploadBabyPhoto(
       .from('baby_photos')
       .insert({
         baby_id: babyId,
-        url: publicUrl.publicUrl,
+        url: buildStorageReference('baby-photos', fileName),
         storage_key: fileName,
         description,
         photo_date: photoDate,
@@ -204,7 +205,7 @@ export async function getBabyPhotos(
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return data || [];
+    return await Promise.all(((data || []) as BabyPhoto[]).map((photo) => hydratePhoto(photo)));
   } catch (err) {
     console.error('Error fetching baby photos:', err);
     return [];
@@ -227,7 +228,7 @@ export async function getMonthlyPhotos(
       .order('photo_date', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return await Promise.all(((data || []) as BabyPhoto[]).map((photo) => hydratePhoto(photo)));
   } catch (err) {
     console.error('Error fetching monthly photos:', err);
     return [];
