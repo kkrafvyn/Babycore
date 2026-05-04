@@ -24,7 +24,8 @@ Optional but recommended:
 - `VAPID_PRIVATE_KEY`
 - `VAPID_SUBJECT`
 - `SENDGRID_API_KEY` / `RESEND_API_KEY`
-- `FCM_SERVER_KEY` (required for native Android/iOS push delivery)
+- Android native push: `FCM_SERVICE_ACCOUNT_JSON` or the `FCM_PROJECT_ID` + `FCM_CLIENT_EMAIL` + `FCM_PRIVATE_KEY` trio
+- iOS native push: `APNS_TEAM_ID`, `APNS_KEY_ID`, and `APNS_AUTH_KEY_P8` (or `APNS_AUTH_KEY_P8_FILE`)
 
 ## 2) Database Migrations (Production)
 

@@ -31,9 +31,8 @@ These are not required for local notifications only.
 Add them only if you later turn on native remote push in production:
 
 - `android/app/google-services.json`
-- `ios/App/App/GoogleService-Info.plist`
 
-Both are ignored by git in this repo.
+The iOS Capacitor push plugin does not require `GoogleService-Info.plist`; iPhone remote push uses APNs capability setup plus backend APNs credentials.
 
 ## Build Commands
 

@@ -29,6 +29,69 @@ const isLocalUrl = (value: string | undefined): boolean => {
 const hasSupabasePublishableKey = (): boolean =>
   isTruthy(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) || isTruthy(process.env.VITE_SUPABASE_ANON_KEY);
 
+const hasFcmHttpV1Config = (): boolean => {
+  const serviceAccountFile =
+    process.env.FCM_SERVICE_ACCOUNT_JSON_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  if (isTruthy(serviceAccountFile) && !isLikelyPlaceholder(serviceAccountFile)) {
+    return true;
+  }
+
+  const serviceAccountJson =
+    process.env.FCM_SERVICE_ACCOUNT_JSON ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+
+  if (isTruthy(serviceAccountJson) && !isLikelyPlaceholder(serviceAccountJson)) {
+    return true;
+  }
+
+  const projectId =
+    process.env.FCM_PROJECT_ID ||
+    process.env.FIREBASE_PROJECT_ID ||
+    process.env.GOOGLE_CLOUD_PROJECT_ID ||
+    process.env.GOOGLE_CLOUD_PROJECT;
+  const clientEmail =
+    process.env.FCM_CLIENT_EMAIL ||
+    process.env.FIREBASE_CLIENT_EMAIL ||
+    process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey =
+    process.env.FCM_PRIVATE_KEY ||
+    process.env.FIREBASE_PRIVATE_KEY ||
+    process.env.GOOGLE_PRIVATE_KEY;
+
+  return (
+    isTruthy(projectId) &&
+    !isLikelyPlaceholder(projectId) &&
+    isTruthy(clientEmail) &&
+    !isLikelyPlaceholder(clientEmail) &&
+    isTruthy(privateKey) &&
+    !isLikelyPlaceholder(privateKey)
+  );
+};
+
+const hasApnsAuthConfig = (): boolean => {
+  const authKeyFile = process.env.APNS_AUTH_KEY_P8_FILE || process.env.APNS_AUTH_KEY_FILE;
+
+  if (isTruthy(authKeyFile) && !isLikelyPlaceholder(authKeyFile)) {
+    return true;
+  }
+
+  const authKey = process.env.APNS_AUTH_KEY_P8 || process.env.APNS_AUTH_KEY;
+  const teamId = process.env.APNS_TEAM_ID || process.env.APPLE_TEAM_ID;
+  const keyId = process.env.APNS_KEY_ID || process.env.APPLE_KEY_ID;
+
+  return (
+    isTruthy(authKey) &&
+    !isLikelyPlaceholder(authKey) &&
+    isTruthy(teamId) &&
+    !isLikelyPlaceholder(teamId) &&
+    isTruthy(keyId) &&
+    !isLikelyPlaceholder(keyId)
+  );
+};
+
 export default function handler(req: VercelRequest, res: VercelResponse): void {
   setCommonHeaders(res);
 
@@ -64,7 +127,8 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
     vapidPrivateKey:
       isTruthy(process.env.VAPID_PRIVATE_KEY) &&
       !isLikelyPlaceholder(process.env.VAPID_PRIVATE_KEY),
-    fcmServerKey: isTruthy(process.env.FCM_SERVER_KEY) && !isLikelyPlaceholder(process.env.FCM_SERVER_KEY),
+    fcmHttpV1: hasFcmHttpV1Config(),
+    apnsAuth: hasApnsAuthConfig(),
   };
 
   const criticalCheckKeys = [
@@ -77,7 +141,7 @@ export default function handler(req: VercelRequest, res: VercelResponse): void {
     'oauthRedirectConfigured',
   ] as const;
 
-  const recommendedCheckKeys = ['vapidPublicKey', 'vapidPrivateKey', 'fcmServerKey'] as const;
+  const recommendedCheckKeys = ['vapidPublicKey', 'vapidPrivateKey', 'fcmHttpV1', 'apnsAuth'] as const;
 
   const missingCritical = criticalCheckKeys.filter((key) => !checks[key]);
   const missingRecommended = recommendedCheckKeys.filter((key) => !checks[key]);

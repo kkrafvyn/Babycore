@@ -60,11 +60,18 @@ npm run generate:vapid
 
 Optional for native/mobile push:
 
-- `FCM_SERVER_KEY`
+- Android:
+- `FCM_SERVICE_ACCOUNT_JSON`
+- or `FCM_PROJECT_ID` + `FCM_CLIENT_EMAIL` + `FCM_PRIVATE_KEY`
+- iOS:
+- `APNS_TEAM_ID`
+- `APNS_KEY_ID`
+- `APNS_AUTH_KEY_P8`
 
 Get it from:
 
-- Firebase Console -> Cloud Messaging
+- Android: Firebase Console / Google Cloud service account with Firebase Cloud Messaging API access
+- iOS: Apple Developer APNs auth key (`.p8`) plus your Apple team ID and key ID
 
 ### Email Delivery
 

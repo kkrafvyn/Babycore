@@ -6,7 +6,7 @@ Current shell metadata in this repo:
 - Marketing version: `1.0.1`
 - Build number: `2`
 - Minimum iOS version: `15.0`
-- Notifications mode: local notifications only
+- Notifications mode: APNs-ready native push via Capacitor + backend APNs auth
 - Wearables source: Apple Health read-only import
 
 ## Before Opening Xcode
@@ -27,7 +27,8 @@ In the `App` target, confirm these settings before archiving:
 - Keep `Automatically manage signing` enabled unless your release process requires manual provisioning.
 - Confirm the bundle identifier is the App Store identifier you want to ship.
 - Confirm `HealthKit` capability is present.
-- Confirm no `Push Notifications` capability is enabled, since this app is shipping with local notifications only.
+- Confirm `Push Notifications` capability is present.
+- Confirm the `App.entitlements` file contains the APNs entitlement.
 
 - `General`
 - Confirm `Version` is `1.0.1`.
@@ -42,6 +43,7 @@ Run these on a physical iPhone before uploading:
 - Add/edit baby profile.
 - Camera capture and photo-library attach flow.
 - Local reminder scheduling and notification delivery.
+- Remote push permission, token registration, and delivery while the app is backgrounded.
 - Home-screen quick actions from the app icon.
 - Apple Health permission prompt, sync, and imported readings in Wearables.
 
@@ -56,4 +58,5 @@ Run these on a physical iPhone before uploading:
 
 - Apple Health access is optional and user initiated from the Wearables screen.
 - The current plugin only requests read access, not write access.
+- Backend iPhone push delivery uses APNs auth credentials; no `GoogleService-Info.plist` is required for this Capacitor plugin setup.
 - If App Store Connect or App Review asks for health-data explanation, use [HEALTHKIT_APP_STORE_DECLARATION.md](./HEALTHKIT_APP_STORE_DECLARATION.md).

@@ -34,7 +34,9 @@ const readJsonFile = (filename) => {
 
 const fileEnv = {
   ...readEnvFile('.env'),
+  ...readEnvFile('.env.local'),
   ...readEnvFile('.env.production'),
+  ...readEnvFile('.env.production.local'),
 };
 const capacitorConfig = readJsonFile('capacitor.config.json');
 
@@ -87,6 +89,97 @@ const isHostedUrl = (value) => {
   } catch {
     return false;
   }
+};
+
+const readTextFile = (filename) => {
+  const filePath = path.join(repoRoot, filename);
+  if (!fs.existsSync(filePath)) {
+    return '';
+  }
+
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
+};
+
+const hasFcmHttpV1Config = () => {
+  const serviceAccountFile =
+    getEnv('FCM_SERVICE_ACCOUNT_JSON_FILE') || getEnv('GOOGLE_APPLICATION_CREDENTIALS');
+
+  if (hasValue(serviceAccountFile) && !isPlaceholder(serviceAccountFile)) {
+    return true;
+  }
+
+  const serviceAccountJson =
+    getEnv('FCM_SERVICE_ACCOUNT_JSON') ||
+    getEnv('FIREBASE_SERVICE_ACCOUNT_JSON') ||
+    getEnv('GOOGLE_SERVICE_ACCOUNT_JSON') ||
+    getEnv('GOOGLE_APPLICATION_CREDENTIALS_JSON');
+
+  if (hasValue(serviceAccountJson) && !isPlaceholder(serviceAccountJson)) {
+    return true;
+  }
+
+  const projectId =
+    getEnv('FCM_PROJECT_ID') ||
+    getEnv('FIREBASE_PROJECT_ID') ||
+    getEnv('GOOGLE_CLOUD_PROJECT_ID') ||
+    getEnv('GOOGLE_CLOUD_PROJECT');
+  const clientEmail =
+    getEnv('FCM_CLIENT_EMAIL') ||
+    getEnv('FIREBASE_CLIENT_EMAIL') ||
+    getEnv('GOOGLE_CLIENT_EMAIL');
+  const privateKey =
+    getEnv('FCM_PRIVATE_KEY') ||
+    getEnv('FIREBASE_PRIVATE_KEY') ||
+    getEnv('GOOGLE_PRIVATE_KEY');
+
+  return (
+    hasValue(projectId) &&
+    !isPlaceholder(projectId) &&
+    hasValue(clientEmail) &&
+    !isPlaceholder(clientEmail) &&
+    hasValue(privateKey) &&
+    !isPlaceholder(privateKey)
+  );
+};
+
+const hasApnsAuthConfig = () => {
+  const authKeyFile = getEnv('APNS_AUTH_KEY_P8_FILE') || getEnv('APNS_AUTH_KEY_FILE');
+
+  if (hasValue(authKeyFile) && !isPlaceholder(authKeyFile)) {
+    return true;
+  }
+
+  const authKey = getEnv('APNS_AUTH_KEY_P8') || getEnv('APNS_AUTH_KEY');
+  const teamId = getEnv('APNS_TEAM_ID') || getEnv('APPLE_TEAM_ID');
+  const keyId = getEnv('APNS_KEY_ID') || getEnv('APPLE_KEY_ID');
+
+  return (
+    hasValue(authKey) &&
+    !isPlaceholder(authKey) &&
+    hasValue(teamId) &&
+    !isPlaceholder(teamId) &&
+    hasValue(keyId) &&
+    !isPlaceholder(keyId)
+  );
+};
+
+const iosPushAppDelegateConfigured = () => {
+  const content = readTextFile(path.join('ios', 'App', 'App', 'AppDelegate.swift'));
+  return (
+    content.includes('didRegisterForRemoteNotificationsWithDeviceToken') &&
+    content.includes('capacitorDidRegisterForRemoteNotifications') &&
+    content.includes('didFailToRegisterForRemoteNotificationsWithError') &&
+    content.includes('capacitorDidFailToRegisterForRemoteNotifications')
+  );
+};
+
+const iosPushEntitlementConfigured = () => {
+  const content = readTextFile(path.join('ios', 'App', 'App', 'App.entitlements'));
+  return content.includes('<key>aps-environment</key>');
 };
 
 const fileExists = (relativePath) => fs.existsSync(path.join(repoRoot, relativePath));
@@ -190,10 +283,18 @@ const checks = [
 
 if (nativeRemotePushEnabled) {
   checks.push({
-    key: 'FCM_SERVER_KEY',
+    key: 'FCM_HTTP_V1_CREDENTIALS',
     critical: false,
-    valid: hasValue(getEnv('FCM_SERVER_KEY')) && !isPlaceholder(getEnv('FCM_SERVER_KEY')),
-    help: 'Required for Android/iOS remote push delivery when native remote push is enabled.',
+    valid: hasFcmHttpV1Config(),
+    help:
+      'Required for Android remote push delivery when native remote push is enabled. Set FCM_SERVICE_ACCOUNT_JSON or the FCM_PROJECT_ID / FCM_CLIENT_EMAIL / FCM_PRIVATE_KEY trio.',
+  });
+  checks.push({
+    key: 'APNS_AUTH_CREDENTIALS',
+    critical: false,
+    valid: hasApnsAuthConfig(),
+    help:
+      'Required for iOS remote push delivery when native remote push is enabled. Set APNS_TEAM_ID, APNS_KEY_ID, and APNS_AUTH_KEY_P8 (or APNS_AUTH_KEY_P8_FILE).',
   });
 }
 
@@ -229,9 +330,10 @@ if (nativeRemotePushEnabled) {
       help: 'Place Firebase google-services.json in android/app before enabling native Android remote push.',
     },
     {
-      key: 'IOS_GOOGLE_SERVICE_INFO_PLIST',
-      valid: fileExists(path.join('ios', 'App', 'App', 'GoogleService-Info.plist')),
-      help: 'Place Firebase GoogleService-Info.plist in ios/App/App before enabling native iOS remote push.',
+      key: 'IOS_PUSH_PROJECT_SETUP',
+      valid: iosPushAppDelegateConfigured() && iosPushEntitlementConfigured(),
+      help:
+        'Enable the iOS Push Notifications capability and keep the Capacitor AppDelegate remote notification hooks in place for APNs registration.',
     },
   );
 }
