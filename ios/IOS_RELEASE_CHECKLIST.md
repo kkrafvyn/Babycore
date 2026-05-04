@@ -17,6 +17,7 @@ Current shell metadata in this repo:
 4. Run `npm run build:frontend`.
 5. Run `npm run cap:sync:ios`.
 6. Open `ios/App/App.xcodeproj` in Xcode.
+7. If Xcode does not automatically fetch the Capacitor packages, use `File > Packages > Resolve Package Versions`.
 
 ## Xcode Setup
 
