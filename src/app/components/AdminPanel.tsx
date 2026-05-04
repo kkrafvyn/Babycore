@@ -3,9 +3,11 @@ import { ChevronLeft, RefreshCw, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
+  createAdminUser,
   deleteAdminUser,
   exportAdminBillingEvents,
   fetchAdminBilling,
+  fetchAdminPricing,
   demoteAdminUser,
   fetchAdminAuditLogs,
   fetchAdminLogs,
@@ -14,7 +16,9 @@ import {
   promoteAdminUser,
   resolveAdminBillingEvent,
   retryAdminBillingEvent,
+  saveAdminPricing,
   updateAdminUserRole,
+  type AdminPricingPlan,
   type AdminUserRecord,
 } from '../../lib/admin-api';
 import type { BillingEventRecord } from '../../lib/payment-api';
@@ -55,6 +59,15 @@ const getRecoveryClass = (status?: string | null): string => {
 };
 
 const ROLE_OPTIONS = ['admin', 'manager', 'user', 'caregiver', 'viewer'] as const;
+const LIMITED_ADMIN_ROLE_OPTIONS = ['manager', 'admin'] as const;
+const PROFILE_TYPE_OPTIONS = ['baby', 'doctor', 'caregiver'] as const;
+const LIMITED_ADMIN_ROLE_LABELS: Record<
+  (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+  string
+> = {
+  manager: 'Limited admin',
+  admin: 'Full admin',
+};
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
@@ -68,6 +81,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
+  const [pricingPlans, setPricingPlans] = useState<AdminPricingPlan[]>([]);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [creatingTeamMember, setCreatingTeamMember] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [teamMemberDraft, setTeamMemberDraft] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'manager' as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+    profileType: 'baby' as (typeof PROFILE_TYPE_OPTIONS)[number],
+  });
   const [logs, setLogs] = useState<Array<Record<string, any>>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<Record<string, any>>>([]);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
@@ -134,6 +160,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setUsersLoading(false);
   };
 
+  const loadPricing = async () => {
+    setPricingLoading(true);
+    const response = await fetchAdminPricing();
+    if (!response.success || !response.data) {
+      setPricingError(response.error || 'Unable to load pricing.');
+      setPricingPlans([]);
+      setPricingLoading(false);
+      return;
+    }
+
+    setPricingError(null);
+    setPricingPlans(response.data.plans || []);
+    setPricingLoading(false);
+  };
+
   const loadAdminLogs = async () => {
     const [actions, audit] = await Promise.all([
       fetchAdminLogs({ limit: 20, offset: 0 }),
@@ -177,7 +218,81 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const refreshAll = async (isRefresh = false) => {
-    await Promise.all([loadOverview(isRefresh), loadUsers(), loadAdminLogs(), loadBilling()]);
+    await Promise.all([loadOverview(isRefresh), loadUsers(), loadAdminLogs(), loadBilling(), loadPricing()]);
+  };
+
+  const handlePricingDraftChange = (
+    planId: AdminPricingPlan['id'],
+    field: 'ghanaAmount' | 'internationalAmount',
+    value: string,
+  ) => {
+    setPricingPlans((current) =>
+      current.map((plan) =>
+        plan.id === planId
+          ? {
+              ...plan,
+              [field]: value === '' ? 0 : Number(value),
+            }
+          : plan,
+      ),
+    );
+  };
+
+  const handleSavePricing = async () => {
+    setPricingSaving(true);
+    const response = await saveAdminPricing(
+      pricingPlans.map((plan) => ({
+        id: plan.id,
+        ghanaAmount: Number(plan.ghanaAmount || 0),
+        internationalAmount: Number(plan.internationalAmount || 0),
+        isActive: plan.isActive,
+      })),
+    );
+    setPricingSaving(false);
+
+    if (!response.success || !response.data) {
+      toast.error(response.error || 'Failed to save pricing.');
+      return;
+    }
+
+    setPricingPlans(response.data.plans || []);
+    toast.success(response.message || 'Pricing updated.');
+    await Promise.all([loadOverview(true), loadAdminLogs()]);
+  };
+
+  const handleCreateTeamMember = async () => {
+    if (!teamMemberDraft.name.trim() || !teamMemberDraft.email.trim()) {
+      toast.error('Name and email are required.');
+      return;
+    }
+
+    setCreatingTeamMember(true);
+    setTemporaryPassword(null);
+    const response = await createAdminUser({
+      name: teamMemberDraft.name.trim(),
+      email: teamMemberDraft.email.trim(),
+      password: teamMemberDraft.password.trim() || undefined,
+      role: teamMemberDraft.role,
+      profileType: teamMemberDraft.profileType,
+    });
+    setCreatingTeamMember(false);
+
+    if (!response.success || !response.data?.user) {
+      toast.error(response.error || 'Failed to create admin team member.');
+      return;
+    }
+
+    setTemporaryPassword(response.data.temporaryPassword || null);
+    setTeamMemberDraft({
+      name: '',
+      email: '',
+      password: '',
+      role: 'manager',
+      profileType: 'baby',
+    });
+    const createdRole = response.data.user.role === 'admin' ? 'full admin' : 'limited admin';
+    toast.success(`${response.data.user.name} created as ${createdRole}.`);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
   };
 
   const handleApplyRole = async (user: AdminUserRecord) => {
@@ -439,7 +554,188 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    User Management
+                    Premium Pricing
+                  </h3>
+                  <button
+                    onClick={() => void handleSavePricing()}
+                    disabled={pricingSaving || pricingLoading || pricingPlans.length === 0}
+                    className="rounded-full bg-secondary px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                  >
+                    {pricingSaving ? 'Saving...' : 'Save Pricing'}
+                  </button>
+                </div>
+
+                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                  {pricingLoading && (
+                    <p className="text-sm font-bold text-text-light">Loading pricing...</p>
+                  )}
+
+                  {!pricingLoading && pricingError && (
+                    <p className="text-sm font-bold text-red-500">{pricingError}</p>
+                  )}
+
+                  {!pricingLoading && !pricingError && pricingPlans.length === 0 && (
+                    <p className="text-sm font-bold text-text-light">No pricing plans found.</p>
+                  )}
+
+                  {!pricingLoading && !pricingError && pricingPlans.length > 0 && (
+                    <div className="space-y-3">
+                      {pricingPlans.map((plan) => (
+                        <div
+                          key={plan.id}
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black text-foreground">{plan.name}</p>
+                              <p className="text-[10px] font-semibold text-text-light mt-1">
+                                {plan.description}
+                              </p>
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
+                              {plan.billingPeriod}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="space-y-1">
+                              <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                Ghana (GHS)
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={plan.ghanaAmount}
+                                onChange={(event) =>
+                                  handlePricingDraftChange(plan.id, 'ghanaAmount', event.target.value)
+                                }
+                                className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                              />
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                Outside Ghana (USD)
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={plan.internationalAmount}
+                                onChange={(event) =>
+                                  handlePricingDraftChange(plan.id, 'internationalAmount', event.target.value)
+                                }
+                                className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1 gap-3">
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Admin Team
+                  </h3>
+                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                    manager = limited admin
+                  </span>
+                </div>
+
+                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                  <p className="text-[10px] font-semibold text-text-light leading-relaxed">
+                    Create full admins or limited admins. Use <span className="font-black text-secondary">manager</span> when
+                    you want a restricted admin account.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <input
+                      value={teamMemberDraft.name}
+                      onChange={(event) =>
+                        setTeamMemberDraft((current) => ({ ...current, name: event.target.value }))
+                      }
+                      placeholder="Admin name"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                    <input
+                      value={teamMemberDraft.email}
+                      onChange={(event) =>
+                        setTeamMemberDraft((current) => ({ ...current, email: event.target.value }))
+                      }
+                      placeholder="Admin email"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                    <input
+                      value={teamMemberDraft.password}
+                      onChange={(event) =>
+                        setTeamMemberDraft((current) => ({ ...current, password: event.target.value }))
+                      }
+                      placeholder="Temporary password (optional)"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={teamMemberDraft.role}
+                        onChange={(event) =>
+                          setTeamMemberDraft((current) => ({
+                            ...current,
+                            role: event.target.value as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+                          }))
+                        }
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                      >
+                        {LIMITED_ADMIN_ROLE_OPTIONS.map((role) => (
+                          <option key={role} value={role}>
+                            {LIMITED_ADMIN_ROLE_LABELS[role]}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={teamMemberDraft.profileType}
+                        onChange={(event) =>
+                          setTeamMemberDraft((current) => ({
+                            ...current,
+                            profileType: event.target.value as (typeof PROFILE_TYPE_OPTIONS)[number],
+                          }))
+                        }
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                      >
+                        {PROFILE_TYPE_OPTIONS.map((profileType) => (
+                          <option key={profileType} value={profileType}>
+                            {profileType}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => void handleCreateTeamMember()}
+                      disabled={creatingTeamMember}
+                      className="rounded-xl bg-secondary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                    >
+                      {creatingTeamMember ? 'Creating...' : 'Create Admin Account'}
+                    </button>
+                  </div>
+
+                  {temporaryPassword && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-800 dark:bg-amber-950/20">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                        Generated Temporary Password
+                      </p>
+                      <p className="mt-2 break-all font-mono text-sm font-semibold text-foreground">
+                        {temporaryPassword}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1 gap-3">
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    User Directory
                   </h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {filteredUsers.length}/{usersTotal}

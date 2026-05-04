@@ -3,6 +3,7 @@
  * Supports both Flutterwave and Paystack payment providers
  */
 
+import { getApiBaseUrl } from './api-base-url';
 import { getFlutterwaveClient, FlutterwavePaymentOptions } from './flutterwave';
 import {
   getPaystackClient,
@@ -17,27 +18,31 @@ export interface SubscriptionPlan {
   id: string;
   name: string;
   description: string;
-  monthlyPrice: number; // in NGN for Paystack, USD for Flutterwave etc.
-  yearlyPrice: number;
+  billingPeriod: 'monthly' | 'yearly';
+  ghanaAmount: number;
+  internationalAmount: number;
   features: string[];
   provider: PaymentProvider;
   planCode?: string; // For subscription plans
 }
 
-export const resolveSubscriptionPlanAmount = (plan?: SubscriptionPlan): number => {
+export const resolveSubscriptionPlanAmount = (
+  plan?: SubscriptionPlan,
+  countryCode?: string,
+): number => {
   if (!plan) return 0;
 
-  const planId = String(plan.id || '').toLowerCase();
-  const monthly = Number(plan.monthlyPrice || 0);
-  const yearly = Number(plan.yearlyPrice || 0);
+  const prefersGhanaPricing = getPaystackLocationConfig(countryCode).currency === 'GHS';
+  const preferredAmount = prefersGhanaPricing
+    ? Number(plan.ghanaAmount || 0)
+    : Number(plan.internationalAmount || 0);
+  const fallbackAmount = prefersGhanaPricing
+    ? Number(plan.internationalAmount || 0)
+    : Number(plan.ghanaAmount || 0);
 
-  if (planId.includes('year')) return yearly > 0 ? yearly : monthly;
-  if (planId.includes('month')) return monthly > 0 ? monthly : yearly;
-
-  if (monthly > 0 && yearly === 0) return monthly;
-  if (yearly > 0 && monthly === 0) return yearly;
-
-  return monthly > 0 ? monthly : yearly;
+  if (Number.isFinite(preferredAmount) && preferredAmount > 0) return preferredAmount;
+  if (Number.isFinite(fallbackAmount) && fallbackAmount > 0) return fallbackAmount;
+  return 0;
 };
 
 export interface PaymentOptions {
@@ -86,27 +91,9 @@ export interface PaystackLocationConfig {
   channels: PaystackPaymentChannel[];
 }
 
-const PAYSTACK_LOCATION_MAP: Record<string, PaystackLocationConfig> = {
-  NG: {
-    currency: 'NGN',
-    channels: ['card', 'bank', 'ussd', 'bank_transfer'],
-  },
-  GH: {
-    currency: 'GHS',
-    channels: ['card', 'mobile_money', 'bank'],
-  },
-  ZA: {
-    currency: 'ZAR',
-    channels: ['card', 'bank_transfer', 'eft'],
-  },
-  KE: {
-    currency: 'KES',
-    channels: ['card', 'mobile_money'],
-  },
-  UG: {
-    currency: 'UGX',
-    channels: ['card', 'mobile_money'],
-  },
+const GHANA_PAYSTACK_LOCATION_CONFIG: PaystackLocationConfig = {
+  currency: 'GHS',
+  channels: ['card', 'mobile_money', 'bank'],
 };
 
 const DEFAULT_PAYSTACK_LOCATION_CONFIG: PaystackLocationConfig = {
@@ -116,7 +103,10 @@ const DEFAULT_PAYSTACK_LOCATION_CONFIG: PaystackLocationConfig = {
 
 export const getPaystackLocationConfig = (countryCode?: string): PaystackLocationConfig => {
   const normalizedCode = (countryCode || '').trim().toUpperCase();
-  return PAYSTACK_LOCATION_MAP[normalizedCode] || DEFAULT_PAYSTACK_LOCATION_CONFIG;
+  // Product rule: Ghana keeps local checkout, while every other market uses USD card-only checkout.
+  return normalizedCode === 'GH'
+    ? GHANA_PAYSTACK_LOCATION_CONFIG
+    : DEFAULT_PAYSTACK_LOCATION_CONFIG;
 };
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
@@ -124,8 +114,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'premium-monthly',
     name: 'Premium Monthly',
     description: 'Full access for one month',
-    monthlyPrice: 4.99,
-    yearlyPrice: 0,
+    billingPeriod: 'monthly',
+    ghanaAmount: 4.99,
+    internationalAmount: 4.99,
     features: [
       'Doctor access',
       'Growth charts',
@@ -141,8 +132,9 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'premium-yearly',
     name: 'Premium Yearly',
     description: 'Full access for one year (save 17%)',
-    monthlyPrice: 0,
-    yearlyPrice: 49.99,
+    billingPeriod: 'yearly',
+    ghanaAmount: 49.99,
+    internationalAmount: 49.99,
     features: [
       'Doctor access',
       'Growth charts',
@@ -155,6 +147,60 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     planCode: 'PLN_premium_yearly_usd',
   },
 ];
+
+const isBillingPeriod = (value: unknown): value is 'monthly' | 'yearly' =>
+  value === 'monthly' || value === 'yearly';
+
+const normalizeSubscriptionPlan = (value: any): SubscriptionPlan | null => {
+  const id = String(value?.id || '').trim();
+  if (!id) return null;
+
+  const billingPeriod = isBillingPeriod(value?.billingPeriod)
+    ? value.billingPeriod
+    : String(value?.billingPeriod || '').trim().toLowerCase() === 'yearly'
+      ? 'yearly'
+      : 'monthly';
+  const provider = String(value?.provider || 'paystack').trim().toLowerCase();
+  if (provider !== 'paystack' && provider !== 'flutterwave') {
+    return null;
+  }
+
+  return {
+    id,
+    name: String(value?.name || id),
+    description: String(value?.description || ''),
+    billingPeriod,
+    ghanaAmount: Number(value?.ghanaAmount || 0),
+    internationalAmount: Number(value?.internationalAmount || 0),
+    features: Array.isArray(value?.features)
+      ? value.features.map((feature: unknown) => String(feature))
+      : [],
+    provider,
+    planCode: value?.planCode ? String(value.planCode) : undefined,
+  };
+};
+
+export const fetchSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/payments/pricing`, {
+      method: 'GET',
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || payload?.success === false) {
+      throw new Error(payload?.message || `Failed to load subscription plans (${response.status})`);
+    }
+
+    const plans = Array.isArray(payload?.data?.plans)
+      ? payload.data.plans.map(normalizeSubscriptionPlan).filter(Boolean)
+      : [];
+
+    return plans.length > 0 ? (plans as SubscriptionPlan[]) : [...SUBSCRIPTION_PLANS];
+  } catch (error) {
+    console.warn('Unable to load managed subscription plans. Falling back to defaults.', error);
+    return [...SUBSCRIPTION_PLANS];
+  }
+};
 
 export class UnifiedPaymentManager {
   private static instance: UnifiedPaymentManager;
@@ -291,7 +337,7 @@ export class UnifiedPaymentManager {
     userId?: string,
     amountOverride?: number,
   ): Promise<ProcessedSubscription> {
-    const computedAmount = resolveSubscriptionPlanAmount(plan);
+    const computedAmount = resolveSubscriptionPlanAmount(plan, countryCode);
     const amount =
       typeof amountOverride === 'number' && Number.isFinite(amountOverride) && amountOverride > 0
         ? amountOverride

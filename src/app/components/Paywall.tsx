@@ -2,6 +2,14 @@ import React, { useState } from 'react';
 import { X, Zap } from 'lucide-react';
 import { subscriptionManager, pricing, type SubscriptionPeriod } from '../../lib/premium';
 import { motion } from 'framer-motion';
+import { useAppContext } from '../AppContext';
+import {
+  fetchSubscriptionPlans,
+  getPaystackLocationConfig,
+  resolveSubscriptionPlanAmount,
+  SUBSCRIPTION_PLANS,
+  type SubscriptionPlan,
+} from '../../lib/payment-manager';
 
 interface PaywallProps {
   feature?: string;
@@ -16,10 +24,37 @@ export const Paywall: React.FC<PaywallProps> = ({
   onClose,
   onUpgrade,
 }) => {
+  const { currentBaby } = useAppContext();
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPeriod>('annual');
   const [isLoading, setIsLoading] = useState(false);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(SUBSCRIPTION_PLANS);
   const subscription = subscriptionManager.getSubscription();
   const isTrialActive = subscription?.status === 'trial';
+  const locationConfig = getPaystackLocationConfig(currentBaby?.country);
+  const monthlyPlan = plans.find((plan) => plan.id === 'premium-monthly') || SUBSCRIPTION_PLANS[0];
+  const annualPlan = plans.find((plan) => plan.id === 'premium-yearly') || SUBSCRIPTION_PLANS[1];
+  const monthlyAmount = resolveSubscriptionPlanAmount(monthlyPlan, currentBaby?.country);
+  const annualAmount = resolveSubscriptionPlanAmount(annualPlan, currentBaby?.country);
+  const annualSavings = monthlyAmount > 0
+    ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100))
+    : Number(pricing.annual.savings) || 17;
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadManagedPlans = async () => {
+      const managedPlans = await fetchSubscriptionPlans();
+      if (!cancelled && managedPlans.length > 0) {
+        setPlans(managedPlans);
+      }
+    };
+
+    void loadManagedPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const premiumFeatures = [
     {
@@ -133,7 +168,7 @@ export const Paywall: React.FC<PaywallProps> = ({
                     selectedPlan === 'monthly' ? 'text-foreground' : 'text-text-light'
                   }`}
                 >
-                  ${pricing.monthly.price}
+                  {locationConfig.currency} {monthlyAmount.toFixed(2)}
                 </p>
                 <p className="text-[10px] font-bold text-text-dim mt-2 italic">Rolling Access</p>
               </button>
@@ -160,10 +195,10 @@ export const Paywall: React.FC<PaywallProps> = ({
                     selectedPlan === 'annual' ? 'text-foreground' : 'text-text-light'
                   }`}
                 >
-                  ${pricing.annual.price}
+                  {locationConfig.currency} {annualAmount.toFixed(2)}
                 </p>
                 <p className="text-[10px] font-bold text-text-dim mt-2 italic">
-                  Save {pricing.annual.savings}%
+                  Save {annualSavings}%
                 </p>
               </button>
             </div>

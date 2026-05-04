@@ -4,6 +4,11 @@
  */
 
 import { getApiBaseUrl } from './api-base-url';
+import {
+  resolveSubscriptionPlanAmount,
+  SUBSCRIPTION_PLANS,
+  type SubscriptionPlan,
+} from './payment-manager';
 import { supabase } from './supabase';
 
 export type SubscriptionTier = 'free' | 'premium';
@@ -95,18 +100,29 @@ export const isPremiumSubscriptionActive = (
   status?: 'free' | 'active' | 'expired' | 'trial' | string,
 ): boolean => status === 'active' || status === 'trial';
 
+const getDefaultSubscriptionPlan = (billingPeriod: 'monthly' | 'yearly'): SubscriptionPlan =>
+  SUBSCRIPTION_PLANS.find((plan) => plan.billingPeriod === billingPeriod) || SUBSCRIPTION_PLANS[0];
+
+const DEFAULT_MONTHLY_PLAN = getDefaultSubscriptionPlan('monthly');
+const DEFAULT_ANNUAL_PLAN = getDefaultSubscriptionPlan('yearly');
+const DEFAULT_MONTHLY_PRICE = resolveSubscriptionPlanAmount(DEFAULT_MONTHLY_PLAN, 'US');
+const DEFAULT_ANNUAL_PRICE = resolveSubscriptionPlanAmount(DEFAULT_ANNUAL_PLAN, 'US');
+const DEFAULT_ANNUAL_SAVINGS = DEFAULT_MONTHLY_PRICE > 0
+  ? Math.max(0, Math.round((1 - DEFAULT_ANNUAL_PRICE / (DEFAULT_MONTHLY_PRICE * 12)) * 100))
+  : 0;
+
 // Pricing information
 export const pricing = {
   monthly: {
-    price: 4.99,
+    price: DEFAULT_MONTHLY_PRICE,
     currency: 'USD',
     billingInterval: 'month',
   },
   annual: {
-    price: 39.99,
+    price: DEFAULT_ANNUAL_PRICE,
     currency: 'USD',
     billingInterval: 'year',
-    savings: '17%', // calculated: (4.99 * 12 - 39.99) / (4.99 * 12) = 33%
+    savings: String(DEFAULT_ANNUAL_SAVINGS),
   },
 };
 
@@ -290,9 +306,14 @@ class SubscriptionManager {
     if (!this.subscription) return 'N/A';
 
     const period = this.subscription.period;
-    const price = period === 'monthly' ? pricing.monthly.price : pricing.annual.price;
+    const price = Number(
+      this.subscription.price ??
+        (period === 'monthly' ? pricing.monthly.price : pricing.annual.price),
+    );
+    const currency =
+      this.subscription.currency || (period === 'monthly' ? pricing.monthly.currency : pricing.annual.currency);
 
-    return `${this.subscription.currency || '$'}${price}`;
+    return `${currency} ${price.toFixed(2)}`;
   }
 
   /**
@@ -376,7 +397,7 @@ class SubscriptionManager {
         renewalDate: remote.renewalDate,
         autoRenewal: remote.autoRenewal !== false,
         price: Number(remote.price || (period === 'monthly' ? pricing.monthly.price : pricing.annual.price)),
-        currency: remote.currency || pricing.monthly.currency,
+        currency: remote.currency || (period === 'monthly' ? pricing.monthly.currency : pricing.annual.currency),
       };
     } catch (error) {
       console.error('Failed to fetch premium subscription from backend:', error);

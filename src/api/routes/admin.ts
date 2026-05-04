@@ -27,6 +27,11 @@ import {
   MAX_AUTOMATED_PAYMENT_RETRIES,
   planNextPaymentRetry,
 } from '../../lib/billing-retry.js';
+import { createAdminManagedUser } from '../utils/admin-users.js';
+import {
+  getManagedSubscriptionPricing,
+  updateManagedSubscriptionPricing,
+} from '../utils/payment-pricing.js';
 
 const router = Router();
 
@@ -124,6 +129,45 @@ router.get('/users', requireRole('admin'), async (req: AuthRequest, res: Respons
     res.status(500).json({
       success: false,
       error: 'Failed to fetch users',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/users
+ * Create a new admin or limited-admin auth user and assign an app role.
+ */
+router.post('/users', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await createAdminManagedUser(
+      {
+        adminUserId: req.user.id,
+        email: String(req.body?.email || ''),
+        name: String(req.body?.name || ''),
+        role: String(req.body?.role || 'manager').trim().toLowerCase() as any,
+        profileType: String(req.body?.profileType || 'baby').trim().toLowerCase() as any,
+        password: req.body?.password ? String(req.body.password) : undefined,
+      },
+      supabase,
+    );
+
+    if (!result.success || !result.user) {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to create user',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'User created successfully',
+      data: result,
+    });
+  } catch (error: any) {
+    logger.error('Failed to create admin-managed user', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to create user',
     });
   }
 });
@@ -398,6 +442,78 @@ router.get('/audit-logs', requireRole('admin'), async (req: AuthRequest, res: Re
     res.status(500).json({
       success: false,
       error: 'Failed to fetch audit logs',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/pricing
+ * Review the premium pricing shown in paywall and checkout.
+ */
+router.get('/pricing', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const plans = await getManagedSubscriptionPricing(supabase);
+    return res.json({
+      success: true,
+      data: {
+        plans,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Failed to fetch admin pricing', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to load pricing',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/pricing
+ * Update the premium checkout prices for Ghana and international markets.
+ */
+router.post('/pricing', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const plans = Array.isArray(req.body?.plans) ? req.body.plans : [];
+    if (plans.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No pricing plans supplied',
+      });
+    }
+
+    const updatedPlans = await updateManagedSubscriptionPricing(
+      plans.map((plan: any) => ({
+        id: String(plan?.id || '').trim() as any,
+        ghanaAmount: Number(plan?.ghanaAmount),
+        internationalAmount: Number(plan?.internationalAmount),
+        isActive: typeof plan?.isActive === 'boolean' ? plan.isActive : true,
+      })),
+      supabase,
+    );
+
+    await supabase.from('admin_actions_log').insert({
+      admin_id: req.user.id,
+      action: 'pricing_updated',
+      target_user_id: null,
+      details: {
+        plans: updatedPlans,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      message: 'Pricing updated successfully',
+      data: {
+        plans: updatedPlans,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Failed to update admin pricing', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to update pricing',
     });
   }
 });

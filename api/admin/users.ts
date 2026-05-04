@@ -1,5 +1,7 @@
 import { ensureAdminContext, getQueryNumber, getQueryString } from '../_shared/admin-auth.js';
+import { runExpressRouter } from '../_shared/router-proxy.js';
 import { setCommonHeaders, type VercelRequest, type VercelResponse } from '../_shared/http.js';
+import adminRoutes from '../../src/api/routes/admin.js';
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -18,6 +20,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   if (req.method === 'OPTIONS') {
     res.status(200).json({ success: true });
+    return;
+  }
+
+  if (req.method === 'POST') {
+    await runExpressRouter({
+      request: req,
+      response: res,
+      router: adminRoutes as any,
+      mountPath: '/api/admin',
+      methods: ['POST'],
+      requireAuth: false,
+    });
     return;
   }
 

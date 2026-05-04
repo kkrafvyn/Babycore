@@ -69,6 +69,9 @@ export function SubscriptionAddons() {
     }
   };
 
+  const formatAddonPrice = (addon: SubscriptionAddon): string =>
+    `${addon.currency} ${Number(addon.price || 0).toFixed(2)}`;
+
   if (loading) {
     return <div className="text-center py-8">Loading add-ons...</div>;
   }
@@ -110,7 +113,7 @@ export function SubscriptionAddons() {
 
                   <div className="flex items-center justify-between pt-2">
                     <div className="text-sm font-semibold">
-                      ${addon.price.toFixed(2)} {addon.currency}
+                      {formatAddonPrice(addon)}
                     </div>
                     <Button
                       size="sm"

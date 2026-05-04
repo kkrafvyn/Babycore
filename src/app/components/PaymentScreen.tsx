@@ -3,9 +3,11 @@ import { AlertCircle, Check, ChevronLeft, Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppContext } from '../AppContext';
 import {
+  fetchSubscriptionPlans,
   getPaystackLocationConfig,
   resolveSubscriptionPlanAmount,
   SUBSCRIPTION_PLANS,
+  type SubscriptionPlan,
   usePaymentManager,
 } from '../../lib/payment-manager';
 import { initializePaystack } from '../../lib/paystack';
@@ -66,12 +68,13 @@ const getStatusToneClass = (status?: string | null): string => {
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess }) => {
   const { user, currentBaby, updateSettings } = useAppContext();
   const paymentManager = usePaymentManager();
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(SUBSCRIPTION_PLANS);
 
   const paystackPlans = useMemo(
-    () => SUBSCRIPTION_PLANS.filter((plan) => plan.provider === 'paystack'),
-    [],
+    () => subscriptionPlans.filter((plan) => plan.provider === 'paystack'),
+    [subscriptionPlans],
   );
-  const [selectedPlan, setSelectedPlan] = useState<string>(paystackPlans[0]?.id || 'premium-monthly');
+  const [selectedPlan, setSelectedPlan] = useState<string>('premium-monthly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
@@ -110,9 +113,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     () => getPaystackLocationConfig(currentBaby?.country),
     [currentBaby?.country],
   );
+  const isGhanaCheckout = paystackLocationConfig.currency === 'GHS';
+  const paymentChannelLabel = isGhanaCheckout ? 'Card, Mobile Money, and Bank' : 'Card only';
+  const paymentCheckoutSummary = isGhanaCheckout
+    ? 'Ghana checkouts are billed in GHS and support card, mobile money, and bank payments.'
+    : 'Outside Ghana, checkouts are billed in USD and accept card payments only.';
   const amount = useMemo(
-    () => resolveSubscriptionPlanAmount(selectedPlanData),
-    [selectedPlanData],
+    () => resolveSubscriptionPlanAmount(selectedPlanData, currentBaby?.country),
+    [currentBaby?.country, selectedPlanData],
   );
   const formatAmount = (value: number): string => {
     if (!Number.isFinite(value)) return '0';
@@ -151,6 +159,30 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   React.useEffect(() => {
     void loadBillingHistoryData();
   }, [loadBillingHistoryData]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadManagedPlans = async () => {
+      const managedPlans = await fetchSubscriptionPlans();
+      if (!cancelled && managedPlans.length > 0) {
+        setSubscriptionPlans(managedPlans);
+      }
+    };
+
+    void loadManagedPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!paystackPlans.length) return;
+    if (!paystackPlans.some((plan) => plan.id === selectedPlan)) {
+      setSelectedPlan(paystackPlans[0].id);
+    }
+  }, [paystackPlans, selectedPlan]);
 
   const handlePayment = async () => {
     if (!user?.email || !selectedPlanData || !firstName.trim() || !lastName.trim()) {
@@ -353,10 +385,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                         selectedPlan === plan.id ? 'text-foreground' : 'text-text-light'
                       }`}
                     >
-                      {paystackLocationConfig.currency} {formatAmount(resolveSubscriptionPlanAmount(plan))}
+                      {paystackLocationConfig.currency}{' '}
+                      {formatAmount(resolveSubscriptionPlanAmount(plan, currentBaby?.country))}
                     </span>
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-dim">
-                      /{plan.monthlyPrice ? 'mo' : 'yr'}
+                      /{plan.billingPeriod === 'monthly' ? 'mo' : 'yr'}
                     </span>
                   </div>
 
@@ -450,9 +483,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 </p>
               </div>
               <div className="h-px w-full bg-white/10" />
-              <p className="text-[10px] font-bold italic leading-relaxed text-white/70">
-                Secure Paystack checkout with location-aware card and mobile money channels.
-              </p>
+              <div className="space-y-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/50">
+                  {paymentChannelLabel}
+                </p>
+                <p className="text-[10px] font-bold italic leading-relaxed text-white/70">
+                  {paymentCheckoutSummary}
+                </p>
+              </div>
             </div>
           </div>
 

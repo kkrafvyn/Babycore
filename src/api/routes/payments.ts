@@ -12,6 +12,7 @@ import {
   MAX_AUTOMATED_PAYMENT_RETRIES,
   planNextPaymentRetry,
 } from '../../lib/billing-retry.js';
+import { getManagedSubscriptionPricing } from '../utils/payment-pricing.js';
 
 const router = Router();
 
@@ -697,6 +698,46 @@ export async function finalizePremiumPayment(req: Request, res: Response) {
 }
 
 /**
+ * GET /api/payments/pricing
+ * Returns the current premium pricing used by checkout.
+ */
+export async function getSubscriptionPricing(req: Request, res: Response) {
+  try {
+    const plans = await getManagedSubscriptionPricing();
+    return res.json({
+      success: true,
+      data: {
+        plans,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get subscription pricing error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to load subscription pricing',
+    });
+  }
+}
+
+const getLatestSuccessfulPaymentSnapshot = async (paymentClient: any, userId: string) => {
+  const { data, error } = await paymentClient
+    .from('payment_events')
+    .select('amount, currency, plan_id, plan_name, verified_at, attempted_at, status')
+    .eq('user_id', userId)
+    .in('status', ['reconciled', 'success'])
+    .order('verified_at', { ascending: false, nullsFirst: false })
+    .order('attempted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+};
+
+/**
  * GET /api/payments/subscription-status
  * Returns backend subscription status for the authenticated user.
  */
@@ -735,6 +776,8 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
         return res.json({ success: true, subscription: null });
       }
 
+      const latestPayment = await getLatestSuccessfulPaymentSnapshot(fallbackClient, userId).catch(() => null);
+
       return res.json({
         success: true,
         subscription: {
@@ -743,10 +786,10 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
           startDate,
           endDate,
           renewalDate: endDate,
-          planId: settings.subscription_plan || 'premium',
-          planName: settings.subscription_plan || 'Premium',
-          price: 0,
-          currency: settings.subscription_currency || 'USD',
+          planId: String(latestPayment?.plan_id || settings.subscription_plan || 'premium'),
+          planName: String(latestPayment?.plan_name || settings.subscription_plan || 'Premium'),
+          price: Number(latestPayment?.amount || 0),
+          currency: String(latestPayment?.currency || settings.subscription_currency || 'USD'),
           autoRenewal: true,
         },
       });
@@ -783,6 +826,7 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
     const startDate = activeSubscription.subscribed_at || activeSubscription.created_at || new Date().toISOString();
     const endDate = activeSubscription.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const period = inferBillingPeriod(startDate, endDate);
+    const latestPayment = await getLatestSuccessfulPaymentSnapshot(supabase, userId).catch(() => null);
 
     return res.json({
       success: true,
@@ -792,10 +836,10 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
         startDate,
         endDate,
         renewalDate: endDate,
-        planId: addon?.addon_name || 'premium',
-        planName: addon?.addon_name || 'Premium',
-        price: Number(addon?.price || 0),
-        currency: addon?.currency || 'USD',
+        planId: String(latestPayment?.plan_id || addon?.addon_name || 'premium'),
+        planName: String(latestPayment?.plan_name || addon?.addon_name || 'Premium'),
+        price: Number(latestPayment?.amount ?? addon?.price ?? 0),
+        currency: String(latestPayment?.currency || addon?.currency || 'USD'),
         autoRenewal: true,
       },
     });
@@ -1688,6 +1732,7 @@ function verifyFlutterwaveSignature(req: Request, signature: string): boolean {
 router.post('/process-addon', processAddonPayment);
 router.post('/cancel-subscription', cancelAddonSubscription);
 router.post('/finalize', finalizePremiumPayment);
+router.get('/pricing', getSubscriptionPricing);
 router.get('/subscription-status', getSubscriptionStatus);
 router.get('/billing-history', getBillingHistory);
 router.post('/payment-event', savePaymentEvent);

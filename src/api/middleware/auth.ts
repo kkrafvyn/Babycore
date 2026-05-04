@@ -87,6 +87,8 @@ function isPublicEndpoint(path: string): boolean {
   const publicEndpoints = [
     '/health',
     '/api/health',
+    '/payments/pricing',
+    '/api/payments/pricing',
     '/webhooks/paystack',
     '/webhooks/flutterwave',
     '/api/webhooks/paystack',

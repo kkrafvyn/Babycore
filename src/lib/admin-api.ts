@@ -77,6 +77,27 @@ export interface AdminBillingResponse {
   error?: string;
 }
 
+export interface AdminPricingPlan {
+  id: 'premium-monthly' | 'premium-yearly';
+  name: string;
+  description: string;
+  billingPeriod: 'monthly' | 'yearly';
+  provider: 'paystack';
+  ghanaAmount: number;
+  internationalAmount: number;
+  ghanaCurrency: 'GHS';
+  internationalCurrency: 'USD';
+  isActive: boolean;
+}
+
+export interface AdminPricingResponse {
+  success: boolean;
+  data?: {
+    plans: AdminPricingPlan[];
+  };
+  error?: string;
+}
+
 const getAdminAuthToken = async (): Promise<string | null> => {
   const auth = supabase.auth as any;
   const {
@@ -184,6 +205,35 @@ export const fetchAdminUsers = async (input?: {
   });
 };
 
+export const createAdminUser = async (input: {
+  email: string;
+  name: string;
+  role: 'admin' | 'manager';
+  profileType: 'baby' | 'doctor' | 'caregiver';
+  password?: string;
+}): Promise<
+  AdminMutationResponse & {
+    data?: {
+      success: boolean;
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: string;
+        profileType: string;
+      };
+      temporaryPassword?: string;
+    };
+  }
+> =>
+  adminRequest<any>('/admin/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
 export const updateAdminUserRole = async (
   userId: string,
   role: 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer',
@@ -282,6 +332,27 @@ export const fetchAdminBilling = async (input?: {
     method: 'GET',
   });
 };
+
+export const fetchAdminPricing = async (): Promise<AdminPricingResponse> =>
+  adminRequest<AdminPricingResponse>('/admin/pricing', {
+    method: 'GET',
+  });
+
+export const saveAdminPricing = async (
+  plans: Array<{
+    id: 'premium-monthly' | 'premium-yearly';
+    ghanaAmount: number;
+    internationalAmount: number;
+    isActive?: boolean;
+  }>,
+): Promise<AdminPricingResponse & { message?: string }> =>
+  adminRequest<any>('/admin/pricing', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ plans }),
+  });
 
 export const retryAdminBillingEvent = async (
   reference: string,
