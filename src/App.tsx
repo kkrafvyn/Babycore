@@ -537,7 +537,7 @@ function AppShell() {
 
   if (showMobileSplash) {
     return renderWithSuspense(
-      <Material3SplashScreen logoSrc="/logo.png" onSplashComplete={handleSplashComplete} />,
+      <Material3SplashScreen logoSrc="/logo.svg" onSplashComplete={handleSplashComplete} />,
       'Loading splash...',
     );
   }

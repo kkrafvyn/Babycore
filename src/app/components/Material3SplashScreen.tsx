@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HeartHandshake, Sparkles } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface SplashScreenProps {
@@ -11,7 +11,7 @@ interface SplashScreenProps {
 export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
   onSplashComplete,
   duration = 2200,
-  logoSrc = '/logo.png',
+  logoSrc = '/logo.svg',
 }) => {
   const [isComplete, setIsComplete] = useState(false);
 
@@ -29,85 +29,91 @@ export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: isComplete ? 0 : 1 }}
       exit={{ opacity: 0 }}
-      className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#fffafc_0%,#f6fbff_52%,#eef6ff_100%)] px-5 py-[max(1.25rem,env(safe-area-inset-top))]"
+      className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[#e8f1f4] px-6"
     >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: [
+            'radial-gradient(circle at 82% 8%, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.16) 29%, rgba(255,255,255,0) 56%)',
+            'radial-gradient(circle at 50% 54%, rgba(171,199,212,0.42) 0%, rgba(171,199,212,0.14) 24%, rgba(171,199,212,0) 52%)',
+            'linear-gradient(180deg, #eef6fa 0%, #e7f1f5 48%, #dbe7e5 100%)',
+          ].join(','),
+        }}
+      />
+
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
-          animate={{ scale: [1, 1.14, 1], opacity: [0.22, 0.36, 0.22] }}
-          transition={{ duration: 7, repeat: Infinity }}
-          className="absolute left-[-6rem] top-[-5rem] h-[18rem] w-[18rem] rounded-full bg-[#ffd9e6] blur-[95px]"
+          animate={{ scale: [0.94, 1.05, 0.94], opacity: [0.42, 0.72, 0.42] }}
+          transition={{ duration: 4.4, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute left-1/2 top-[39%] h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cfe1e9]/75 blur-[88px]"
         />
         <motion.div
-          animate={{ scale: [1, 1.18, 1], opacity: [0.18, 0.32, 0.18] }}
-          transition={{ duration: 7.4, repeat: Infinity, delay: 0.5 }}
-          className="absolute bottom-[-7rem] right-[-5rem] h-[20rem] w-[20rem] rounded-full bg-secondary-fixed/40 blur-[100px]"
+          animate={{ scale: [0.98, 1.03, 0.98], opacity: [0.16, 0.24, 0.16] }}
+          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute bottom-[-18%] left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-[#c7d9df]/50 blur-[120px]"
         />
       </div>
 
-      <div className="relative z-10 flex h-full w-full max-w-sm flex-col items-center justify-between gap-4 py-3 text-center">
+      <div className="relative z-10 flex h-full w-full max-w-sm flex-col items-center pb-[max(2.5rem,calc(env(safe-area-inset-bottom)+1.5rem))] pt-[max(4.5rem,calc(env(safe-area-inset-top)+2.75rem))] text-center">
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-full"
+          className="flex w-full flex-1 flex-col items-center"
         >
-          <div className="absolute inset-[8%] rounded-[2.8rem] bg-white/55 blur-2xl" />
+          <motion.div
+            animate={{ y: [0, -5, 0], scale: [1, 1.02, 1] }}
+            transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+            className="relative mb-10 flex h-[13.75rem] w-[13.75rem] items-center justify-center rounded-full border border-white/60 bg-white/42 shadow-[0_30px_90px_rgba(121,149,160,0.22)] backdrop-blur-[8px] sm:h-[15rem] sm:w-[15rem]"
+          >
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.12) 42%, rgba(255,255,255,0) 62%)',
+              }}
+            />
 
-          <div className="relative overflow-hidden rounded-[2.5rem] border border-white/80 bg-white/78 p-4 shadow-[0_28px_60px_rgba(78,87,99,0.14)] backdrop-blur sm:p-5">
-            <div className="absolute inset-x-[15%] top-[2%] h-24 rounded-full bg-secondary-fixed/25 blur-3xl" />
-            <div className="absolute bottom-[5%] left-[18%] h-20 w-[64%] rounded-full bg-[#ffe4ec] blur-3xl" />
+            <motion.img
+              src={logoSrc}
+              alt="BabyLog nursing mother logo"
+              className="relative h-[5.5rem] w-[5.5rem] object-contain sm:h-[6.1rem] sm:w-[6.1rem]"
+              animate={{ scale: [1, 1.018, 1] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </motion.div>
 
-            <div className="relative flex flex-col items-center gap-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-secondary shadow-[0_10px_24px_rgba(78,87,99,0.08)]">
-                <Sparkles size={14} />
-                <span>BabyLog</span>
-              </div>
+          <div className="space-y-3">
+            <h1 className="font-headline text-[3.95rem] font-black tracking-[-0.075em] text-[#2a3034] sm:text-[4.35rem]">
+              BabyLog
+            </h1>
+            <p className="font-body text-[1.05rem] font-semibold tracking-[-0.02em] text-[#647c97] sm:text-[1.18rem]">
+              Nurturing with intention.
+            </p>
+          </div>
 
-              <div className="rounded-[2rem] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8f9fc_100%)] p-3 shadow-[0_18px_40px_rgba(78,87,99,0.1)]">
-                <motion.img
-                  src={logoSrc}
-                  alt="BabyLog nursing mother logo"
-                  className="mx-auto aspect-square w-full max-w-[9.5rem] object-contain sm:max-w-[11rem]"
-                  animate={{ y: [0, -6, 0] }}
-                  transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
-                />
-              </div>
-
-              <div className="space-y-2 px-2">
-                <h1 className="text-[2.4rem] font-black tracking-[-0.06em] text-[#2f3337] sm:text-4xl">
-                  BabyLog
-                </h1>
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary sm:text-[11px]">
-                  Mobile Welcome Splash
-                </p>
-                <p className="text-[0.95rem] leading-relaxed text-text-dim sm:text-sm">
-                  Opening a calm space for nursing, feeds, sleep, and the little
-                  moments you want to remember.
-                </p>
-              </div>
+          <div className="mt-[4.75rem] w-[58%] max-w-[13rem]">
+            <div className="relative h-[0.34rem] overflow-hidden rounded-full bg-[#8ea3ac]/18">
+              <motion.div
+                animate={{
+                  x: ['-8%', '72%', '-8%'],
+                  width: ['34%', '22%', '34%'],
+                  opacity: [0.72, 0.92, 0.72],
+                }}
+                transition={{ duration: 1.65, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute inset-y-0 left-0 rounded-full bg-[#8ea3ac]/70"
+              />
             </div>
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.7 }}
-          className="inline-flex items-center gap-2 rounded-full border border-white/75 bg-white/78 px-4 py-2.5 text-xs font-semibold text-text-dim shadow-[0_14px_30px_rgba(78,87,99,0.08)] backdrop-blur"
-        >
-          <HeartHandshake size={16} className="text-secondary" />
-          <span>Preparing your care dashboard</span>
-        </motion.div>
-
-        <div className="flex justify-center gap-2">
-          {[0, 1, 2].map((dot) => (
-            <motion.div
-              key={dot}
-              animate={{ opacity: [0.28, 1, 0.28], scale: [0.88, 1, 0.88] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: dot * 0.18 }}
-              className="h-2.5 w-2.5 rounded-full bg-secondary"
-            />
-          ))}
+        <div className="flex w-full items-end justify-between text-[#7d8d92]/70">
+          <Shield className="mb-1 h-5 w-5 shrink-0" strokeWidth={1.85} />
+          <p className="flex-1 px-4 font-body text-[0.68rem] font-medium uppercase tracking-[0.42em] sm:text-[0.74rem]">
+            Premium Nursery Intelligence
+          </p>
+          <div className="w-5 shrink-0" />
         </div>
       </div>
     </motion.div>
