@@ -40,6 +40,10 @@ import { subscriptionManager } from '../lib/premium';
 import { i18nInstance, type SupportedLanguage, type Unit } from '../lib/i18n';
 import { useTheme } from 'next-themes';
 import { setupRealtimeSync, performFullSync, pullFromCloud } from '../lib/cloud-sync-service';
+import {
+  applyCareWorkspaceSyncData,
+  buildCareWorkspaceSyncData,
+} from '../lib/care-workspace-sync';
 
 type AuthUser = Awaited<ReturnType<typeof getCurrentUser>>;
 
@@ -196,6 +200,10 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         ),
       ]);
 
+      applyCareWorkspaceSyncData(
+        remoteSnapshot?.careWorkspaceData || remoteSnapshot?.userSettings?.careWorkspaceData,
+      );
+
       if (remoteSnapshot?.userSettings && user?.id) {
         const remoteSettings = {
           ...remoteSnapshot.userSettings,
@@ -276,6 +284,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         }
 
         const latestSettings = await getUserSettings(userId);
+        const careWorkspaceData = buildCareWorkspaceSyncData(localBabies.map((baby) => baby.id));
 
         await performFullSync({
           babies: localBabies,
@@ -288,6 +297,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           milestones: aggregate.milestones,
           memories: aggregate.memories,
           journalEntries: aggregate.journalEntries,
+          careWorkspaceData,
           userSettings: latestSettings || null,
         });
       } catch (error) {
@@ -388,7 +398,8 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           const defaultSettings: UserSettings = {
             userId: user.id,
             units: onboardingSettings?.units || 'metric',
-            language: onboardingSettings?.language || 'en',
+            language: onboardingSettings?.language || i18nInstance.getLanguage(),
+            careProfilePreferences: onboardingSettings?.careProfilePreferences,
             notificationsEnabled: onboardingSettings?.notificationsEnabled !== false,
             feedingInterval: onboardingSettings?.feedingInterval || 3,
             theme: onboardingSettings?.theme || 'system',
@@ -404,6 +415,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
               retryMissed: true,
               snoozeMinutes: 30,
               quietHoursEnabled: true,
+              ...(onboardingSettings?.reminderPreferences || {}),
             },
             updatedAt: new Date().toISOString(),
           };

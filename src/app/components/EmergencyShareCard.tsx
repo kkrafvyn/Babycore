@@ -32,6 +32,12 @@ import {
   formatEmergencyHealthCard,
   type EmergencyHealthCard,
 } from '@/lib/emergency-health-card-service';
+import {
+  clearOfflineEmergencyCardSnapshot,
+  getOfflineEmergencyCardSnapshot,
+  saveOfflineEmergencyCardSnapshot,
+  type OfflineEmergencyCardSnapshot,
+} from '@/lib/offline-emergency-card';
 
 interface EmergencyShareCardProps {
   babyId: string;
@@ -142,12 +148,18 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
   );
   const [creatingLink, setCreatingLink] = useState(false);
   const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+  const [offlineSnapshot, setOfflineSnapshot] = useState<OfflineEmergencyCardSnapshot | null>(null);
+  const [savingOffline, setSavingOffline] = useState(false);
+  const [clearingOffline, setClearingOffline] = useState(false);
 
   const loadCard = React.useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      const savedSnapshot = getOfflineEmergencyCardSnapshot(babyId);
+      setOfflineSnapshot(savedSnapshot);
+
       const [apiResult, fallbackResult] = await Promise.all([
         getEmergencyShareCard(babyId).catch(() => null),
         buildEmergencyHealthCard(babyId, babyName).catch(() => null),
@@ -157,7 +169,9 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
       setFallbackCard(fallbackResult);
 
       if (!apiResult && !fallbackResult) {
-        setError('Unable to generate emergency card at the moment.');
+        if (!savedSnapshot) {
+          setError('Unable to generate emergency card at the moment.');
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Unable to generate emergency card.');
@@ -196,12 +210,16 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
     };
   }, [loadCard, loadShareLinks]);
 
-  const generatedAt = apiCard?.generatedAt || fallbackCard?.generatedAt || null;
+  const resolvedApiCard = apiCard || offlineSnapshot?.apiCard || null;
+  const resolvedFallbackCard = fallbackCard || offlineSnapshot?.fallbackCard || null;
+  const usingOfflineSnapshot = !apiCard && !fallbackCard && !!offlineSnapshot;
+  const generatedAt =
+    resolvedApiCard?.generatedAt || resolvedFallbackCard?.generatedAt || offlineSnapshot?.savedAt || null;
 
   const allergiesText = useMemo(() => {
-    if (apiCard) {
-      if (!apiCard.allergies.length) return 'None recorded';
-      return apiCard.allergies
+    if (resolvedApiCard) {
+      if (!resolvedApiCard.allergies.length) return 'None recorded';
+      return resolvedApiCard.allergies
         .map((item) => {
           const allergen = valueToText(item.allergen) || 'Unknown';
           const severity = valueToText(item.severity) || 'n/a';
@@ -209,16 +227,18 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
         })
         .join(', ');
     }
-    if (fallbackCard) {
-      return fallbackCard.knownAllergies.length ? fallbackCard.knownAllergies.join(', ') : 'None recorded';
+    if (resolvedFallbackCard) {
+      return resolvedFallbackCard.knownAllergies.length
+        ? resolvedFallbackCard.knownAllergies.join(', ')
+        : 'None recorded';
     }
     return 'None recorded';
-  }, [apiCard, fallbackCard]);
+  }, [resolvedApiCard, resolvedFallbackCard]);
 
   const medicationsText = useMemo(() => {
-    if (apiCard) {
-      if (!apiCard.medications.length) return 'None recorded';
-      return apiCard.medications
+    if (resolvedApiCard) {
+      if (!resolvedApiCard.medications.length) return 'None recorded';
+      return resolvedApiCard.medications
         .map((item) => {
           const name = valueToText(item.medication_name) || 'Medication';
           const dosage = valueToText(item.dosage);
@@ -227,31 +247,33 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
         })
         .join(', ');
     }
-    if (fallbackCard) {
-      return fallbackCard.activeMedications.length ? fallbackCard.activeMedications.join(', ') : 'None recorded';
+    if (resolvedFallbackCard) {
+      return resolvedFallbackCard.activeMedications.length
+        ? resolvedFallbackCard.activeMedications.join(', ')
+        : 'None recorded';
     }
     return 'None recorded';
-  }, [apiCard, fallbackCard]);
+  }, [resolvedApiCard, resolvedFallbackCard]);
 
   const growthText = useMemo(() => {
-    if (apiCard) {
-      return formatEmergencyGrowthSummary(apiCard.latestGrowth);
+    if (resolvedApiCard) {
+      return formatEmergencyGrowthSummary(resolvedApiCard.latestGrowth);
     }
-    if (fallbackCard?.latestGrowth) {
+    if (resolvedFallbackCard?.latestGrowth) {
       return formatEmergencyGrowthSummary({
-        date: fallbackCard.latestGrowth.date,
-        weight: fallbackCard.latestGrowth.weight,
-        height: fallbackCard.latestGrowth.height,
-        headCircumference: fallbackCard.latestGrowth.headCircumference,
+        date: resolvedFallbackCard.latestGrowth.date,
+        weight: resolvedFallbackCard.latestGrowth.weight,
+        height: resolvedFallbackCard.latestGrowth.height,
+        headCircumference: resolvedFallbackCard.latestGrowth.headCircumference,
       });
     }
     return 'No recent growth or vitals recorded';
-  }, [apiCard, fallbackCard]);
+  }, [resolvedApiCard, resolvedFallbackCard]);
 
   const vaccinesText = useMemo(() => {
-    if (apiCard) {
-      if (!apiCard.vaccines.length) return 'None flagged';
-      return apiCard.vaccines
+    if (resolvedApiCard) {
+      if (!resolvedApiCard.vaccines.length) return 'None flagged';
+      return resolvedApiCard.vaccines
         .map((item) => {
           const name = valueToText(item.vaccine_name) || 'Vaccine';
           const status = valueToText(item.status) || 'pending';
@@ -259,13 +281,18 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
         })
         .join(', ');
     }
-    if (fallbackCard) {
-      return fallbackCard.overdueVaccines.length ? fallbackCard.overdueVaccines.join(', ') : 'None flagged';
+    if (resolvedFallbackCard) {
+      return resolvedFallbackCard.overdueVaccines.length
+        ? resolvedFallbackCard.overdueVaccines.join(', ')
+        : 'None flagged';
     }
     return 'None flagged';
-  }, [apiCard, fallbackCard]);
+  }, [resolvedApiCard, resolvedFallbackCard]);
 
-  const emergencyText = apiCard?.text || (fallbackCard ? formatEmergencyHealthCard(fallbackCard) : '');
+  const emergencyText =
+    resolvedApiCard?.text ||
+    offlineSnapshot?.text ||
+    (resolvedFallbackCard ? formatEmergencyHealthCard(resolvedFallbackCard) : '');
   const expiresSoon =
     shareLink?.expiresAt && new Date(shareLink.expiresAt).getTime() - Date.now() < 15 * 60 * 1000;
   const activeSections = shareLink?.allowedSections || allowedSections;
@@ -316,6 +343,40 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
       alert(err?.message || 'Failed to download emergency PDF.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleSaveOfflineSnapshot = async () => {
+    if (!resolvedApiCard && !resolvedFallbackCard) {
+      alert('Generate the emergency card first, then save it offline.');
+      return;
+    }
+
+    setSavingOffline(true);
+    try {
+      const snapshot = saveOfflineEmergencyCardSnapshot({
+        babyId,
+        babyName,
+        apiCard: resolvedApiCard,
+        fallbackCard: resolvedFallbackCard,
+      });
+      setOfflineSnapshot(snapshot);
+      alert('Offline emergency snapshot saved.');
+    } catch (err: any) {
+      alert(err?.message || 'Unable to save offline snapshot.');
+    } finally {
+      setSavingOffline(false);
+    }
+  };
+
+  const handleClearOfflineSnapshot = async () => {
+    setClearingOffline(true);
+    try {
+      clearOfflineEmergencyCardSnapshot(babyId);
+      setOfflineSnapshot(null);
+      alert('Saved offline snapshot removed.');
+    } finally {
+      setClearingOffline(false);
     }
   };
 
@@ -449,7 +510,24 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
         </div>
       )}
 
-      {!loading && (apiCard || fallbackCard) && (
+      {!loading && !error && usingOfflineSnapshot && (
+        <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-300" />
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                Using saved offline snapshot
+              </p>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                Live data is unavailable right now. This card is using the local copy saved on{' '}
+                {formatTimestamp(offlineSnapshot?.savedAt)}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && (resolvedApiCard || resolvedFallbackCard) && (
         <>
           <div className="space-y-4 rounded-[2rem] border border-border-gray bg-surface p-5 dark:border-zinc-800">
             <div className="flex items-center justify-between gap-2">
@@ -471,14 +549,45 @@ export function EmergencyShareCard({ babyId, babyName }: EmergencyShareCardProps
                 Vaccines to review: {vaccinesText}
               </p>
               <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Doctor contacts: {apiCard?.doctorContacts.length ?? 0}
+                Doctor contacts: {resolvedApiCard?.doctorContacts.length ?? 0}
               </p>
             </div>
 
-            {(shareLink?.qrCodeDataUrl || apiCard?.qrCodeDataUrl) && (
+            <div className="rounded-xl border border-border-gray bg-surface-gray p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-text-light">
+                    Offline Snapshot
+                  </p>
+                  <p className="text-xs font-semibold text-text-dim">
+                    {offlineSnapshot
+                      ? `Saved ${formatTimestamp(offlineSnapshot.savedAt)} for offline triage, travel, and caregiver handoff.`
+                      : 'Save a local copy so key emergency details stay available without signal.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => void handleSaveOfflineSnapshot()}
+                  disabled={savingOffline}
+                  className="shrink-0 rounded-full border border-border-gray bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-foreground disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  {savingOffline ? 'Saving' : 'Save Offline'}
+                </button>
+              </div>
+              {offlineSnapshot && (
+                <button
+                  onClick={() => void handleClearOfflineSnapshot()}
+                  disabled={clearingOffline}
+                  className="mt-3 text-[10px] font-black uppercase tracking-wider text-text-light underline underline-offset-2 disabled:opacity-50"
+                >
+                  {clearingOffline ? 'Removing' : 'Remove saved copy'}
+                </button>
+              )}
+            </div>
+
+            {(shareLink?.qrCodeDataUrl || resolvedApiCard?.qrCodeDataUrl) && (
               <div className="flex justify-center rounded-xl border border-border-gray bg-white p-3 dark:border-zinc-700">
                 <img
-                  src={shareLink?.qrCodeDataUrl || apiCard?.qrCodeDataUrl || ''}
+                  src={shareLink?.qrCodeDataUrl || resolvedApiCard?.qrCodeDataUrl || ''}
                   alt={`Emergency QR code for ${babyName}`}
                   className="h-36 w-36"
                 />

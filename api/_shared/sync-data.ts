@@ -135,6 +135,7 @@ export const buildSyncSnapshot = async (supabaseAdmin: any, user: { id: string; 
       milestones: [],
       memories: [],
       journalEntries: [],
+      careWorkspaceData: userSettingsRow?.care_workspace_data || null,
       userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
     };
   }
@@ -157,6 +158,7 @@ export const buildSyncSnapshot = async (supabaseAdmin: any, user: { id: string; 
       milestones: [],
       memories: [],
       journalEntries: [],
+      careWorkspaceData: userSettingsRow?.care_workspace_data || null,
       userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
     };
   }
@@ -282,6 +284,7 @@ export const buildSyncSnapshot = async (supabaseAdmin: any, user: { id: string; 
       mood: row.mood,
       createdAt: row.created_at,
     })),
+    careWorkspaceData: userSettingsRow?.care_workspace_data || null,
     userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
   };
 };
@@ -363,11 +366,28 @@ export const applyFullSync = async (
   const byOwnedBabyId = (rows: any[] | undefined, resolveBabyId: (row: any) => string) =>
     (Array.isArray(rows) ? rows : []).filter((row) => ownedBabyIds.has(resolveBabyId(row)));
 
-  const settingsResult = localData?.userSettings
+  const settingsPayload = localData?.userSettings
+    ? {
+        ...localData.userSettings,
+        careWorkspaceData:
+          localData?.careWorkspaceData ?? localData.userSettings?.careWorkspaceData,
+      }
+    : localData?.careWorkspaceData
+    ? {
+        userId: user.id,
+        units: 'metric',
+        language: 'en',
+        notificationsEnabled: true,
+        updatedAt: new Date().toISOString(),
+        careWorkspaceData: localData.careWorkspaceData,
+      }
+    : null;
+
+  const settingsResult = settingsPayload
     ? await upsertTable(
         supabaseAdmin,
         'user_settings',
-        [toUserSettingsCloudRow(user.id, localData.userSettings as UserSettings)],
+        [toUserSettingsCloudRow(user.id, settingsPayload as UserSettings)],
         { onConflict: 'user_id' },
       )
     : ({ table: 'user_settings', ok: true } as TableSyncResult);

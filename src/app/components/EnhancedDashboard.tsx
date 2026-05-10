@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 import { getCurrentUserRole } from '../../lib/admin-api';
 import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
+import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 
 type ViewMode = AppView;
 
@@ -68,6 +69,7 @@ const PatientAssignments = lazyNamed(() => import('./PatientAssignments'), 'Pati
 const VoiceLogging = lazyNamed(() => import('./VoiceLogging'), 'VoiceLogging');
 const DoctorReportGenerator = lazyNamed(() => import('./DoctorReportGenerator'), 'DoctorReportGenerator');
 const CarePriorityBoard = lazyNamed(() => import('./CarePriorityBoard'), 'CarePriorityBoard');
+const ParentWellness = lazyNamed(() => import('./ParentWellness'), 'ParentWellness');
 const ActivityCenter = lazyNamed(() => import('./ActivityCenter'), 'ActivityCenter');
 const EmergencyShareCard = lazyNamed(() => import('./EmergencyShareCard'), 'EmergencyShareCard');
 const ClinicDoctorPanel = lazyNamed(() => import('./ClinicDoctorPanel'), 'ClinicDoctorPanel');
@@ -195,6 +197,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'compare',
     'scrapbook',
     'payment',
+    'parent-wellness',
     'activity-center',
     'sync-center',
     'admin',
@@ -422,6 +425,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Parent';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? i18nT('dashboard.greeting') : hour < 17 ? i18nT('dashboard.greetingAfternoon') : i18nT('dashboard.greetingEvening');
+  const carePlanSummary = getCareProfileSummary(accountProfileType, settings?.careProfilePreferences);
+  const carePlanBadges = getCareProfileBadges(accountProfileType, settings?.careProfilePreferences);
 
   const renderDashboard = () => {
     if (isCareTeamProfile && babies.length === 0) {
@@ -549,6 +554,49 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
       <SerenityAI feeds={feedLogs} sleeps={sleepLogs} />
 
+      {settings?.careProfilePreferences && (
+        <div className="rounded-[2rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-text-light">
+                Starter Care Plan
+              </p>
+              <h3 className="text-xl font-headline font-black tracking-tight text-foreground sm:text-2xl">
+                {accountProfileType === 'baby'
+                  ? `${currentBaby?.name || 'Your baby'} is set up for a gentler rhythm`
+                  : accountProfileType === 'doctor'
+                    ? 'Your doctor workflow is tuned for follow-up care'
+                    : 'Your caregiver workflow is tuned for daily support'}
+              </h3>
+              <p className="max-w-2xl text-sm font-semibold leading-relaxed text-text-dim">
+                {carePlanSummary}
+              </p>
+            </div>
+            {accountProfileType === 'baby' && (
+              <button
+                onClick={() => changeView('settings')}
+                className="rounded-full bg-surface-gray px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-secondary transition-all hover:bg-secondary hover:text-white dark:bg-zinc-800 dark:hover:bg-blue-500"
+              >
+                Adjust in Settings
+              </button>
+            )}
+          </div>
+
+          {carePlanBadges.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {carePlanBadges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full bg-surface-gray px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-text-dim dark:bg-zinc-900 dark:text-zinc-300"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Smart Features & Tools */}
       <div>
          <div className="flex justify-between items-center mb-4 sm:mb-6 px-1 sm:px-2 mt-3 sm:mt-4">
@@ -569,6 +617,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'voice-logging', label: 'Voice Logs', icon: <Mic size={20} />, bg: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500' },
               { id: 'doctor-reports', label: 'Doctor Reports', icon: <FileText size={20} />, bg: 'bg-teal-50 dark:bg-teal-900/20 text-teal-500' },
               { id: 'care-priority', label: 'Priority Board', icon: <AlertTriangle size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
+              { id: 'parent-wellness', label: 'Wellness', icon: <Heart size={20} />, bg: 'bg-rose-50 dark:bg-rose-900/20 text-rose-500' },
               { id: 'activity-center', label: 'Activity Center', icon: <Activity size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' },
               { id: 'emergency-card', label: 'Emergency Card', icon: <Shield size={20} />, bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' },
               ...(accountProfileType === 'doctor'
@@ -793,6 +842,14 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             onBack={backToDashboard}
             onOpenVaccines={() => changeView('vaccination')}
             onOpenHealthRecords={() => changeView('health-records')}
+          />
+        ) : null;
+      case 'parent-wellness':
+        return currentBaby ? (
+          <ParentWellness
+            babyId={currentBaby.id}
+            babyName={currentBaby.name}
+            onBack={backToDashboard}
           />
         ) : null;
       case 'activity-center':

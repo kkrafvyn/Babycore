@@ -8,8 +8,25 @@ import { motion } from 'motion/react';
 import { COUNTRIES } from '../../lib/countries';
 import { getDefaultAvatar, getUserAvatar } from '../../lib/baby-utils';
 import { getVaccinationRegionForCountry } from '../../lib/vaccination-schedule-resolver';
+import { getCountryCareDefaults, getDefaultUnitsForCountry } from '../../lib/country-care-defaults';
+import {
+  deriveSettingsFromCareProfile,
+  getCareProfileBadges,
+  getCareProfileSummary,
+  getDefaultCareProfile,
+  normalizeCareProfile,
+} from '../../lib/care-profile';
+import { i18nT } from '../../lib/i18n';
+import type {
+  CareProfileFeedingStyle,
+  CareProfileHealthConsideration,
+  CareProfilePreferences,
+  CareProfilePriority,
+  CareProfileStage,
+  CareProfileSupportFocus,
+} from '../../types';
 
-type OnboardingStep = 'welcome' | 'country' | 'baby' | 'units' | 'notifications' | 'complete';
+type OnboardingStep = 'welcome' | 'country' | 'baby' | 'personalize' | 'units' | 'notifications' | 'complete';
 type ProfileType = 'baby' | 'doctor' | 'caregiver';
 
 interface CountryOption {
@@ -24,6 +41,7 @@ interface OnboardingData {
   country: string;
   units: 'metric' | 'imperial';
   notificationsEnabled: boolean;
+  careProfilePreferences: CareProfilePreferences;
   babyName: string;
   babyDateOfBirth: string;
   babyGender: 'boy' | 'girl' | 'other';
@@ -40,8 +58,8 @@ interface Material3OnboardingProps {
   onViewPolicies?: () => void;
 }
 
-const STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'units', 'notifications', 'complete'];
-const CARE_TEAM_STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'notifications', 'complete'];
+const STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'personalize', 'units', 'notifications', 'complete'];
+const CARE_TEAM_STEPS: OnboardingStep[] = ['welcome', 'country', 'baby', 'personalize', 'notifications', 'complete'];
 const ROLE_OPTIONS: Array<{
   value: ProfileType;
   label: string;
@@ -75,6 +93,29 @@ const FEATURE_CARDS = [
 ];
 
 const CAREGIVER_RELATIONSHIPS = ['Family', 'Nanny', 'Relative', 'Daycare', 'Night Nurse', 'Other'];
+const CARE_PROFILE_STAGE_OPTIONS: CareProfileStage[] = ['newborn', 'infant', 'toddler', 'preschool'];
+const CARE_PROFILE_FEEDING_OPTIONS: CareProfileFeedingStyle[] = ['breastfeeding', 'bottle', 'mixed', 'solids'];
+const CARE_PROFILE_PRIORITY_OPTIONS: CareProfilePriority[] = [
+  'feeding',
+  'sleep',
+  'routine',
+  'growth',
+  'milestones',
+  'medical',
+];
+const CARE_PROFILE_HEALTH_OPTIONS: CareProfileHealthConsideration[] = [
+  'premature',
+  'reflux',
+  'allergies',
+  'nicu',
+  'multiple-birth',
+];
+const CARE_PROFILE_SUPPORT_OPTIONS: CareProfileSupportFocus[] = [
+  'daily-logs',
+  'handoff-updates',
+  'medical-followups',
+  'growth-review',
+];
 
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
@@ -99,6 +140,17 @@ const getCountryFlagUrl = (countryCode: string): string | null => {
   return `https://flagcdn.com/${normalizedCode.toLowerCase()}.svg`;
 };
 
+const formatTemplate = (template: string, replacements: Record<string, string | number>): string =>
+  Object.entries(replacements).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+
+const toggleValue = <T extends string>(current: T[] | undefined, value: T): T[] => {
+  const values = current || [];
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+};
+
 export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   onComplete,
   onSkip,
@@ -106,11 +158,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasCustomizedUnits, setHasCustomizedUnits] = useState(false);
   const [formData, setFormData] = useState<OnboardingData>({
     profileType: 'baby',
     country: 'US',
-    units: 'metric',
+    units: getDefaultUnitsForCountry('US'),
     notificationsEnabled: true,
+    careProfilePreferences: getDefaultCareProfile('baby'),
     babyName: '',
     babyDateOfBirth: '',
     babyGender: 'other',
@@ -150,8 +204,53 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   const activeStepIndex = activeSteps.indexOf(currentStep);
   const safeActiveStepIndex = activeStepIndex < 0 ? 0 : activeStepIndex;
   const progress = Math.round((safeActiveStepIndex / (activeSteps.length - 1)) * 100);
+  const isScrollableStep = currentStep === 'baby' || currentStep === 'personalize';
 
   const selectedCountry = countryOptions.find((country) => country.code === formData.country);
+  const countryCareDefaults = useMemo(() => getCountryCareDefaults(formData.country), [formData.country]);
+  const normalizedCareProfile = useMemo(
+    () => normalizeCareProfile(formData.profileType, formData.careProfilePreferences),
+    [formData.profileType, formData.careProfilePreferences],
+  );
+  const careProfileSummary = useMemo(
+    () => getCareProfileSummary(formData.profileType, normalizedCareProfile),
+    [formData.profileType, normalizedCareProfile],
+  );
+  const careProfileBadges = useMemo(
+    () => getCareProfileBadges(formData.profileType, normalizedCareProfile),
+    [formData.profileType, normalizedCareProfile],
+  );
+  const personalizedDefaults = useMemo(
+    () => deriveSettingsFromCareProfile(formData.profileType, normalizedCareProfile),
+    [formData.profileType, normalizedCareProfile],
+  );
+  const scheduleSourceLabel = useMemo(() => {
+    if (countryCareDefaults.vaccinationScheduleSource === 'country') {
+      return i18nT('onboarding.guidanceCountrySource', 'Country schedule');
+    }
+    if (countryCareDefaults.vaccinationScheduleSource === 'region') {
+      return i18nT('onboarding.guidanceRegionSource', 'Regional guidance');
+    }
+    return i18nT('onboarding.guidanceGlobalSource', 'Global fallback');
+  }, [countryCareDefaults.vaccinationScheduleSource]);
+
+  const translatedFeatureCards = [
+    {
+      ...FEATURE_CARDS[0],
+      title: i18nT('onboarding.welcomeFeatureSleepTitle', FEATURE_CARDS[0].title),
+      desc: i18nT('onboarding.welcomeFeatureSleepBody', FEATURE_CARDS[0].desc),
+    },
+    {
+      ...FEATURE_CARDS[1],
+      title: i18nT('onboarding.welcomeFeatureFeedingTitle', FEATURE_CARDS[1].title),
+      desc: i18nT('onboarding.welcomeFeatureFeedingBody', FEATURE_CARDS[1].desc),
+    },
+    {
+      ...FEATURE_CARDS[2],
+      title: i18nT('onboarding.welcomeFeatureGrowthTitle', FEATURE_CARDS[2].title),
+      desc: i18nT('onboarding.welcomeFeatureGrowthBody', FEATURE_CARDS[2].desc),
+    },
+  ];
   const avatarPreview =
     formData.profileType === 'doctor'
       ? getUserAvatar(formData.doctorName.trim() || 'doctor')
@@ -161,28 +260,121 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
   const profileCopy = {
     baby: {
-      title: 'Add Your Baby',
-      description: "Let's start by creating a profile for your little one so you can begin tracking the journey with clarity.",
-      helper: 'Photo is optional. We can keep the generated avatar if you prefer.',
-      note: 'Required fields help us personalize growth tracking, routines, and reminders.',
+      title: i18nT('onboarding.babyTitle', 'Add Your Baby'),
+      description: i18nT(
+        'onboarding.babyDescription',
+        "Let's start by creating a profile for your little one so you can begin tracking the journey with clarity.",
+      ),
+      helper: i18nT(
+        'onboarding.babyHelper',
+        'Photo is optional. We can keep the generated avatar if you prefer.',
+      ),
+      note: i18nT(
+        'onboarding.babyNote',
+        'Required fields help us personalize growth tracking, routines, and reminders.',
+      ),
       accent: 'auto_awesome',
     },
     doctor: {
-      title: 'Add Your Doctor Profile',
-      description: 'Create your clinician profile first, then connect babies or patients after sign-in.',
-      helper: 'We generate a clean avatar preview from the name you enter below.',
-      note: 'Doctor accounts can review assigned babies, health updates, and care summaries.',
+      title: i18nT('onboarding.doctorTitle', 'Add Your Doctor Profile'),
+      description: i18nT(
+        'onboarding.doctorDescription',
+        'Create your clinician profile first, then connect babies or patients after sign-in.',
+      ),
+      helper: i18nT(
+        'onboarding.doctorHelper',
+        'We generate a clean avatar preview from the name you enter below.',
+      ),
+      note: i18nT(
+        'onboarding.doctorNote',
+        'Doctor accounts can review assigned babies, health updates, and care summaries.',
+      ),
       accent: 'stethoscope',
     },
     caregiver: {
-      title: 'Add Your Caregiver Profile',
-      description: 'Set up the caregiver account so daily logs and handoff updates stay organized for the family.',
-      helper: 'Choose the relationship that best matches how this caregiver supports the child.',
-      note: 'Caregivers can help with shared updates while the parent remains the primary owner.',
+      title: i18nT('onboarding.caregiverTitle', 'Add Your Caregiver Profile'),
+      description: i18nT(
+        'onboarding.caregiverDescription',
+        'Set up the caregiver account so daily logs and handoff updates stay organized for the family.',
+      ),
+      helper: i18nT(
+        'onboarding.caregiverHelper',
+        'Choose the relationship that best matches how this caregiver supports the child.',
+      ),
+      note: i18nT(
+        'onboarding.caregiverNote',
+        'Caregivers can help with shared updates while the parent remains the primary owner.',
+      ),
       accent: 'groups',
     },
   } as const;
   const currentProfileCopy = profileCopy[formData.profileType];
+  const stageOptions = CARE_PROFILE_STAGE_OPTIONS.map((stage) => ({
+    value: stage,
+    label:
+      stage === 'newborn'
+        ? i18nT('onboarding.stageNewborn', 'Newborn')
+        : stage === 'infant'
+          ? i18nT('onboarding.stageInfant', 'Infant')
+          : stage === 'toddler'
+            ? i18nT('onboarding.stageToddler', 'Toddler')
+            : i18nT('onboarding.stagePreschool', 'Preschool'),
+  }));
+  const feedingOptions = CARE_PROFILE_FEEDING_OPTIONS.map((style) => ({
+    value: style,
+    label:
+      style === 'breastfeeding'
+        ? i18nT('onboarding.feedingBreast', 'Breastfeeding')
+        : style === 'bottle'
+          ? i18nT('onboarding.feedingBottle', 'Bottle feeding')
+          : style === 'mixed'
+            ? i18nT('onboarding.feedingMixed', 'Mixed feeding')
+            : i18nT('onboarding.feedingSolids', 'Solids focus'),
+  }));
+  const priorityOptions = CARE_PROFILE_PRIORITY_OPTIONS.map((priority) => ({
+    value: priority,
+    label:
+      priority === 'feeding'
+        ? i18nT('onboarding.priorityFeeding', 'Feeding')
+        : priority === 'sleep'
+          ? i18nT('onboarding.prioritySleep', 'Sleep')
+          : priority === 'routine'
+            ? i18nT('onboarding.priorityRoutine', 'Routine')
+            : priority === 'growth'
+              ? i18nT('onboarding.priorityGrowth', 'Growth')
+              : priority === 'milestones'
+                ? i18nT('onboarding.priorityMilestones', 'Milestones')
+                : i18nT('onboarding.priorityMedical', 'Medical'),
+  }));
+  const healthOptions = CARE_PROFILE_HEALTH_OPTIONS.map((item) => ({
+    value: item,
+    label:
+      item === 'premature'
+        ? i18nT('onboarding.healthPremature', 'Premature')
+        : item === 'reflux'
+          ? i18nT('onboarding.healthReflux', 'Reflux')
+          : item === 'allergies'
+            ? i18nT('onboarding.healthAllergies', 'Allergies')
+            : item === 'nicu'
+              ? i18nT('onboarding.healthNicu', 'NICU history')
+              : i18nT('onboarding.healthMultipleBirth', 'Multiple birth'),
+  }));
+  const supportOptions = CARE_PROFILE_SUPPORT_OPTIONS.map((focus) => ({
+    value: focus,
+    label:
+      focus === 'daily-logs'
+        ? i18nT('onboarding.supportDailyLogs', 'Daily logs')
+        : focus === 'handoff-updates'
+          ? i18nT('onboarding.supportHandoffs', 'Handoff updates')
+          : focus === 'medical-followups'
+            ? i18nT('onboarding.supportMedical', 'Medical follow-ups')
+            : i18nT('onboarding.supportGrowth', 'Growth review'),
+  }));
+  const getRoleLabel = (role: ProfileType): string => {
+    if (role === 'doctor') return i18nT('onboarding.roleDoctor', 'Doctor');
+    if (role === 'caregiver') return i18nT('onboarding.roleCaregiver', 'Caregiver');
+    return i18nT('onboarding.roleBaby', 'Baby');
+  };
 
   const canProceed = (() => {
     if (currentStep === 'country') return Boolean(formData.country);
@@ -195,6 +387,12 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
       }
       return Boolean(formData.babyName.trim()) && Boolean(formData.babyDateOfBirth);
     }
+    if (currentStep === 'personalize') {
+      if (formData.profileType === 'baby') {
+        return Boolean(normalizedCareProfile.childStage) && Boolean(normalizedCareProfile.feedingStyle);
+      }
+      return (normalizedCareProfile.supportFocus || []).length > 0;
+    }
     return true;
   })();
 
@@ -205,7 +403,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
   const handleNext = () => {
     if (currentStep === 'complete') {
-      onComplete(formData);
+      onComplete({
+        ...formData,
+        careProfilePreferences: normalizedCareProfile,
+      });
       return;
     }
 
@@ -274,7 +475,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     />
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8] dark:text-zinc-500">
-                    Step {safeActiveStepIndex + 1} of {activeSteps.length}
+                    {formatTemplate(
+                      i18nT('onboarding.stepCounter', 'Step {current} of {total}'),
+                      { current: safeActiveStepIndex + 1, total: activeSteps.length },
+                    )}
                   </span>
                 </div>
                 {onSkip && (
@@ -283,7 +487,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     onClick={onSkip}
                     className="rounded-full bg-[#f3f3f7] px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#5e5f61] transition-all hover:bg-[#e0e2e8] dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:px-5 sm:py-3 sm:text-[10px]"
                   >
-                    Skip to Login
+                    {i18nT('onboarding.skipToLogin', 'Skip to Login')}
                   </button>
                 )}
               </div>
@@ -319,7 +523,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       />
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8] dark:text-zinc-500">
-                      Step {safeActiveStepIndex + 1} of {activeSteps.length}
+                      {formatTemplate(
+                        i18nT('onboarding.stepCounter', 'Step {current} of {total}'),
+                        { current: safeActiveStepIndex + 1, total: activeSteps.length },
+                      )}
                     </span>
                   </div>
                 )}
@@ -329,7 +536,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     onClick={onSkip}
                     className="rounded-full bg-[#f3f3f7] px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-[#5e5f61] transition-all hover:bg-[#e0e2e8] dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 sm:px-5 sm:py-3 sm:text-[10px]"
                   >
-                    Skip to Login
+                    {i18nT('onboarding.skipToLogin', 'Skip to Login')}
                   </button>
                 )}
               </div>
@@ -337,7 +544,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
             {currentStep !== 'welcome' && (
               <div className="px-3 pb-2 text-right text-[9px] font-black uppercase tracking-[0.18em] text-[#afb2b8] dark:text-zinc-500 sm:hidden">
-                Step {safeActiveStepIndex + 1} of {activeSteps.length}
+                {formatTemplate(
+                  i18nT('onboarding.stepCounter', 'Step {current} of {total}'),
+                  { current: safeActiveStepIndex + 1, total: activeSteps.length },
+                )}
               </div>
             )}
           </>
@@ -345,7 +555,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
       </header>
 
       <main
-        className={`${currentStep === 'baby' ? 'overflow-y-auto sm:overflow-hidden' : 'overflow-hidden'} min-h-0 px-3 py-4 sm:px-6 sm:py-4`}
+        className={`${isScrollableStep ? 'overflow-y-auto sm:overflow-hidden' : 'overflow-hidden'} min-h-0 px-3 py-4 sm:px-6 sm:py-4`}
       >
         <motion.div
           key={currentStep}
@@ -353,22 +563,27 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -18 }}
           transition={{ duration: 0.28 }}
-          className={`mx-auto max-w-6xl ${currentStep === 'baby' ? 'h-auto sm:h-full' : 'h-full'}`}
+          className={`mx-auto max-w-6xl ${isScrollableStep ? 'h-auto sm:h-full' : 'h-full'}`}
         >
           {currentStep === 'welcome' && (
             <div className="mx-auto flex h-full max-w-4xl flex-col justify-between gap-3 py-1 text-center sm:gap-5 sm:py-1.5">
               <div className="space-y-2 sm:space-y-3">
                 <h1 className="mx-auto max-w-[10.5ch] font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(1.85rem,6.6vw,3.65rem)] font-black leading-[0.9] tracking-[-0.06em] text-[#2f3337] dark:text-white">
-                  The Sanctuary for
-                  <span className="mt-0.5 block text-[#45627d] dark:text-blue-300">Gentle Parenting</span>
+                  {i18nT('onboarding.titleLineOne', 'The Sanctuary for')}
+                  <span className="mt-0.5 block text-[#45627d] dark:text-blue-300">
+                    {i18nT('onboarding.titleLineTwo', 'Gentle Parenting')}
+                  </span>
                 </h1>
                 <p className="mx-auto max-w-xl text-[13px] font-bold leading-snug text-[#787b80] dark:text-zinc-400 sm:max-w-2xl sm:text-[14px] sm:leading-snug">
-                  Set up your profile once, then track feeding, sleep, health, and milestones with clarity.
+                  {i18nT(
+                    'onboarding.subtitle',
+                    'Set up your profile once, then track feeding, sleep, health, and milestones with clarity.',
+                  )}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-5">
-                {FEATURE_CARDS.map((feature) => (
+                {translatedFeatureCards.map((feature) => (
                   <div
                     key={feature.title}
                     className="flex min-h-[8.5rem] flex-col justify-center rounded-[1.75rem] border border-white/70 bg-white/78 px-4 py-3.5 shadow-[0_18px_40px_rgba(47,51,55,0.05)] backdrop-blur dark:border-zinc-800 dark:bg-[#17181b] sm:min-h-[8.75rem] sm:rounded-[2rem] sm:px-5 sm:py-4"
@@ -396,10 +611,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
             <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 sm:gap-6">
               <div className="text-center">
                 <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(1.95rem,6vw,3rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
-                  Select Your Country
+                  {i18nT('onboarding.countryTitle', 'Select Your Country')}
                 </h2>
                 <p className="mx-auto mt-2 max-w-2xl text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
-                  We use this for localized health guidance, vaccine schedules, and regional defaults.
+                  {i18nT(
+                    'onboarding.countrySubtitle',
+                    'We use this for localized health guidance, vaccine schedules, and regional defaults.',
+                  )}
                 </p>
               </div>
 
@@ -410,7 +628,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   </div>
                   <input
                     type="text"
-                    placeholder="Search for your country"
+                    placeholder={i18nT('onboarding.countrySearch', 'Search for your country')}
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     className="w-full rounded-2xl border border-transparent bg-[#f8f8fb] py-3 pl-12 pr-4 font-bold text-[#2f3337] outline-none transition-all placeholder:text-[#afb2b8] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-blue-500 sm:mt-4"
@@ -443,13 +661,59 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   </div>
                 )}
 
+                {selectedCountry && (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                        {i18nT('onboarding.guidanceUnits', 'Recommended Units')}
+                      </p>
+                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
+                        {countryCareDefaults.recommendedUnits === 'imperial'
+                          ? i18nT('onboarding.unitsImperial', 'Imperial')
+                          : i18nT('onboarding.unitsMetric', 'Metric')}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
+                        {countryCareDefaults.recommendedUnitsCompactLabel}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                        {i18nT('onboarding.guidanceVaccines', 'Vaccine Schedule')}
+                      </p>
+                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
+                        {countryCareDefaults.vaccinationScheduleName}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
+                        {countryCareDefaults.vaccinationRegionName}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                        {i18nT('onboarding.guidanceCoverage', 'Coverage')}
+                      </p>
+                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
+                        {scheduleSourceLabel}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
+                        {selectedCountry.code}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
                   <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
                     {filteredCountries.map((country) => (
                       <button
                         key={country.code}
                         type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, country: country.code }))}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            country: country.code,
+                            units: hasCustomizedUnits ? prev.units : getDefaultUnitsForCountry(country.code),
+                          }))
+                        }
                         className={`rounded-2xl border p-4 text-left transition-all ${
                           formData.country === country.code
                             ? 'border-[#45627d] bg-[#f8fbff] shadow-md dark:border-blue-500 dark:bg-zinc-900'
@@ -501,10 +765,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     <div className="flex h-full min-h-[12rem] items-center justify-center rounded-[1.5rem] border border-dashed border-gray-200 bg-[#fafbff] px-6 text-center dark:border-zinc-700 dark:bg-zinc-900/60">
                       <div>
                         <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-black text-[#2f3337] dark:text-white">
-                          No matches yet
+                          {i18nT('onboarding.countryNoMatchTitle', 'No matches yet')}
                         </p>
                         <p className="mt-2 text-sm font-bold text-[#787b80] dark:text-zinc-400">
-                          Try a country name, code, or region keyword.
+                          {i18nT('onboarding.countryNoMatchBody', 'Try a country name, code, or region keyword.')}
                         </p>
                       </div>
                     </div>
@@ -532,7 +796,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, profileType: option.value }))}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            profileType: option.value,
+                            careProfilePreferences: getDefaultCareProfile(option.value),
+                          }))
+                        }
                         className={`rounded-[1.25rem] px-2 py-2.5 text-center transition-all ${
                           formData.profileType === option.value
                             ? 'bg-white text-[#45627d] shadow-sm dark:bg-zinc-800 dark:text-blue-300'
@@ -541,7 +811,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       >
                         <span className="material-symbols-outlined block text-[1.15rem]">{option.icon}</span>
                         <span className="mt-1 block font-['Plus_Jakarta_Sans',sans-serif] text-[9px] font-black uppercase tracking-[0.12em]">
-                          {option.shortLabel}
+                          {getRoleLabel(option.value)}
                         </span>
                       </button>
                     ))}
@@ -569,7 +839,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       )}
                     </div>
                     <p className="mt-4 font-['Plus_Jakarta_Sans',sans-serif] text-[10px] font-black uppercase tracking-[0.18em] text-[#45627d] dark:text-blue-300">
-                      {formData.profileType === 'baby' ? 'Tap to add photo' : 'Profile preview'}
+                      {formData.profileType === 'baby'
+                        ? i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')
+                        : i18nT('onboarding.profilePreview', 'Profile preview')}
                     </p>
                   </div>
 
@@ -578,7 +850,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <>
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Baby&apos;s Name *
+                            {i18nT('onboarding.babyName', "Baby's Name *")}
                           </label>
                           <input
                             type="text"
@@ -586,14 +858,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                             onChange={(event) =>
                               setFormData((prev) => ({ ...prev, babyName: event.target.value }))
                             }
-                            placeholder="Enter name"
+                            placeholder={i18nT('onboarding.babyNamePlaceholder', 'Enter name')}
                             className="w-full rounded-[1.55rem] border border-transparent bg-[#f3f4f8] px-5 py-3.5 text-[15px] font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                           />
                         </div>
 
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Date of Birth *
+                            {i18nT('onboarding.babyDob', 'Date of Birth *')}
                           </label>
                           <div className="relative">
                             <input
@@ -616,13 +888,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Gender (Optional)
+                            {i18nT('onboarding.genderOptional', 'Gender (Optional)')}
                           </label>
                           <div className="grid grid-cols-3 gap-2">
                             {[
-                              { value: 'girl' as const, label: 'Girl', icon: 'female' },
-                              { value: 'boy' as const, label: 'Boy', icon: 'male' },
-                              { value: 'other' as const, label: 'Surprise', icon: 'question_mark' },
+                              { value: 'girl' as const, label: i18nT('onboarding.genderGirl', 'Girl'), icon: 'female' },
+                              { value: 'boy' as const, label: i18nT('onboarding.genderBoy', 'Boy'), icon: 'male' },
+                              { value: 'other' as const, label: i18nT('onboarding.genderSurprise', 'Surprise'), icon: 'question_mark' },
                             ].map((option) => (
                               <button
                                 key={option.value}
@@ -649,7 +921,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <>
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Doctor&apos;s Name *
+                            {i18nT('onboarding.doctorName', "Doctor's Name *")}
                           </label>
                           <input
                             type="text"
@@ -657,14 +929,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                             onChange={(event) =>
                               setFormData((prev) => ({ ...prev, doctorName: event.target.value }))
                             }
-                            placeholder="Enter full name"
+                            placeholder={i18nT('onboarding.doctorNamePlaceholder', 'Enter full name')}
                             className="w-full rounded-[1.55rem] border border-transparent bg-[#f3f4f8] px-5 py-3.5 text-[15px] font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                           />
                         </div>
 
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Specialty
+                            {i18nT('onboarding.doctorSpecialty', 'Specialty')}
                           </label>
                           <input
                             type="text"
@@ -672,7 +944,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                             onChange={(event) =>
                               setFormData((prev) => ({ ...prev, doctorSpecialty: event.target.value }))
                             }
-                            placeholder="Pediatrics, Neonatal care, Family medicine..."
+                            placeholder={i18nT('onboarding.doctorSpecialtyPlaceholder', 'Pediatrics, Neonatal care, Family medicine...')}
                             className="w-full rounded-[1.55rem] border border-transparent bg-[#f3f4f8] px-5 py-3.5 text-[15px] font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                           />
                         </div>
@@ -681,7 +953,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <>
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Caregiver&apos;s Name *
+                            {i18nT('onboarding.caregiverName', "Caregiver's Name *")}
                           </label>
                           <input
                             type="text"
@@ -689,14 +961,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                             onChange={(event) =>
                               setFormData((prev) => ({ ...prev, caregiverName: event.target.value }))
                             }
-                            placeholder="Enter full name"
+                            placeholder={i18nT('onboarding.caregiverNamePlaceholder', 'Enter full name')}
                             className="w-full rounded-[1.55rem] border border-transparent bg-[#f3f4f8] px-5 py-3.5 text-[15px] font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500"
                           />
                         </div>
 
                         <div className="space-y-2">
                           <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300">
-                            Relationship *
+                            {i18nT('onboarding.caregiverRelationship', 'Relationship *')}
                           </label>
                           <select
                             value={formData.caregiverRelationship}
@@ -725,13 +997,17 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     disabled={!canProceed}
                     className="mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#5e5f61] py-4 font-['Plus_Jakarta_Sans',sans-serif] text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-xl shadow-[#5e5f61]/20 transition-all hover:bg-[#4a4b4d] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>{formData.profileType === 'baby' ? 'Create Profile' : 'Continue'}</span>
+                    <span>
+                      {formData.profileType === 'baby'
+                        ? i18nT('onboarding.createProfile', 'Create Profile')
+                        : i18nT('onboarding.continue', 'Continue')}
+                    </span>
                     <span className="material-symbols-outlined text-base">arrow_forward</span>
                   </button>
 
                   <p className="mt-3 text-center text-[11px] italic leading-relaxed text-[#a1a5ad] dark:text-zinc-500">
                     {formData.profileType === 'baby'
-                      ? '*Required fields for growth tracking'
+                      ? i18nT('onboarding.growthTrackingNote', '*Required fields for growth tracking')
                       : currentProfileCopy.note}
                   </p>
                 </div>
@@ -753,7 +1029,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() => setFormData((prev) => ({ ...prev, profileType: option.value }))}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            profileType: option.value,
+                            careProfilePreferences: getDefaultCareProfile(option.value),
+                          }))
+                        }
                         className={`rounded-[1rem] px-2 py-2 text-center transition-all sm:rounded-[1.1rem] sm:py-2.5 ${
                           formData.profileType === option.value
                             ? 'bg-white text-[#45627d] shadow-sm dark:bg-zinc-800 dark:text-blue-300'
@@ -762,7 +1044,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       >
                         <span className="material-symbols-outlined block text-[1rem] sm:text-[1.1rem]">{option.icon}</span>
                         <span className="mt-1 block font-['Plus_Jakarta_Sans',sans-serif] text-[9px] font-black uppercase tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em]">
-                          {option.shortLabel}
+                          {getRoleLabel(option.value)}
                         </span>
                       </button>
                     ))}
@@ -791,7 +1073,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                         )}
                       </div>
                       <p className="mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-[9px] font-black uppercase tracking-[0.12em] text-[#45627d] dark:text-blue-300 sm:mt-3 sm:text-[10px] sm:tracking-[0.18em]">
-                        {formData.profileType === 'baby' ? 'Tap photo' : 'Preview'}
+                        {formData.profileType === 'baby'
+                          ? i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')
+                          : i18nT('onboarding.profilePreview', 'Profile preview')}
                       </p>
                       <p className="mt-1 hidden max-w-[11rem] text-[11px] font-semibold leading-snug text-[#8d9299] dark:text-zinc-400 lg:inline lg:text-[11px]">
                         <span className="sm:hidden">
@@ -811,7 +1095,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                           <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-4">
                             <div className="space-y-1.5">
                               <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300 sm:text-sm">
-                                Baby&apos;s Name *
+                                {i18nT('onboarding.babyName', "Baby's Name *")}
                               </label>
                               <input
                                 type="text"
@@ -819,14 +1103,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                                 onChange={(event) =>
                                   setFormData((prev) => ({ ...prev, babyName: event.target.value }))
                                 }
-                                placeholder="Enter name"
+                                placeholder={i18nT('onboarding.babyNamePlaceholder', 'Enter name')}
                                 className="w-full rounded-[1.1rem] border border-transparent bg-[#f3f4f8] px-4 py-3 text-[15px] font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500 sm:rounded-[1.25rem] sm:px-4 sm:py-3 sm:text-base"
                               />
                             </div>
 
                             <div className="space-y-1.5">
                               <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300 sm:text-sm">
-                                Date of Birth *
+                                {i18nT('onboarding.babyDob', 'Date of Birth *')}
                               </label>
                               <div className="relative">
                                 <input
@@ -849,14 +1133,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300 sm:text-sm">
-                              Gender (Optional)
+                              <label className="block text-[13px] font-black text-[#5d6167] dark:text-zinc-300 sm:text-sm">
+                              {i18nT('onboarding.genderOptional', 'Gender (Optional)')}
                             </label>
                             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                               {[
-                                { value: 'girl' as const, label: 'Girl', icon: 'female' },
-                                { value: 'boy' as const, label: 'Boy', icon: 'male' },
-                                { value: 'other' as const, label: 'Surprise', icon: 'question_mark' },
+                                { value: 'girl' as const, label: i18nT('onboarding.genderGirl', 'Girl'), icon: 'female' },
+                                { value: 'boy' as const, label: i18nT('onboarding.genderBoy', 'Boy'), icon: 'male' },
+                                { value: 'other' as const, label: i18nT('onboarding.genderSurprise', 'Surprise'), icon: 'question_mark' },
                               ].map((option) => (
                                 <button
                                   key={option.value}
@@ -883,7 +1167,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                         <>
                           <div className="space-y-2">
                             <label className="block text-sm font-black text-[#5d6167] dark:text-zinc-300">
-                              Doctor&apos;s Name *
+                              {i18nT('onboarding.doctorName', "Doctor's Name *")}
                             </label>
                             <input
                               type="text"
@@ -891,14 +1175,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                               onChange={(event) =>
                                 setFormData((prev) => ({ ...prev, doctorName: event.target.value }))
                               }
-                              placeholder="Enter full name"
+                              placeholder={i18nT('onboarding.doctorNamePlaceholder', 'Enter full name')}
                               className="w-full rounded-[1.2rem] border border-transparent bg-[#f3f4f8] px-4 py-3.5 text-base font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500 sm:rounded-[1.25rem] sm:px-4 sm:py-3 sm:text-base"
                             />
                           </div>
 
                           <div className="space-y-2">
                             <label className="block text-sm font-black text-[#5d6167] dark:text-zinc-300">
-                              Specialty
+                              {i18nT('onboarding.doctorSpecialty', 'Specialty')}
                             </label>
                             <input
                               type="text"
@@ -906,7 +1190,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                               onChange={(event) =>
                                 setFormData((prev) => ({ ...prev, doctorSpecialty: event.target.value }))
                               }
-                              placeholder="Pediatrics, Neonatal care, Family medicine..."
+                              placeholder={i18nT('onboarding.doctorSpecialtyPlaceholder', 'Pediatrics, Neonatal care, Family medicine...')}
                               className="w-full rounded-[1.2rem] border border-transparent bg-[#f3f4f8] px-4 py-3.5 text-base font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500 sm:rounded-[1.25rem] sm:px-4 sm:py-3 sm:text-base"
                             />
                           </div>
@@ -915,7 +1199,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                         <>
                           <div className="space-y-2">
                             <label className="block text-sm font-black text-[#5d6167] dark:text-zinc-300">
-                              Caregiver&apos;s Name *
+                              {i18nT('onboarding.caregiverName', "Caregiver's Name *")}
                             </label>
                             <input
                               type="text"
@@ -923,14 +1207,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                               onChange={(event) =>
                                 setFormData((prev) => ({ ...prev, caregiverName: event.target.value }))
                               }
-                              placeholder="Enter full name"
+                              placeholder={i18nT('onboarding.caregiverNamePlaceholder', 'Enter full name')}
                               className="w-full rounded-[1.2rem] border border-transparent bg-[#f3f4f8] px-4 py-3.5 text-base font-semibold text-[#2f3337] outline-none transition-all placeholder:text-[#9da2ab] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-blue-500 sm:rounded-[1.25rem] sm:px-4 sm:py-3 sm:text-base"
                             />
                           </div>
 
                           <div className="space-y-2">
                             <label className="block text-sm font-black text-[#5d6167] dark:text-zinc-300">
-                              Relationship *
+                              {i18nT('onboarding.caregiverRelationship', 'Relationship *')}
                             </label>
                             <select
                               value={formData.caregiverRelationship}
@@ -964,26 +1248,333 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
             </>
           )}
 
+          {currentStep === 'personalize' && (
+            <div className="mx-auto flex h-auto max-w-4xl flex-col gap-4 sm:h-full sm:justify-center sm:gap-6">
+              <div className="text-center">
+                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(1.9rem,6vw,3rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
+                  {formData.profileType === 'baby'
+                    ? i18nT('onboarding.personalizeTitleBaby', 'Personalize the Care Plan')
+                    : i18nT('onboarding.personalizeTitleCareTeam', 'Personalize Your Focus')}
+                </h2>
+                <p className="mx-auto mt-2 max-w-2xl text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
+                  {formData.profileType === 'baby'
+                    ? i18nT(
+                        'onboarding.personalizeSubtitleBaby',
+                        'Tell us the stage, feeding style, and care priorities so BabyLog can recommend the right rhythm from day one.',
+                      )
+                    : i18nT(
+                        'onboarding.personalizeSubtitleCareTeam',
+                        'Choose the priorities and support areas you want to keep front and center in your shared workflow.',
+                      )}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.9fr)] sm:gap-6">
+                <div className="space-y-4 rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#17181b] sm:rounded-[2.5rem] sm:p-6">
+                  {formData.profileType === 'baby' && (
+                    <>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                          {i18nT('onboarding.personalizeStage', 'Child Stage')}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2.5">
+                          {stageOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  careProfilePreferences: {
+                                    ...prev.careProfilePreferences,
+                                    childStage: option.value,
+                                  },
+                                }))
+                              }
+                              className={`rounded-2xl border px-4 py-3 text-left transition-all ${
+                                normalizedCareProfile.childStage === option.value
+                                  ? 'border-[#45627d] bg-[#f8fbff] shadow-sm dark:border-blue-500 dark:bg-zinc-900'
+                                  : 'border-gray-100 bg-[#fbfbfd] hover:border-gray-200 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700'
+                              }`}
+                            >
+                              <span className="block font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
+                                {option.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                          {i18nT('onboarding.personalizeFeedingStyle', 'Feeding Style')}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2.5">
+                          {feedingOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  careProfilePreferences: {
+                                    ...prev.careProfilePreferences,
+                                    feedingStyle: option.value,
+                                  },
+                                }))
+                              }
+                              className={`rounded-2xl border px-4 py-3 text-left transition-all ${
+                                normalizedCareProfile.feedingStyle === option.value
+                                  ? 'border-[#45627d] bg-[#f8fbff] shadow-sm dark:border-blue-500 dark:bg-zinc-900'
+                                  : 'border-gray-100 bg-[#fbfbfd] hover:border-gray-200 dark:border-zinc-800 dark:bg-zinc-900/60 dark:hover:border-zinc-700'
+                              }`}
+                            >
+                              <span className="block font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
+                                {option.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                        {i18nT('onboarding.personalizePriorities', 'Top Priorities')}
+                      </p>
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#45627d] dark:text-blue-300">
+                        {(normalizedCareProfile.carePriorities || []).length} selected
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2.5">
+                      {priorityOptions.map((option) => {
+                        const active = (normalizedCareProfile.carePriorities || []).includes(option.value);
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                careProfilePreferences: {
+                                  ...prev.careProfilePreferences,
+                                  carePriorities: toggleValue(prev.careProfilePreferences.carePriorities, option.value),
+                                },
+                              }))
+                            }
+                            className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                              active
+                                ? 'border-[#45627d] bg-[#45627d] text-white shadow-sm dark:border-blue-400 dark:bg-blue-500'
+                                : 'border-gray-200 bg-white text-[#5e5f61] hover:border-[#45627d] hover:text-[#45627d] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-blue-400 dark:hover:text-blue-300'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {formData.profileType === 'baby' ? (
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                          {i18nT('onboarding.personalizeHealthNotes', 'Health Notes')}
+                        </p>
+                        <span className="text-[10px] font-bold text-[#787b80] dark:text-zinc-500">
+                          {i18nT('onboarding.personalizeHealthOptional', 'Optional')}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2.5">
+                        {healthOptions.map((option) => {
+                          const active = (normalizedCareProfile.healthConsiderations || []).includes(option.value);
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  careProfilePreferences: {
+                                    ...prev.careProfilePreferences,
+                                    healthConsiderations: toggleValue(
+                                      prev.careProfilePreferences.healthConsiderations,
+                                      option.value,
+                                    ),
+                                  },
+                                }))
+                              }
+                              className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                                active
+                                  ? 'border-[#d48c96] bg-[#fff0f2] text-[#b35b69] shadow-sm dark:border-rose-400/70 dark:bg-rose-900/20 dark:text-rose-200'
+                                  : 'border-gray-200 bg-white text-[#5e5f61] hover:border-[#d48c96] hover:text-[#b35b69] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-rose-400 dark:hover:text-rose-200'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                          {i18nT('onboarding.personalizeSupportFocus', 'Support Focus')}
+                        </p>
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#45627d] dark:text-blue-300">
+                          {(normalizedCareProfile.supportFocus || []).length} selected
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2.5">
+                        {supportOptions.map((option) => {
+                          const active = (normalizedCareProfile.supportFocus || []).includes(option.value);
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  careProfilePreferences: {
+                                    ...prev.careProfilePreferences,
+                                    supportFocus: toggleValue(prev.careProfilePreferences.supportFocus, option.value),
+                                  },
+                                }))
+                              }
+                              className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                                active
+                                  ? 'border-[#45627d] bg-[#eefaff] text-[#45627d] shadow-sm dark:border-blue-400/70 dark:bg-cyan-900/20 dark:text-cyan-200'
+                                  : 'border-gray-200 bg-white text-[#5e5f61] hover:border-[#45627d] hover:text-[#45627d] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-blue-400 dark:hover:text-blue-300'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#17181b] sm:rounded-[2.5rem] sm:p-6">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                      {i18nT('onboarding.personalizePreview', 'Your starter plan')}
+                    </p>
+                    <h3 className="mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-black tracking-tight text-[#2f3337] dark:text-white">
+                      {formData.profileType === 'baby'
+                        ? i18nT('onboarding.personalizePreviewBaby', 'A calmer first week')
+                        : i18nT('onboarding.personalizePreviewCareTeam', 'A clearer care workflow')}
+                    </h3>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#6b7280] dark:text-zinc-400">
+                      {careProfileSummary}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {careProfileBadges.map((badge) => (
+                      <span
+                        key={badge}
+                        className="rounded-full bg-[#f3f4f8] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#5e5f61] dark:bg-zinc-900 dark:text-zinc-300"
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#afb2b8]">
+                        {i18nT('onboarding.personalizeFeedInterval', 'Starter reminder rhythm')}
+                      </p>
+                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-base font-black text-[#2f3337] dark:text-white">
+                        {personalizedDefaults.feedingInterval}h {i18nT('onboarding.personalizeFeedIntervalSuffix', 'feeding interval')}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#afb2b8]">
+                        {i18nT('onboarding.personalizeEnabledAlerts', 'Enabled alerts')}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold leading-relaxed text-[#4d535b] dark:text-zinc-300">
+                        {[
+                          personalizedDefaults.reminderPreferences?.feeding ? i18nT('onboarding.priorityFeeding', 'Feeding') : null,
+                          personalizedDefaults.reminderPreferences?.sleep ? i18nT('onboarding.prioritySleep', 'Sleep') : null,
+                          personalizedDefaults.reminderPreferences?.growth ? i18nT('onboarding.priorityGrowth', 'Growth') : null,
+                          personalizedDefaults.reminderPreferences?.medication ? i18nT('onboarding.priorityMedical', 'Medical') : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {currentStep === 'units' && (
             <div className="mx-auto flex h-full max-w-3xl flex-col justify-center gap-5 text-center sm:gap-8">
               <div className="space-y-3">
                 <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(2rem,6vw,3.25rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
-                  Measurement Units
+                  {i18nT('onboarding.unitsTitle', 'Measurement Units')}
                 </h2>
                 <p className="mx-auto max-w-xl text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
-                  Pick your preferred unit system for growth tracking and daily logs.
+                  {i18nT(
+                    'onboarding.unitsSubtitle',
+                    'Pick your preferred unit system for growth tracking and daily logs.',
+                  )}
                 </p>
+              </div>
+
+              <div className="mx-auto w-full max-w-xl rounded-[1.8rem] border border-white/70 bg-white/80 px-5 py-4 text-left shadow-sm dark:border-zinc-800 dark:bg-[#17181b]">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
+                  {formatTemplate(
+                    i18nT('onboarding.unitsCountryDefault', 'Recommended for {country}'),
+                    { country: selectedCountry?.name || formData.country },
+                  )}
+                </p>
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-['Plus_Jakarta_Sans',sans-serif] text-base font-black text-[#2f3337] dark:text-white">
+                      {countryCareDefaults.recommendedUnits === 'imperial'
+                        ? i18nT('onboarding.unitsImperial', 'Imperial')
+                        : i18nT('onboarding.unitsMetric', 'Metric')}
+                    </p>
+                    <p className="text-sm font-bold text-[#787b80] dark:text-zinc-400">
+                      {countryCareDefaults.recommendedUnitsCompactLabel}
+                    </p>
+                  </div>
+                  {formData.units !== countryCareDefaults.recommendedUnits && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasCustomizedUnits(true);
+                        setFormData((prev) => ({ ...prev, units: countryCareDefaults.recommendedUnits }));
+                      }}
+                      className="rounded-full bg-[#f3f4f8] px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#45627d] transition-all hover:bg-[#e9edf5] dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-zinc-800"
+                    >
+                      {i18nT('onboarding.unitsUseDefault', 'Use country default')}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:gap-6">
                 {[
-                  { type: 'metric' as const, label: 'Metric', units: 'kg / cm', icon: 'straighten' },
-                  { type: 'imperial' as const, label: 'Imperial', units: 'lb / in', icon: 'square_foot' },
+                  { type: 'metric' as const, label: i18nT('onboarding.unitsMetric', 'Metric'), units: 'kg / cm', icon: 'straighten' },
+                  { type: 'imperial' as const, label: i18nT('onboarding.unitsImperial', 'Imperial'), units: 'lb / in', icon: 'square_foot' },
                 ].map((option) => (
                   <button
                     key={option.type}
                     type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, units: option.type }))}
+                    onClick={() => {
+                      setHasCustomizedUnits(true);
+                      setFormData((prev) => ({ ...prev, units: option.type }));
+                    }}
                     className={`rounded-[2rem] border px-4 py-6 transition-all sm:rounded-[2.5rem] sm:px-6 sm:py-10 ${
                       formData.units === option.type
                         ? 'border-[#45627d] bg-white shadow-xl dark:border-blue-500 dark:bg-zinc-800'
@@ -1009,10 +1600,13 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
             <div className="mx-auto flex h-full max-w-2xl flex-col justify-center gap-5 sm:gap-8">
               <div className="text-center">
                 <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(2rem,6vw,3.25rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
-                  Intelligent Alerts
+                  {i18nT('onboarding.notificationsTitle', 'Intelligent Alerts')}
                 </h2>
                 <p className="mx-auto mt-2 max-w-xl text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
-                  Enable reminders so you never miss key care moments.
+                  {i18nT(
+                    'onboarding.notificationsSubtitle',
+                    'Enable reminders so you never miss key care moments.',
+                  )}
                 </p>
               </div>
 
@@ -1026,10 +1620,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-black tracking-tight text-[#2f3337] dark:text-white sm:text-xl">
-                        Smart Reminders
+                        {i18nT('onboarding.notificationsCardTitle', 'Smart Reminders')}
                       </h3>
                       <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#afb2b8]">
-                        Personalized and gentle
+                        {i18nT('onboarding.notificationsCardSubtitle', 'Personalized and gentle')}
                       </p>
                     </div>
                   </div>
@@ -1059,10 +1653,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
                   {[
-                    { label: 'Feeding reminders', icon: 'child_care' },
-                    { label: 'Sleep windows', icon: 'bedtime' },
-                    { label: 'Health checks', icon: 'medical_services' },
-                    { label: 'Growth milestones', icon: 'trending_up' },
+                    { label: i18nT('onboarding.remindersFeeding', 'Feeding reminders'), icon: 'child_care' },
+                    { label: i18nT('onboarding.remindersSleep', 'Sleep windows'), icon: 'bedtime' },
+                    { label: i18nT('onboarding.remindersHealth', 'Health checks'), icon: 'medical_services' },
+                    { label: i18nT('onboarding.remindersGrowth', 'Growth milestones'), icon: 'trending_up' },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center gap-3 rounded-2xl bg-[#f8f8fb] px-4 py-3 dark:bg-zinc-900">
                       <div
@@ -1105,14 +1699,23 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
               <div className="space-y-3">
                 <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(2rem,6vw,3.5rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
-                  Setup Complete
+                  {i18nT('onboarding.completeTitle', 'Setup Complete')}
                 </h2>
                 <p className="mx-auto max-w-md text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
                   {formData.profileType === 'doctor'
-                    ? 'Your doctor profile is ready. Continue to login and manage patients and reports.'
+                    ? i18nT(
+                        'onboarding.completeDoctor',
+                        'Your doctor profile is ready. Continue to login and manage patients and reports.',
+                      )
                     : formData.profileType === 'caregiver'
-                      ? 'Your caregiver profile is ready. Continue to login and support daily care updates.'
-                      : 'Your baby profile is ready. Continue to login and start tracking the journey.'}
+                      ? i18nT(
+                          'onboarding.completeCaregiver',
+                          'Your caregiver profile is ready. Continue to login and support daily care updates.',
+                        )
+                      : i18nT(
+                          'onboarding.completeBaby',
+                          'Your baby profile is ready. Continue to login and start tracking the journey.',
+                        )}
                 </p>
               </div>
 
@@ -1126,10 +1729,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#afb2b8]">
                       {formData.profileType === 'doctor'
-                        ? 'Doctor'
+                        ? i18nT('onboarding.summaryDoctor', 'Doctor')
                         : formData.profileType === 'caregiver'
-                          ? 'Caregiver'
-                          : 'Baby'}
+                          ? i18nT('onboarding.summaryCaregiver', 'Caregiver')
+                          : i18nT('onboarding.summaryBaby', 'Baby')}
                     </p>
                     <p className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-xl font-black tracking-tight text-[#2f3337] dark:text-white">
                       {formData.profileType === 'doctor'
@@ -1143,7 +1746,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
 
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-xl bg-[#f8f8fb] p-3 dark:bg-zinc-900">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">Country</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">
+                      {i18nT('onboarding.summaryCountry', 'Country')}
+                    </p>
                     <p className="mt-1 flex items-center gap-2 truncate text-sm font-black text-[#2f3337] dark:text-white">
                       <span className="flex h-5 w-7 shrink-0 items-center justify-center overflow-hidden rounded-[0.3rem] bg-[#f3f3f7] shadow-sm dark:bg-zinc-800">
                         {(selectedCountry?.flagUrl || getCountryFlagUrl(formData.country)) ? (
@@ -1165,10 +1770,10 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   <div className="rounded-xl bg-[#f8f8fb] p-3 dark:bg-zinc-900">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">
                       {formData.profileType === 'doctor'
-                        ? 'Specialty'
+                        ? i18nT('onboarding.summarySpecialty', 'Specialty')
                         : formData.profileType === 'caregiver'
-                          ? 'Relationship'
-                          : 'Units'}
+                          ? i18nT('onboarding.summaryRelationship', 'Relationship')
+                          : i18nT('onboarding.summaryUnits', 'Units')}
                     </p>
                     <p className="mt-1 text-sm font-black uppercase text-[#2f3337] dark:text-white">
                       {formData.profileType === 'doctor'
@@ -1180,11 +1785,24 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   </div>
 
                   <div className="rounded-xl bg-[#f8f8fb] p-3 dark:bg-zinc-900">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">Alerts</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">
+                      {i18nT('onboarding.summaryAlerts', 'Alerts')}
+                    </p>
                     <p className="mt-1 text-sm font-black text-[#2f3337] dark:text-white">
-                      {formData.notificationsEnabled ? 'Enabled' : 'Disabled'}
+                      {formData.notificationsEnabled
+                        ? i18nT('onboarding.alertsEnabled', 'Enabled')
+                        : i18nT('onboarding.alertsDisabled', 'Disabled')}
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-xl bg-[#f8f8fb] p-3 dark:bg-zinc-900">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#afb2b8]">
+                    {i18nT('onboarding.summaryCarePlan', 'Care Plan')}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-relaxed text-[#4d535b] dark:text-zinc-300">
+                    {careProfileSummary}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1201,7 +1819,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                 onClick={handlePrevious}
                 className="w-full rounded-full bg-[#f3f3f7] py-3 font-['Plus_Jakarta_Sans',sans-serif] text-[11px] font-black uppercase tracking-[0.18em] text-[#afb2b8] transition-all hover:bg-[#e0e2e8] dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-zinc-700 sm:h-10 sm:py-0"
               >
-                Previous
+                {i18nT('onboarding.previous', 'Previous')}
               </button>
             )}
           </div>
@@ -1213,7 +1831,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                 onClick={onViewPolicies}
                 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#5e5f61] underline transition-colors hover:text-[#2f3337] dark:text-zinc-400 dark:hover:text-white"
               >
-                Privacy, Terms & Policies
+                {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
               </button>
             </div>
           ) : (
@@ -1227,7 +1845,11 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
               disabled={currentStep !== 'complete' && !canProceed}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-[#5e5f61] py-2.5 font-['Plus_Jakarta_Sans',sans-serif] text-[9px] font-black uppercase tracking-[0.18em] text-white shadow-xl shadow-[#5e5f61]/20 transition-all hover:bg-[#4a4b4d] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-full sm:gap-3 sm:py-0 sm:text-[11px]"
             >
-              <span>{currentStep === 'complete' ? 'Continue to Login' : 'Next'}</span>
+              <span>
+                {currentStep === 'complete'
+                  ? i18nT('onboarding.continueToLogin', 'Continue to Login')
+                  : i18nT('onboarding.next', 'Next')}
+              </span>
               <span className="material-symbols-outlined text-sm">arrow_forward</span>
             </button>
           </div>

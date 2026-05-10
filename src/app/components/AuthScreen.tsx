@@ -18,6 +18,7 @@ import {
   type SocialAuthProvider,
 } from '../../lib/supabase';
 import { getOnboardingCache } from '../../lib/onboarding-storage';
+import { i18nT } from '../../lib/i18n';
 
 interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
@@ -68,6 +69,10 @@ export function AuthScreen({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const isAuthBusy = loading || socialLoadingProvider !== null;
+  const continueAfterSignInLabel = i18nT(
+    'auth.continueAfterSignIn',
+    'Continue to {destination} after sign in',
+  ).replace('{destination}', postAuthDestinationLabel || '');
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,10 +108,10 @@ export function AuthScreen({
 
         setMode('signin');
         setPassword('');
-        setNotice('Account created. Check your email to confirm, then sign in.');
+        setNotice(i18nT('auth.accountCreated', 'Account created. Check your email to confirm, then sign in.'));
       }
     } catch (err: any) {
-      setError(err?.message || 'Authentication failed. Please try again.');
+      setError(err?.message || i18nT('auth.authFailed', 'Authentication failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -124,7 +129,7 @@ export function AuthScreen({
     try {
       await signInWithSocialProvider(provider);
     } catch (err: any) {
-      setError(err?.message || 'Social authentication failed. Please try again.');
+      setError(err?.message || i18nT('auth.socialAuthFailed', 'Social authentication failed. Please try again.'));
     } finally {
       setSocialLoadingProvider(null);
     }
@@ -156,14 +161,18 @@ export function AuthScreen({
 
         <div className="mb-8 space-y-2 text-center sm:mb-12 sm:space-y-3">
           <h1 className="text-3xl font-headline font-black leading-none tracking-tighter text-foreground sm:text-4xl">
-            {mode === 'signin' ? 'Welcome Back' : 'Join BabyLog'}
+            {mode === 'signin'
+              ? i18nT('auth.welcomeBack', 'Welcome Back')
+              : i18nT('auth.joinBabyLog', 'Join BabyLog')}
           </h1>
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light sm:text-[11px] sm:tracking-[0.3em]">
-            {mode === 'signin' ? 'Identity Verification' : 'Provision Access'}
+            {mode === 'signin'
+              ? i18nT('auth.identityVerification', 'Identity Verification')
+              : i18nT('auth.provisionAccess', 'Provision Access')}
           </p>
           {postAuthDestinationLabel && (
             <div className="mx-auto max-w-sm rounded-3xl border border-secondary/20 bg-secondary/10 px-5 py-4 text-[10px] font-black uppercase tracking-widest text-secondary">
-              Continue to {postAuthDestinationLabel} after sign in
+              {continueAfterSignInLabel}
             </div>
           )}
         </div>
@@ -201,7 +210,7 @@ export function AuthScreen({
         <form onSubmit={handleAuth} className="w-full max-w-sm space-y-4 sm:space-y-6">
           <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
-              Registry Email
+              {i18nT('auth.registryEmail', 'Registry Email')}
             </span>
             <div className="group relative">
               <div className="absolute left-6 top-1/2 -translate-y-1/2 text-text-light transition-colors group-focus-within:text-primary">
@@ -209,7 +218,7 @@ export function AuthScreen({
               </div>
               <input
                 type="email"
-                placeholder="parent@domain.com"
+                placeholder={i18nT('auth.emailPlaceholder', 'parent@domain.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isAuthBusy}
@@ -221,7 +230,7 @@ export function AuthScreen({
 
           <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
-              Access Key
+              {i18nT('auth.accessKey', 'Access Key')}
             </span>
             <div className="group relative">
               <div className="absolute left-6 top-1/2 -translate-y-1/2 text-text-light transition-colors group-focus-within:text-primary">
@@ -229,7 +238,7 @@ export function AuthScreen({
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Enter your password"
+                placeholder={i18nT('auth.passwordPlaceholder', 'Enter your password')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isAuthBusy}
@@ -253,14 +262,18 @@ export function AuthScreen({
             className="btn-primary mt-4 h-16 w-full text-lg shadow-2xl shadow-primary/20 active:scale-95 disabled:opacity-70 sm:mt-6 sm:h-20 sm:text-xl"
           >
             {loading ? (
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="animate-pulse" />
-                <span>Authorizing...</span>
-              </div>
-            ) : (
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="animate-pulse" />
+                  <span>{i18nT('auth.authorizing', 'Authorizing...')}</span>
+                </div>
+              ) : (
               <div className="flex items-center gap-3">
                 <Fingerprint size={24} />
-                <span>{mode === 'signin' ? 'Verify Identity' : 'Create Account'}</span>
+                <span>
+                  {mode === 'signin'
+                    ? i18nT('auth.signInAction', 'Sign In')
+                    : i18nT('auth.createAccountAction', 'Create Account')}
+                </span>
               </div>
             )}
           </button>
@@ -290,7 +303,7 @@ export function AuthScreen({
             className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
           >
             <span className="font-black uppercase tracking-widest text-secondary underline">
-              Continue as Guest
+              {i18nT('auth.continueAsGuest', 'Continue as Guest')}
             </span>
           </button>
 
@@ -301,7 +314,7 @@ export function AuthScreen({
             className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
           >
             <span className="font-black uppercase tracking-[0.22em] text-primary underline">
-              Privacy, Terms & Policies
+              {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
             </span>
           </button>
         </div>
@@ -310,7 +323,7 @@ export function AuthScreen({
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
             <span className="text-[9px] font-black uppercase tracking-[0.28em] text-text-light">
-              Or Continue With
+              {i18nT('auth.continueWith', 'Continue with {provider}').replace('{provider}', '').trim()}
             </span>
             <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
           </div>
@@ -327,12 +340,12 @@ export function AuthScreen({
                 {socialLoadingProvider === provider ? (
                   <>
                     <ShieldCheck size={18} className="animate-pulse" />
-                    <span>Connecting {label}...</span>
+                    <span>{`${i18nT('auth.continueWith', 'Continue with {provider}').replace('{provider}', label)}...`}</span>
                   </>
                 ) : (
                   <>
                     <Icon size={18} />
-                    <span>Continue with {label}</span>
+                    <span>{i18nT('auth.continueWith', 'Continue with {provider}').replace('{provider}', label)}</span>
                   </>
                 )}
               </button>
@@ -364,7 +377,7 @@ export function AuthScreen({
             className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
           >
             <span className="font-black uppercase tracking-widest text-secondary underline">
-              Continue as Guest
+              {i18nT('auth.continueAsGuest', 'Continue as Guest')}
             </span>
           </button>
 
@@ -375,7 +388,7 @@ export function AuthScreen({
             className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
           >
             <span className="font-black uppercase tracking-[0.22em] text-primary underline">
-              Privacy, Terms & Policies
+              {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
             </span>
           </button>
 

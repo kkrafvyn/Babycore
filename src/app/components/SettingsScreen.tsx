@@ -4,7 +4,15 @@ import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { addBaby, deleteBaby, updateBaby } from '../../lib/supabase-storage';
 import { getDefaultAvatar, getBabyAge, getUserAvatar } from '../../lib/baby-utils';
-import { i18nT, i18nInstance, SupportedLanguage } from '../../lib/i18n';
+import {
+  getLanguageDisplayName,
+  getLanguageOptions,
+  i18nT,
+  i18nInstance,
+  isValidLocaleCode,
+  normalizeLanguageCode,
+  type SupportedLanguage,
+} from '../../lib/i18n';
 import { NotificationsManager } from '../../lib/notifications';
 import { toast } from 'sonner';
 import { COUNTRIES } from '../../lib/countries';
@@ -15,6 +23,8 @@ import {
   type CareTeamSearchCandidate,
   type FamilySharingRole,
 } from '../../lib/family-sharing-service';
+import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
+import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 
 const MotionDiv = motion.div as any;
 
@@ -25,13 +35,6 @@ interface SettingsScreenProps {
   isAdmin?: boolean;
   onOpenAdminPanel?: () => void;
 }
-
-const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-];
 
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
@@ -62,6 +65,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [editBabyCountry, setEditBabyCountry] = useState('');
   const [editBabyId, setEditBabyId] = useState('');
   const [showLangSettings, setShowLangSettings] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [showCareTeamModal, setShowCareTeamModal] = useState(false);
@@ -84,8 +88,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   const handleLanguageSelect = async (code: string) => {
-    i18nInstance.setLanguage(code as SupportedLanguage);
-    await updateSettings({ language: code });
+    const normalized = normalizeLanguageCode(code);
+    i18nInstance.setLanguage(normalized as SupportedLanguage);
+    await updateSettings({ language: normalized });
+    setLanguageQuery('');
     setShowLangSettings(false);
     window.location.reload();
   };
@@ -209,6 +215,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     code: country.code,
     name: decodeLegacyUtf8(country.name),
   }));
+  const currentLanguageCode = i18nInstance.getLanguage();
+  const currentCountryDefaults = currentBaby ? getCountryCareDefaults(currentBaby.country) : null;
+  const accountProfileType =
+    (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
+    'baby';
+  const careProfileSummary = getCareProfileSummary(accountProfileType, settings?.careProfilePreferences);
+  const careProfileBadges = getCareProfileBadges(accountProfileType, settings?.careProfilePreferences);
+  const languageOptions = React.useMemo(
+    () => getLanguageOptions(languageQuery, currentLanguageCode),
+    [languageQuery, currentLanguageCode],
+  );
+  const normalizedCustomLanguage = normalizeLanguageCode(languageQuery);
+  const canUseCustomLanguage =
+    languageQuery.trim().length > 0 &&
+    isValidLocaleCode(normalizedCustomLanguage) &&
+    !languageOptions.some((option) => option.code.toLowerCase() === normalizedCustomLanguage.toLowerCase());
 
   React.useEffect(() => {
     const timeoutId = window.setTimeout(async () => {
@@ -458,6 +480,101 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        ))}
                     </div>
                  </div>
+                 {currentCountryDefaults && (
+                   <div className="px-4 pb-4 sm:px-8 sm:pb-8">
+                     <div className="rounded-[1.6rem] border border-border-gray bg-surface-gray/55 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:rounded-[2rem] sm:p-5">
+                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                         <div className="space-y-1">
+                           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                             Care Defaults
+                           </p>
+                           <p className="text-base font-headline font-black text-foreground">
+                             {currentBaby?.name || 'Current baby'} in {currentCountryDefaults.countryCode}
+                           </p>
+                           <p className="text-sm font-semibold text-text-dim">
+                             {currentCountryDefaults.vaccinationScheduleName} · {currentCountryDefaults.vaccinationRegionName}
+                           </p>
+                         </div>
+                         {settings?.units !== currentCountryDefaults.recommendedUnits && (
+                           <button
+                             onClick={() => handleUnitChange(currentCountryDefaults.recommendedUnits)}
+                             className="rounded-full bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-secondary shadow-sm transition-all hover:bg-secondary hover:text-white dark:bg-zinc-800 dark:hover:bg-blue-500"
+                           >
+                             Apply {currentCountryDefaults.recommendedUnits}
+                           </button>
+                         )}
+                       </div>
+                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             Recommended Units
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground">
+                             {currentCountryDefaults.recommendedUnits}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             {currentCountryDefaults.recommendedUnitsCompactLabel}
+                           </p>
+                         </div>
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             Vaccine Schedule
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground">
+                             {currentCountryDefaults.vaccinationScheduleName}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             {currentCountryDefaults.vaccinationRegionName}
+                           </p>
+                         </div>
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             Schedule Source
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground capitalize">
+                             {currentCountryDefaults.vaccinationScheduleSource}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             Matched from {currentCountryDefaults.countryCode}
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+                 {settings?.careProfilePreferences && (
+                   <div className="px-4 pb-4 sm:px-8 sm:pb-8">
+                     <div className="rounded-[1.6rem] border border-border-gray bg-surface-gray/55 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:rounded-[2rem] sm:p-5">
+                       <div className="space-y-2">
+                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                           Care profile
+                         </p>
+                         <p className="text-base font-headline font-black text-foreground">
+                           {accountProfileType === 'baby'
+                             ? `${currentBaby?.name || 'Your baby'} starter plan`
+                             : accountProfileType === 'doctor'
+                               ? 'Doctor care focus'
+                               : 'Caregiver care focus'}
+                         </p>
+                         <p className="text-sm font-semibold leading-relaxed text-text-dim">
+                           {careProfileSummary}
+                         </p>
+                       </div>
+                       {careProfileBadges.length > 0 && (
+                         <div className="mt-4 flex flex-wrap gap-2">
+                           {careProfileBadges.map((badge) => (
+                             <span
+                               key={badge}
+                               className="rounded-full bg-white/80 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-text-dim dark:bg-zinc-950/60 dark:text-zinc-300"
+                             >
+                               {badge}
+                             </span>
+                           ))}
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
                  <div className="p-4 sm:p-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 sm:gap-5 min-w-0">
                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-accent-pink/10 dark:bg-rose-900/20 text-text-dim rounded-2xl flex items-center justify-center shrink-0"><Sun size={22} className="sm:h-6 sm:w-6" /></div>
@@ -528,7 +645,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/5 dark:bg-zinc-800 text-foreground rounded-2xl flex items-center justify-center border border-border-gray dark:border-zinc-700 shrink-0"><Globe size={22} className="sm:h-6 sm:w-6" /></div>
                        <div className="min-w-0">
                           <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">{i18nT('settings.language')}</p>
-                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">{LANGUAGES.find(l => l.code === i18nInstance.getLanguage())?.name}</p>
+                          <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">
+                            {getLanguageDisplayName(currentLanguageCode)}
+                          </p>
                        </div>
                     </div>
                     <ChevronRight size={18} className="text-text-light shrink-0" />
@@ -778,22 +897,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
              className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
           >
              <MotionDiv initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-                className="w-full max-w-xs bg-surface rounded-[3rem] p-8 space-y-6 shadow-2xl"
+                className="w-full max-w-md bg-surface rounded-[3rem] p-8 space-y-6 shadow-2xl"
              >
                 <div className="flex items-center justify-between">
                    <h3 className="text-xl font-headline font-black text-foreground">{i18nT('settings.language')}</h3>
                    <button onClick={() => setShowLangSettings(false)} title="Close language settings" className="text-text-light"><X size={20} /></button>
                 </div>
-                <div className="space-y-2">
-                   {LANGUAGES.map(l => (
-                     <button key={l.code} onClick={() => handleLanguageSelect(l.code)} className="w-full p-4 rounded-2xl flex items-center justify-between bg-surface-gray dark:bg-zinc-800 hover:bg-border-gray transition-all">
-                        <div className="flex items-center gap-3">
-                           <span className="text-xl">{l.flag}</span>
-                           <span className="text-sm font-bold text-foreground">{l.name}</span>
+                <div className="space-y-3">
+                   <div className="relative">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-light h-4 w-4 pointer-events-none" />
+                     <input
+                       value={languageQuery}
+                       onChange={(event) => setLanguageQuery(event.target.value)}
+                       placeholder="Search language or locale code"
+                       className="w-full rounded-2xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-800 py-3 pl-10 pr-4 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                     />
+                   </div>
+                   {canUseCustomLanguage && (
+                     <button
+                       onClick={() => handleLanguageSelect(normalizedCustomLanguage)}
+                       className="w-full p-4 rounded-2xl flex items-center justify-between bg-secondary/10 hover:bg-secondary/15 transition-all border border-secondary/20"
+                     >
+                        <div className="text-left">
+                           <p className="text-sm font-bold text-foreground">Use locale code</p>
+                           <p className="text-xs font-semibold text-text-light">{normalizedCustomLanguage}</p>
                         </div>
-                        {i18nInstance.getLanguage() === l.code && <Check size={16} className="text-secondary" />}
+                        <ChevronRight size={16} className="text-secondary" />
                      </button>
-                   ))}
+                   )}
+                   <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                     {languageOptions.map((language) => (
+                       <button
+                         key={language.code}
+                         onClick={() => handleLanguageSelect(language.code)}
+                         className="w-full p-4 rounded-2xl flex items-center justify-between bg-surface-gray dark:bg-zinc-800 hover:bg-border-gray transition-all"
+                       >
+                          <div className="flex items-center gap-3 min-w-0">
+                             <div className="h-9 w-9 rounded-full bg-background dark:bg-zinc-900 border border-border-gray dark:border-zinc-700 flex items-center justify-center text-[10px] font-black text-text-light uppercase shrink-0">
+                               {language.badge}
+                             </div>
+                             <div className="min-w-0 text-left">
+                               <p className="text-sm font-bold text-foreground truncate">{language.name}</p>
+                               <p className="text-xs font-semibold text-text-light truncate">{language.nativeName} · {language.code}</p>
+                             </div>
+                          </div>
+                          {currentLanguageCode.toLowerCase() === language.code.toLowerCase() && <Check size={16} className="text-secondary shrink-0" />}
+                       </button>
+                     ))}
+                   </div>
                 </div>
              </MotionDiv>
           </MotionDiv>

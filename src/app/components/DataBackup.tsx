@@ -14,6 +14,7 @@ import { useAppContext } from '../AppContext';
 import { motion } from 'motion/react';
 import { performFullSync } from '../../lib/cloud-sync-service';
 import { getJournalEntriesByBaby } from '../../lib/supabase-storage';
+import { buildCareWorkspaceSyncData } from '../../lib/care-workspace-sync';
 
 interface DataBackupProps {
   onBack: () => void;
@@ -115,6 +116,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
 
   const buildBackupPayload = async () => {
     const journalEntries = await collectJournalEntries();
+    const careWorkspaceData = buildCareWorkspaceSyncData(babies.map((baby) => baby.id));
 
     return {
       exportedAt: new Date().toISOString(),
@@ -122,6 +124,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
       baby: currentBaby,
       babies,
       settings,
+      careWorkspaceData,
       records: {
         feedLogs,
         sleepLogs,
@@ -168,6 +171,9 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     rows.push(`Summary,Memories,${payload.records.memories.length}`);
     rows.push(`Summary,Milestones,${payload.records.milestones.length}`);
     rows.push(`Summary,Journal Entries,${payload.records.journalEntries.length}`);
+    rows.push(`Summary,Shared Care Tasks,${payload.careWorkspaceData.sharedCareTasks.length}`);
+    rows.push(`Summary,Parent Wellness Entries,${payload.careWorkspaceData.parentWellnessEntries.length}`);
+    rows.push(`Summary,Offline Emergency Snapshots,${payload.careWorkspaceData.offlineEmergencySnapshots.length}`);
     return rows.join('\n');
   };
 
@@ -219,6 +225,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
     setErrorMessage(null);
     try {
       const journalEntries = await collectJournalEntries();
+      const careWorkspaceData = buildCareWorkspaceSyncData(babies.map((baby) => baby.id));
       const synced = await performFullSync({
         babies,
         sleepLogs,
@@ -230,6 +237,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({ onBack }) => {
         milestones,
         memories,
         journalEntries,
+        careWorkspaceData,
         userSettings: settings,
       });
 

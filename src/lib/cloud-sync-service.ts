@@ -273,6 +273,7 @@ export async function performFullSync(localData: {
   milestones: any[];
   memories: any[];
   journalEntries?: any[];
+  careWorkspaceData?: any;
   userSettings: any;
 }): Promise<boolean> {
   const user = await getAuthenticatedUser();
@@ -343,7 +344,23 @@ export async function performFullSync(localData: {
       })),
     );
 
-    const settingsResult = await syncUserSettings(user.id, localData.userSettings);
+    const settingsPayload = localData.userSettings
+      ? {
+          ...localData.userSettings,
+          careWorkspaceData: localData.careWorkspaceData ?? localData.userSettings?.careWorkspaceData,
+        }
+      : localData.careWorkspaceData
+      ? {
+          userId: user.id,
+          units: 'metric',
+          language: 'en',
+          notificationsEnabled: true,
+          updatedAt: new Date().toISOString(),
+          careWorkspaceData: localData.careWorkspaceData,
+        }
+      : null;
+
+    const settingsResult = await syncUserSettings(user.id, settingsPayload);
 
     const dependentResults = babyResult.ok
       ? await Promise.all([
@@ -501,6 +518,7 @@ export async function pullFromCloud(): Promise<any> {
         milestones: [],
         memories: [],
         journalEntries: [],
+        careWorkspaceData: userSettingsRow?.care_workspace_data || null,
         userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
       };
     }
@@ -632,6 +650,7 @@ export async function pullFromCloud(): Promise<any> {
         mood: entry.mood,
         createdAt: entry.created_at,
       })),
+      careWorkspaceData: userSettingsRow?.care_workspace_data || null,
       userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
     };
   } catch (error) {

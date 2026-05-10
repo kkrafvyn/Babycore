@@ -49,6 +49,165 @@ export interface MedicationAdherence {
   frequency?: string;
 }
 
+export type DoctorVisitType =
+  | 'wellness'
+  | 'sick'
+  | 'vaccination'
+  | 'specialist'
+  | 'follow_up'
+  | 'therapy'
+  | 'other';
+
+export type DoctorVisitStatus = 'scheduled' | 'completed';
+
+export interface DoctorVisitRecord {
+  id: string;
+  babyId: string;
+  title: string;
+  dateRecorded: string;
+  scheduledTime?: string;
+  appointmentType: DoctorVisitType;
+  doctorName?: string;
+  clinic?: string;
+  status: DoctorVisitStatus;
+  questions: string[];
+  followUpItems: string[];
+  notes?: string;
+  createdAt: string;
+  storageKey?: string;
+}
+
+export interface SaveDoctorVisitInput {
+  title: string;
+  dateRecorded: string;
+  scheduledTime?: string;
+  appointmentType: DoctorVisitType;
+  doctorName?: string;
+  clinic?: string;
+  status: DoctorVisitStatus;
+  questions?: string[];
+  followUpItems?: string[];
+  notes?: string;
+}
+
+const DOCTOR_VISIT_META_MARKER = '<!-- babylog-visit-meta:';
+const DOCTOR_VISIT_META_SUFFIX = ' -->';
+
+interface DoctorVisitMetadataPayload {
+  scheduledTime?: string;
+  appointmentType: DoctorVisitType;
+  doctorName?: string;
+  clinic?: string;
+  status: DoctorVisitStatus;
+  questions: string[];
+  followUpItems: string[];
+  notes?: string;
+}
+
+const normalizeVisitList = (values?: string[]): string[] =>
+  (values || []).map((value) => value.trim()).filter(Boolean);
+
+const buildDoctorVisitVisibleDescription = (
+  metadata: DoctorVisitMetadataPayload,
+): string | undefined => {
+  const sections: string[] = [];
+
+  if (metadata.notes?.trim()) {
+    sections.push(metadata.notes.trim());
+  }
+
+  if (metadata.questions.length > 0) {
+    sections.push(`Questions to ask:\n${metadata.questions.map((item) => `- ${item}`).join('\n')}`);
+  }
+
+  if (metadata.followUpItems.length > 0) {
+    sections.push(`Follow-up items:\n${metadata.followUpItems.map((item) => `- ${item}`).join('\n')}`);
+  }
+
+  return sections.length > 0 ? sections.join('\n\n') : undefined;
+};
+
+const buildDoctorVisitDescription = (metadata: DoctorVisitMetadataPayload): string => {
+  const visible = buildDoctorVisitVisibleDescription(metadata);
+  const encoded = encodeURIComponent(JSON.stringify(metadata));
+  return `${visible ? `${visible}\n\n` : ''}${DOCTOR_VISIT_META_MARKER}${encoded}${DOCTOR_VISIT_META_SUFFIX}`;
+};
+
+const extractDoctorVisitMetadata = (description?: string): DoctorVisitMetadataPayload | null => {
+  const raw = String(description || '');
+  const start = raw.indexOf(DOCTOR_VISIT_META_MARKER);
+  if (start < 0) return null;
+
+  const end = raw.indexOf(DOCTOR_VISIT_META_SUFFIX, start);
+  if (end < 0) return null;
+
+  const encoded = raw.slice(start + DOCTOR_VISIT_META_MARKER.length, end).trim();
+  if (!encoded) return null;
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded)) as Partial<DoctorVisitMetadataPayload>;
+    return {
+      scheduledTime: parsed.scheduledTime?.trim() || undefined,
+      appointmentType: (parsed.appointmentType || 'other') as DoctorVisitType,
+      doctorName: parsed.doctorName?.trim() || undefined,
+      clinic: parsed.clinic?.trim() || undefined,
+      status: parsed.status === 'completed' ? 'completed' : 'scheduled',
+      questions: normalizeVisitList(parsed.questions),
+      followUpItems: normalizeVisitList(parsed.followUpItems),
+      notes: parsed.notes?.trim() || undefined,
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const stripDoctorVisitMetadata = (description?: string): string | undefined => {
+  const raw = String(description || '');
+  const start = raw.indexOf(DOCTOR_VISIT_META_MARKER);
+  const visible = (start >= 0 ? raw.slice(0, start) : raw).trim();
+  return visible || undefined;
+};
+
+const buildDoctorVisitTags = (metadata: DoctorVisitMetadataPayload): string[] => {
+  const tags = [
+    `visit_status:${metadata.status}`,
+    `appointment_type:${metadata.appointmentType}`,
+  ];
+
+  if (metadata.scheduledTime) tags.push(`scheduled_time:${metadata.scheduledTime}`);
+  if (metadata.doctorName) tags.push(`doctor_name:${encodeURIComponent(metadata.doctorName)}`);
+  if (metadata.clinic) tags.push(`clinic_name:${encodeURIComponent(metadata.clinic)}`);
+  return tags;
+};
+
+const toDoctorVisitRecord = (record: HealthRecord): DoctorVisitRecord => {
+  const metadata =
+    extractDoctorVisitMetadata(record.description) || {
+      appointmentType: 'other' as DoctorVisitType,
+      status: 'scheduled' as DoctorVisitStatus,
+      questions: [],
+      followUpItems: [],
+      notes: stripDoctorVisitMetadata(record.description),
+    };
+
+  return {
+    id: record.id,
+    babyId: record.baby_id,
+    title: record.title,
+    dateRecorded: record.date_recorded,
+    scheduledTime: metadata.scheduledTime,
+    appointmentType: metadata.appointmentType,
+    doctorName: metadata.doctorName,
+    clinic: metadata.clinic,
+    status: metadata.status,
+    questions: metadata.questions,
+    followUpItems: metadata.followUpItems,
+    notes: metadata.notes,
+    createdAt: record.created_at,
+    storageKey: record.storage_key,
+  };
+};
+
 const isMissingRelationError = (error: unknown): boolean => {
   const value = String((error as any)?.message || (error as any)?.details || '').toLowerCase();
   return value.includes('does not exist') || value.includes('relation');
@@ -96,7 +255,8 @@ export async function createHealthRecord(
   title: string,
   description?: string,
   file?: File,
-  tags?: string[]
+  tags?: string[],
+  dateRecorded?: string,
 ): Promise<HealthRecord | null> {
   try {
     let storageKey: string | undefined;
@@ -121,7 +281,7 @@ export async function createHealthRecord(
         description,
         file_url: buildStorageReference('health-records', storageKey),
         storage_key: storageKey,
-        date_recorded: new Date().toISOString().split('T')[0],
+        date_recorded: dateRecorded || new Date().toISOString().split('T')[0],
         tags: tags || [],
       })
       .select()
@@ -131,6 +291,26 @@ export async function createHealthRecord(
     return data;
   } catch (err) {
     console.error('Error creating health record:', err);
+    return null;
+  }
+}
+
+export async function updateHealthRecord(
+  recordId: string,
+  updates: Partial<Pick<HealthRecord, 'title' | 'description' | 'date_recorded' | 'tags'>>,
+): Promise<HealthRecord | null> {
+  try {
+    const { data, error } = await supabase
+      .from('health_records')
+      .update(updates)
+      .eq('id', recordId)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return await hydrateHealthRecord(data as HealthRecord);
+  } catch (err) {
+    console.error('Error updating health record:', err);
     return null;
   }
 }
@@ -448,4 +628,65 @@ export async function getHealthSummary(babyId: string): Promise<{
       recentVisits: [],
     };
   }
+}
+
+export async function getDoctorVisitRecords(
+  babyId: string,
+  limit = 50,
+): Promise<DoctorVisitRecord[]> {
+  const records = await getHealthRecords(babyId, 'doctor_visit', limit);
+  return records.map((record) => toDoctorVisitRecord(record));
+}
+
+export async function createDoctorVisitRecord(
+  babyId: string,
+  input: SaveDoctorVisitInput,
+): Promise<DoctorVisitRecord | null> {
+  const metadata: DoctorVisitMetadataPayload = {
+    scheduledTime: input.scheduledTime?.trim() || undefined,
+    appointmentType: input.appointmentType,
+    doctorName: input.doctorName?.trim() || undefined,
+    clinic: input.clinic?.trim() || undefined,
+    status: input.status,
+    questions: normalizeVisitList(input.questions),
+    followUpItems: normalizeVisitList(input.followUpItems),
+    notes: input.notes?.trim() || undefined,
+  };
+
+  const created = await createHealthRecord(
+    babyId,
+    'doctor_visit',
+    input.title.trim(),
+    buildDoctorVisitDescription(metadata),
+    undefined,
+    buildDoctorVisitTags(metadata),
+    input.dateRecorded,
+  );
+
+  return created ? toDoctorVisitRecord(created) : null;
+}
+
+export async function updateDoctorVisitRecord(
+  recordId: string,
+  input: SaveDoctorVisitInput,
+): Promise<DoctorVisitRecord | null> {
+  const metadata: DoctorVisitMetadataPayload = {
+    scheduledTime: input.scheduledTime?.trim() || undefined,
+    appointmentType: input.appointmentType,
+    doctorName: input.doctorName?.trim() || undefined,
+    clinic: input.clinic?.trim() || undefined,
+    status: input.status,
+    questions: normalizeVisitList(input.questions),
+    followUpItems: normalizeVisitList(input.followUpItems),
+    notes: input.notes?.trim() || undefined,
+  };
+
+  const updated = await updateHealthRecord(recordId, {
+    title: input.title.trim(),
+    description: buildDoctorVisitDescription(metadata),
+    date_recorded: input.dateRecorded,
+    tags: buildDoctorVisitTags(metadata),
+  });
+
+  return updated ? toDoctorVisitRecord(updated) : null;
 }

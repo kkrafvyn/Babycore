@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { UserSettings } from '../types';
 import {
   fromHealthLogCloudRow,
   fromUserSettingsCloudRow,
@@ -28,10 +29,17 @@ describe('cloud-sync-mappers', () => {
   });
 
   it('maps user settings to and from cloud rows', () => {
-    const settings = {
+    const settings: UserSettings = {
       userId: 'user-1',
       units: 'metric' as const,
       language: 'en',
+      careProfilePreferences: {
+        childStage: 'infant' as const,
+        feedingStyle: 'mixed' as const,
+        carePriorities: ['feeding', 'sleep'],
+        healthConsiderations: [],
+        supportFocus: [],
+      },
       notificationsEnabled: true,
       feedingInterval: 3,
       reminderPreferences: { feeding: true, quietHoursEnabled: true },
@@ -45,6 +53,7 @@ describe('cloud-sync-mappers', () => {
       subscriptionCurrency: 'USD',
       biometricLockEnabled: true,
       privacyLockDelay: 5,
+      careWorkspaceData: {},
       updatedAt: '2026-04-28T11:00:00.000Z',
     };
 

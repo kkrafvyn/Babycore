@@ -11,6 +11,8 @@ import {
   saveProfileToOnboarding,
   saveSettingsToOnboarding,
 } from './lib/onboarding-storage';
+import { deriveSettingsFromCareProfile } from './lib/care-profile';
+import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
 import {
@@ -27,6 +29,7 @@ import {
 import { isNativeAppUrl, parseNativeAppUrl } from './lib/native-app-links';
 import { importNativeWearableData, getConnectedWearables, syncWearableData } from './lib/wearable-service';
 import { NotificationsManager } from './lib/notifications';
+import { i18nInstance } from './lib/i18n';
 
 type LocationRoute =
   | {
@@ -479,6 +482,7 @@ function AppShell() {
     country: string;
     units: 'metric' | 'imperial';
     notificationsEnabled: boolean;
+    careProfilePreferences: CareProfilePreferences;
     babyName: string;
     babyDateOfBirth: string;
     babyGender: 'boy' | 'girl' | 'other';
@@ -490,6 +494,7 @@ function AppShell() {
   }) => {
     const isDoctorProfile = data.profileType === 'doctor';
     const isCaregiverProfile = data.profileType === 'caregiver';
+    const personalizedDefaults = deriveSettingsFromCareProfile(data.profileType, data.careProfilePreferences);
 
     saveProfileToOnboarding(
       data.profileType,
@@ -515,15 +520,19 @@ function AppShell() {
         gender: data.babyGender,
         photoUrl: data.babyPhotoUrl || undefined,
         country: data.country,
+        ageGroup: data.careProfilePreferences.childStage,
         createdAt: new Date().toISOString(),
       });
     }
 
     saveSettingsToOnboarding({
-      language: 'en',
+      language: i18nInstance.getLanguage(),
       notificationsEnabled: data.notificationsEnabled,
       theme: 'system',
       units: data.units,
+      feedingInterval: personalizedDefaults.feedingInterval,
+      reminderPreferences: personalizedDefaults.reminderPreferences,
+      careProfilePreferences: personalizedDefaults.careProfilePreferences,
     });
 
     setAuthModeHint('signup');

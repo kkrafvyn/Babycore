@@ -49,6 +49,7 @@ export const APP_VIEWS = [
   'voice-logging',
   'doctor-reports',
   'care-priority',
+  'parent-wellness',
   'activity-center',
   'emergency-card',
   'clinic-panel',

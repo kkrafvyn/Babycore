@@ -11,6 +11,11 @@ import {
   type ClinicPanelPayload,
   type ClinicReportTemplate,
 } from '@/lib/care-advanced-api';
+import {
+  getSharedCareTasksForBabies,
+  updateSharedCareTask,
+  type SharedCareTask,
+} from '@/lib/shared-care-tasks';
 
 interface ClinicDoctorPanelProps {
   onBack?: () => void;
@@ -22,6 +27,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   const [exporting, setExporting] = useState(false);
   const [clinicData, setClinicData] = useState<ClinicPanelPayload | null>(null);
   const [templates, setTemplates] = useState<ClinicReportTemplate[]>([]);
+  const [careTasks, setCareTasks] = useState<SharedCareTask[]>([]);
   const [search, setSearch] = useState('');
   const [pendingOnly, setPendingOnly] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -42,10 +48,18 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
       ]);
       setClinicData(queue);
       setTemplates(reportTemplates);
+      setCareTasks(getSharedCareTasksForBabies((queue.queue || []).map((entry) => entry.babyId)));
     } catch (error) {
       console.error('Failed to load clinic panel data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTaskCompletion = (taskId: string) => {
+    updateSharedCareTask(taskId, { status: 'completed' });
+    if (clinicData?.queue) {
+      setCareTasks(getSharedCareTasksForBabies(clinicData.queue.map((entry) => entry.babyId)));
     }
   };
 
@@ -117,6 +131,8 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
     typeof clinicData?.stats?.filteredPatients === 'number'
       ? clinicData.stats.filteredPatients
       : clinicData?.queue?.length || 0;
+  const doctorTasks = careTasks.filter((task) => task.assignedRole === 'doctor' && task.status === 'open');
+  const urgentDoctorTasks = doctorTasks.filter((task) => task.priority === 'urgent');
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -135,7 +151,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 text-center">
             <Users className="h-4 w-4 mx-auto text-blue-500" />
@@ -155,6 +171,13 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
             <FileText className="h-4 w-4 mx-auto text-rose-500" />
             <p className="text-lg font-black mt-2">{stats.overdueVaccines}</p>
             <p className="text-[10px] uppercase tracking-wider text-gray-500">Overdue Vax</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <AlertTriangle className="h-4 w-4 mx-auto text-violet-500" />
+            <p className="text-lg font-black mt-2">{doctorTasks.length}</p>
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">Follow-ups</p>
           </CardContent>
         </Card>
       </div>
@@ -201,6 +224,12 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Approvals: {entry.pendingApprovalsCount} | Overdue vaccines: {entry.overdueVaccinesCount}
               </p>
+              {careTasks.filter((task) => task.babyId === entry.babyId && task.status === 'open').length > 0 && (
+                <p className="text-xs text-violet-600 dark:text-violet-300 mt-1">
+                  Open shared tasks:{' '}
+                  {careTasks.filter((task) => task.babyId === entry.babyId && task.status === 'open').length}
+                </p>
+              )}
               {entry.nextAppointment?.scheduled_date && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Next appointment: {entry.nextAppointment.scheduled_date} {entry.nextAppointment.scheduled_time || ''}
@@ -210,6 +239,44 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           ))}
           {(clinicData?.queue || []).length === 0 && (
             <p className="text-sm text-gray-500 text-center py-4">No active patients assigned.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Doctor Follow-up Tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {doctorTasks.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">No doctor follow-up tasks assigned right now.</p>
+          ) : (
+            doctorTasks.map((task) => (
+              <div key={task.id} className="rounded-xl border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-sm">{task.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {task.priority} priority | {task.category}
+                    </p>
+                    {task.dueDate && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Due {task.dueDate}</p>
+                    )}
+                    {task.details && (
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{task.details}</p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => handleTaskCompletion(task.id)}>
+                    Done
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+          {urgentDoctorTasks.length > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-300">
+              {urgentDoctorTasks.length} urgent follow-up task{urgentDoctorTasks.length === 1 ? '' : 's'} need attention.
+            </p>
           )}
         </CardContent>
       </Card>

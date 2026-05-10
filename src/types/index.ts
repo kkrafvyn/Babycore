@@ -148,10 +148,31 @@ export interface BackupData {
   createdAt: string;
 }
 
+export type CareProfileStage = 'newborn' | 'infant' | 'toddler' | 'preschool';
+export type CareProfileFeedingStyle = 'breastfeeding' | 'bottle' | 'mixed' | 'solids';
+export type CareProfilePriority = 'sleep' | 'feeding' | 'growth' | 'medical' | 'routine' | 'milestones';
+export type CareProfileHealthConsideration = 'premature' | 'reflux' | 'allergies' | 'nicu' | 'multiple-birth';
+export type CareProfileSupportFocus = 'daily-logs' | 'medical-followups' | 'handoff-updates' | 'growth-review';
+
+export interface CareProfilePreferences {
+  childStage?: CareProfileStage;
+  feedingStyle?: CareProfileFeedingStyle;
+  carePriorities?: CareProfilePriority[];
+  healthConsiderations?: CareProfileHealthConsideration[];
+  supportFocus?: CareProfileSupportFocus[];
+}
+
 export interface UserSettings {
   userId?: string;
   units: 'metric' | 'imperial';
   language?: string;
+  careProfilePreferences?: CareProfilePreferences;
+  careWorkspaceData?: {
+    sharedCareTasks?: unknown[];
+    parentWellnessEntries?: unknown[];
+    offlineEmergencySnapshots?: unknown[];
+    syncedAt?: string;
+  };
   notificationsEnabled: boolean;
   feedingInterval?: number; // hours
   reminderPreferences?: {
@@ -213,4 +234,4 @@ export interface Achievement {
   createdAt: string;
 }
 
-export type View = 'onboarding' | 'dashboard' | 'sleep' | 'feeding' | 'diaper' | 'growth' | 'vaccination' | 'settings' | 'journal' | 'health' | 'memories' | 'timeline' | 'insights' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'achievements' | 'sleep-training' | 'white-noise';
+export type View = 'onboarding' | 'dashboard' | 'sleep' | 'feeding' | 'diaper' | 'growth' | 'vaccination' | 'settings' | 'journal' | 'health' | 'memories' | 'timeline' | 'insights' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'achievements' | 'sleep-training' | 'white-noise' | 'parent-wellness';

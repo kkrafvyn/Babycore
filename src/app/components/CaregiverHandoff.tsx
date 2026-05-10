@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Clock, LogOut, Plus, Shield } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Clock, LogOut, Plus, Shield, Trash2 } from 'lucide-react';
 import {
   startCaregiverSession,
   endCaregiverSession,
@@ -11,6 +11,16 @@ import {
   type SharingActivityLog,
 } from '@/lib/family-sharing-service';
 import { useAuthStore } from '@/app/AppContext';
+import {
+  createSharedCareTask,
+  deleteSharedCareTask,
+  getSharedCareTasks,
+  updateSharedCareTask,
+  type CareTaskCategory,
+  type CareTaskPriority,
+  type CareTaskRole,
+  type SharedCareTask,
+} from '@/lib/shared-care-tasks';
 
 interface CaregiverHandoffProps {
   babyId: string;
@@ -24,8 +34,43 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [activeSession, setActiveSession] = useState<CaregiverSession | null>(null);
   const [activityLog, setActivityLog] = useState<SharingActivityLog[]>([]);
+  const [tasks, setTasks] = useState<SharedCareTask[]>([]);
+  const [taskFilter, setTaskFilter] = useState<'all' | 'open' | 'completed'>('open');
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    details: '',
+    category: 'handoff' as CareTaskCategory,
+    assignedRole: 'caregiver' as CareTaskRole,
+    priority: 'soon' as CareTaskPriority,
+    dueDate: '',
+  });
   const [loading, setLoading] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
+  const currentRole =
+    ((user?.user_metadata?.onboarding_profile_type as CareTaskRole | undefined) || 'parent');
+  const taskTemplates = [
+    {
+      label: 'Medication follow-up',
+      title: 'Confirm next medication dose and side-effect check',
+      category: 'medication' as CareTaskCategory,
+      assignedRole: 'caregiver' as CareTaskRole,
+      priority: 'soon' as CareTaskPriority,
+    },
+    {
+      label: 'Doctor update',
+      title: 'Share follow-up note with doctor after today\'s care block',
+      category: 'appointment' as CareTaskCategory,
+      assignedRole: 'doctor' as CareTaskRole,
+      priority: 'soon' as CareTaskPriority,
+    },
+    {
+      label: 'Handoff summary',
+      title: 'Leave handoff summary before the session ends',
+      category: 'handoff' as CareTaskCategory,
+      assignedRole: 'parent' as CareTaskRole,
+      priority: 'routine' as CareTaskPriority,
+    },
+  ];
 
   useEffect(() => {
     loadSessionData();
@@ -35,8 +80,65 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
     setLoading(true);
     const logs = await getSharingActivityLog(babyId, 10);
     setActivityLog(logs);
+    setTasks(getSharedCareTasks(babyId));
     setLoading(false);
   };
+
+  const resetTaskForm = () => {
+    setTaskForm({
+      title: '',
+      details: '',
+      category: 'handoff',
+      assignedRole: 'caregiver',
+      priority: 'soon',
+      dueDate: '',
+    });
+  };
+
+  const handleApplyTaskTemplate = (template: (typeof taskTemplates)[number]) => {
+    setTaskForm((prev) => ({
+      ...prev,
+      title: prev.title || template.title,
+      category: template.category,
+      assignedRole: template.assignedRole,
+      priority: template.priority,
+    }));
+  };
+
+  const handleCreateTask = () => {
+    if (!taskForm.title.trim()) {
+      alert('Task title is required.');
+      return;
+    }
+
+    createSharedCareTask({
+      babyId,
+      title: taskForm.title.trim(),
+      details: taskForm.details.trim() || undefined,
+      category: taskForm.category,
+      assignedRole: taskForm.assignedRole,
+      priority: taskForm.priority,
+      dueDate: taskForm.dueDate || null,
+      createdByRole: currentRole,
+    });
+    setTasks(getSharedCareTasks(babyId));
+    resetTaskForm();
+  };
+
+  const handleToggleTask = (task: SharedCareTask) => {
+    updateSharedCareTask(task.id, {
+      status: task.status === 'open' ? 'completed' : 'open',
+    });
+    setTasks(getSharedCareTasks(babyId));
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    if (!confirm('Delete this care task?')) return;
+    deleteSharedCareTask(taskId);
+    setTasks(getSharedCareTasks(babyId));
+  };
+
+  const visibleTasks = tasks.filter((task) => (taskFilter === 'all' ? true : task.status === taskFilter));
 
   const handleCreateSession = async () => {
     if (!user?.id) {
@@ -83,7 +185,7 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
       {/* Create/End Session */}
       <Card>
         <CardHeader>
@@ -182,6 +284,153 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
                     {new Date(log.created_at).toLocaleDateString()}{' '}
                     {new Date(log.created_at).toLocaleTimeString()}
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="xl:col-span-1">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <ClipboardList className="h-4 w-4" />
+            Shared Care Tasks
+          </CardTitle>
+          <CardDescription>Coordinate the next steps for {babyName}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+              Quick template
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {taskTemplates.map((template) => (
+                <Button
+                  key={template.label}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleApplyTaskTemplate(template)}
+                >
+                  {template.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              value={taskForm.title}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setTaskForm((prev) => ({ ...prev, title: e.target.value }))
+              }
+              placeholder="Task title"
+            />
+            <textarea
+              value={taskForm.details}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setTaskForm((prev) => ({ ...prev, details: e.target.value }))
+              }
+              rows={3}
+              placeholder="Notes, instructions, or context"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={taskForm.category}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setTaskForm((prev) => ({ ...prev, category: e.target.value as CareTaskCategory }))
+                }
+                className="rounded-md border px-3 py-2 text-sm bg-background"
+              >
+                <option value="handoff">Handoff</option>
+                <option value="medication">Medication</option>
+                <option value="appointment">Appointment</option>
+                <option value="monitoring">Monitoring</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select
+                value={taskForm.assignedRole}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setTaskForm((prev) => ({ ...prev, assignedRole: e.target.value as CareTaskRole }))
+                }
+                className="rounded-md border px-3 py-2 text-sm bg-background"
+              >
+                <option value="parent">Parent</option>
+                <option value="caregiver">Caregiver</option>
+                <option value="doctor">Doctor</option>
+              </select>
+              <select
+                value={taskForm.priority}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setTaskForm((prev) => ({ ...prev, priority: e.target.value as CareTaskPriority }))
+                }
+                className="rounded-md border px-3 py-2 text-sm bg-background"
+              >
+                <option value="routine">Routine</option>
+                <option value="soon">Soon</option>
+                <option value="urgent">Urgent</option>
+              </select>
+              <Input
+                type="date"
+                value={taskForm.dueDate}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))
+                }
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleCreateTask} className="flex-1">
+                <Plus className="mr-1 h-3 w-3" />
+                Add Task
+              </Button>
+              <Button variant="outline" onClick={resetTaskForm}>
+                Reset
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {(['open', 'completed', 'all'] as const).map((filter) => (
+                <Button
+                  key={filter}
+                  size="sm"
+                  variant={taskFilter === filter ? 'default' : 'outline'}
+                  onClick={() => setTaskFilter(filter)}
+                >
+                  {filter}
+                </Button>
+              ))}
+            </div>
+
+            {visibleTasks.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-4">No shared care tasks yet.</p>
+            ) : (
+              visibleTasks.map((task) => (
+                <div key={task.id} className="rounded-xl border p-3 text-xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-sm">{task.title}</p>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {task.assignedRole} | {task.priority} | {task.category}
+                      </p>
+                      {task.dueDate && (
+                        <p className="text-gray-500 dark:text-gray-400">Due {task.dueDate}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => handleToggleTask(task)}>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteTask(task.id)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                  {task.details && (
+                    <p className="text-gray-600 dark:text-gray-300">{task.details}</p>
+                  )}
                 </div>
               ))
             )}

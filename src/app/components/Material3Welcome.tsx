@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, HeartHandshake, MoonStar, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
+import { i18nT } from '../../lib/i18n';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -10,12 +11,6 @@ interface WelcomeScreenProps {
   heroImageUrl?: string;
 }
 
-const highlights = [
-  { label: 'Sleep', value: 'Synced', icon: MoonStar },
-  { label: 'Feed', value: 'Ready', icon: HeartHandshake },
-  { label: 'Secure', value: 'Private', icon: ShieldCheck },
-];
-
 export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
   onGetStarted,
   onLogIn,
@@ -23,6 +18,12 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
   logoUrl = '/logo.png',
   heroImageUrl = '/logo.png',
 }) => {
+  const highlights = [
+    { label: i18nT('public.highlightSleep', 'Sleep'), value: i18nT('public.highlightSynced', 'Synced'), icon: MoonStar },
+    { label: i18nT('public.highlightFeed', 'Feed'), value: i18nT('public.highlightReady', 'Ready'), icon: HeartHandshake },
+    { label: i18nT('public.highlightSecure', 'Secure'), value: i18nT('public.highlightPrivate', 'Private'), icon: ShieldCheck },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -48,7 +49,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                 BabyLog
               </p>
               <p className="text-sm font-semibold text-text-dim">
-                Gentle baby care tracking for feeding, sleep, and milestones.
+                {i18nT('public.tagline', 'Gentle baby care tracking for feeding, sleep, and milestones.')}
               </p>
             </div>
           </div>
@@ -56,7 +57,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
           <div className="flex min-h-0 flex-1 flex-col justify-center gap-4 py-4">
             <div className="inline-flex w-fit self-center items-center gap-2 rounded-full border border-white/80 bg-white/80 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-secondary shadow-[0_10px_30px_rgba(69,98,125,0.08)] backdrop-blur">
               <Sparkles size={13} />
-              <span>Calm Daily Care</span>
+              <span>{i18nT('public.badge', 'Calm Daily Care')}</span>
             </div>
 
             <div className="space-y-3 text-center">
@@ -64,7 +65,10 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                 BabyLog
               </h1>
               <p className="mx-auto max-w-[20rem] text-[0.98rem] font-semibold leading-[1.55] text-text-dim">
-                Stay close to every feeding, nap, and milestone with a softer, more nurturing start screen.
+                {i18nT(
+                  'public.heroBody',
+                  'Stay close to every feeding, nap, and milestone with a softer, more nurturing start screen.',
+                )}
               </p>
             </div>
 
@@ -113,7 +117,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
               className="group flex w-full items-center justify-between rounded-full bg-primary px-6 py-4 text-left text-white shadow-[0_24px_44px_rgba(94,95,97,0.28)] transition-all hover:bg-primary-hover hover:shadow-[0_28px_54px_rgba(94,95,97,0.32)] active:scale-[0.99]"
             >
               <span className="text-sm font-black uppercase tracking-[0.2em]">
-                Begin the Journey
+                {i18nT('public.beginJourney', 'Begin the Journey')}
               </span>
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/14 transition-transform group-hover:translate-x-1">
                 <ArrowRight size={18} />
@@ -121,19 +125,19 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
             </button>
 
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-semibold text-text-dim">
-              <span>Already tracking?</span>
+              <span>{i18nT('public.alreadyTracking', 'Already tracking?')}</span>
               <button onClick={onLogIn} className="text-secondary transition-colors hover:text-foreground">
-                Sign In
+                {i18nT('public.signIn', 'Sign In')}
               </button>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-semibold text-text-dim">
-              <span>Before you start:</span>
+              <span>{i18nT('public.beforeYouStart', 'Before you start:')}</span>
               <button
                 onClick={onViewPolicies}
                 className="text-primary transition-colors hover:text-foreground"
               >
-                Privacy, Terms & Policies
+                {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
               </button>
             </div>
           </div>
@@ -157,7 +161,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                     BabyLog
                   </p>
                   <p className="text-[0.95rem] font-semibold text-text-dim">
-                    Gentle baby care tracking for feeding, sleep, and milestones.
+                    {i18nT('public.tagline', 'Gentle baby care tracking for feeding, sleep, and milestones.')}
                   </p>
                 </div>
               </motion.div>
@@ -170,7 +174,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
               >
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/80 bg-white/80 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.24em] text-secondary shadow-[0_10px_30px_rgba(69,98,125,0.08)] backdrop-blur">
                   <Sparkles size={14} />
-                  <span>Calm Daily Care</span>
+                  <span>{i18nT('public.badge', 'Calm Daily Care')}</span>
                 </div>
 
                 <div className="space-y-3">
@@ -178,8 +182,10 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                     BabyLog
                   </h1>
                   <p className="max-w-[25rem] text-[1.02rem] leading-[1.55] text-text-dim xl:text-[1.12rem]">
-                    Stay close to every feeding, nap, and milestone with a softer,
-                    more nurturing start screen built around nursing and baby care.
+                    {i18nT(
+                      'public.heroBody',
+                      'Stay close to every feeding, nap, and milestone with a softer, more nurturing start screen.',
+                    )}
                   </p>
                 </div>
               </motion.div>
@@ -203,7 +209,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                     <div className="flex items-center justify-between gap-4">
                       <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.24em] text-secondary shadow-lg">
                         <HeartHandshake size={14} />
-                        <span>Nursing Moments</span>
+                        <span>{i18nT('public.nursingMoments', 'Nursing Moments')}</span>
                       </div>
 
                       <div className="rounded-full border border-secondary/10 bg-white/80 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.24em] text-text-dim">
@@ -225,11 +231,13 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
 
                     <div className="rounded-[2rem] border border-white/70 bg-white/70 p-4 shadow-[0_16px_36px_rgba(47,51,55,0.08)] backdrop-blur">
                       <p className="text-[10px] font-black uppercase tracking-[0.26em] text-secondary">
-                        Nurture Comes First
+                        {i18nT('public.nurtureFirst', 'Nurture Comes First')}
                       </p>
                       <p className="mt-2 text-[0.95rem] font-semibold leading-relaxed text-text-dim">
-                        A more personal welcome built around the nursing mother artwork
-                        instead of a generic device preview.
+                        {i18nT(
+                          'public.nurtureFirstBody',
+                          'A more personal welcome built around the nursing mother artwork instead of a generic device preview.',
+                        )}
                       </p>
                     </div>
                   </div>

@@ -42,6 +42,8 @@ export function toUserSettingsCloudRow(userId: string, settings: UserSettings) {
     user_id: userId,
     units: settings.units,
     language: settings.language ?? 'en',
+    care_profile_preferences: settings.careProfilePreferences ?? {},
+    care_workspace_data: settings.careWorkspaceData ?? {},
     notifications_enabled: settings.notificationsEnabled,
     feeding_interval: settings.feedingInterval ?? null,
     reminder_preferences: settings.reminderPreferences ?? {},
@@ -64,6 +66,12 @@ export function fromUserSettingsCloudRow(row: any): UserSettings {
     userId: row.user_id,
     units: row.units || 'metric',
     language: row.language || 'en',
+    careProfilePreferences: isJsonRecord(row.care_profile_preferences)
+      ? (row.care_profile_preferences as UserSettings['careProfilePreferences'])
+      : undefined,
+    careWorkspaceData: isJsonRecord(row.care_workspace_data)
+      ? (row.care_workspace_data as UserSettings['careWorkspaceData'])
+      : undefined,
     notificationsEnabled: row.notifications_enabled !== false,
     feedingInterval: row.feeding_interval ?? undefined,
     reminderPreferences: isJsonRecord(row.reminder_preferences)

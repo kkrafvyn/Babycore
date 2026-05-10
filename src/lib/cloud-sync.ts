@@ -26,6 +26,7 @@ import {
 } from './cloud-sync-service';
 import { getCurrentUser } from './supabase';
 import { resolveSyncScope, summarizeSyncSnapshot, type SyncSnapshotSummary } from './sync-diagnostics';
+import { buildCareWorkspaceSyncData } from './care-workspace-sync';
 
 export interface SyncState {
   isOnline: boolean;
@@ -283,6 +284,7 @@ class CloudSyncManager {
     milestones: any[];
     memories: any[];
     journalEntries: any[];
+    careWorkspaceData?: any;
     userSettings: any;
   } | null> {
     const babies = await getBabies();
@@ -325,6 +327,7 @@ class CloudSyncManager {
 
     const user = await getCurrentUser();
     const userSettings = user?.id ? await getUserSettings(user.id) : null;
+    const careWorkspaceData = buildCareWorkspaceSyncData(babies.map((baby) => baby.id));
 
     return {
       babies,
@@ -337,6 +340,7 @@ class CloudSyncManager {
       milestones: aggregate.milestones,
       memories: aggregate.memories,
       journalEntries: aggregate.journalEntries,
+      careWorkspaceData,
       userSettings,
     };
   }
