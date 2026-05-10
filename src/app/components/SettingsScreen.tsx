@@ -13,7 +13,7 @@ import {
   normalizeLanguageCode,
   type SupportedLanguage,
 } from '../../lib/i18n';
-import { NotificationsManager } from '../../lib/notifications';
+import { NotificationsManager, type RemotePushStatus } from '../../lib/notifications';
 import { toast } from 'sonner';
 import { COUNTRIES } from '../../lib/countries';
 import {
@@ -23,10 +23,70 @@ import {
   type CareTeamSearchCandidate,
   type FamilySharingRole,
 } from '../../lib/family-sharing-service';
-import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
+import {
+  deriveSettingsFromCareProfile,
+  getCareProfileBadges,
+  getCareProfileSummary,
+  normalizeCareProfile,
+  type CareProfileRole,
+} from '../../lib/care-profile';
 import { getCountryCareDefaults } from '../../lib/country-care-defaults';
+import { CareProfileEditorModal } from './CareProfileEditorModal';
 
 const MotionDiv = motion.div as any;
+
+const getRemotePushStatusCopy = (status: RemotePushStatus | null): { badge: string; detail: string } => {
+  if (!status) {
+    return {
+      badge: 'Checking',
+      detail: 'Looking up whether this device can receive remote push alerts.',
+    };
+  }
+
+  if (status.subscribed) {
+    return {
+      badge: 'Remote Push Active',
+      detail: 'Remote reminders are linked to this device and can arrive even when BabyLog is closed.',
+    };
+  }
+
+  switch (status.reason) {
+    case 'native-disabled':
+      return {
+        badge: 'Local Only',
+        detail: 'Native remote push is not configured for this build yet, so reminders stay on this device for now.',
+      };
+    case 'vapid-missing':
+      return {
+        badge: 'Web Push Not Configured',
+        detail: 'Browser push keys are missing, so remote web notifications cannot be enabled in this environment yet.',
+      };
+    case 'install-required':
+      return {
+        badge: 'Install Required',
+        detail: 'Install BabyLog to your home screen on iPhone or iPad before enabling remote push.',
+      };
+    case 'permission-denied':
+      return {
+        badge: 'Permission Blocked',
+        detail: 'Browser or system notification permission is blocked for BabyLog. Re-enable it in settings to use remote push.',
+      };
+    case 'service-worker-unavailable':
+    case 'push-manager-unavailable':
+    case 'unsupported':
+      return {
+        badge: 'Unsupported',
+        detail: 'This device/browser can still use in-app reminders, but remote push is not available here.',
+      };
+    default:
+      return {
+        badge: status.available ? 'Ready to Enable' : 'Local Only',
+        detail: status.available
+          ? 'This device supports remote push. Turn it on to keep reminders synced beyond the current browser session.'
+          : 'Local reminders are available, but remote push could not be prepared on this device.',
+      };
+  }
+};
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -78,6 +138,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [sendingCareInvite, setSendingCareInvite] = useState(false);
   const [creatingCareLink, setCreatingCareLink] = useState(false);
   const [careInviteLink, setCareInviteLink] = useState('');
+  const [showCareProfileEditor, setShowCareProfileEditor] = useState(false);
+  const [savingCareProfile, setSavingCareProfile] = useState(false);
+  const [remotePushStatus, setRemotePushStatus] = useState<RemotePushStatus | null>(null);
+  const [togglingRemotePush, setTogglingRemotePush] = useState(false);
+  const accountProfileType: CareProfileRole =
+    (user?.user_metadata?.onboarding_profile_type as CareProfileRole | undefined) || 'baby';
 
   const handleUnitChange = async (unit: 'metric' | 'imperial') => {
     await updateSettings({ units: unit });
@@ -115,6 +181,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (isEnabled) {
       const permissionGranted = await NotificationsManager.requestPermission();
       await updateSettings({ notificationsEnabled: true });
+      const nextRemoteStatus = await NotificationsManager.getRemotePushStatus();
+      setRemotePushStatus(nextRemoteStatus);
 
       if (permissionGranted) {
         toast.success('Local reminders enabled.');
@@ -126,6 +194,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       await NotificationsManager.unsubscribeFromPush();
     }
     await updateSettings({ notificationsEnabled: false });
+    const nextRemoteStatus = await NotificationsManager.getRemotePushStatus();
+    setRemotePushStatus(nextRemoteStatus);
+  };
+
+  const syncRemotePushStatus = React.useCallback(async () => {
+    const nextStatus = await NotificationsManager.getRemotePushStatus();
+    setRemotePushStatus(nextStatus);
+    return nextStatus;
+  }, []);
+
+  React.useEffect(() => {
+    void syncRemotePushStatus();
+  }, [syncRemotePushStatus, settings?.notificationsEnabled]);
+
+  const handleRemotePushToggle = async () => {
+    setTogglingRemotePush(true);
+
+    try {
+      let nextStatus = remotePushStatus;
+
+      if (!settings?.notificationsEnabled) {
+        const permissionGranted = await NotificationsManager.requestPermission();
+        await updateSettings({ notificationsEnabled: true });
+        if (!permissionGranted) {
+          toast('System permissions are limited on this device, but BabyLog will still keep in-app reminders active.');
+        }
+      }
+
+      if (remotePushStatus?.subscribed) {
+        await NotificationsManager.unsubscribeFromPush();
+        nextStatus = await syncRemotePushStatus();
+        toast.success('Remote push disabled for this device.');
+        return;
+      }
+
+      const subscription = await NotificationsManager.subscribeToPush();
+      nextStatus = await syncRemotePushStatus();
+
+      if (subscription && nextStatus.subscribed) {
+        toast.success('Remote push enabled for this device.');
+        return;
+      }
+
+      const copy = getRemotePushStatusCopy(nextStatus);
+      toast(copy.detail);
+    } finally {
+      setTogglingRemotePush(false);
+    }
   };
 
   const handleBiometricToggle = async () => {
@@ -148,6 +264,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       }
     }
     await updateSettings({ biometricLockEnabled: isEnabled });
+  };
+
+  const handleSaveCareProfile = async (profile: React.ComponentProps<typeof CareProfileEditorModal>['initialProfile']) => {
+    const normalizedProfile = normalizeCareProfile(accountProfileType, profile);
+    const personalizedDefaults = deriveSettingsFromCareProfile(accountProfileType, normalizedProfile);
+
+    setSavingCareProfile(true);
+    try {
+      await updateSettings({
+        careProfilePreferences: normalizedProfile,
+        feedingInterval: personalizedDefaults.feedingInterval,
+        reminderPreferences: {
+          ...(settings?.reminderPreferences || {}),
+          ...(personalizedDefaults.reminderPreferences || {}),
+        },
+      });
+      setShowCareProfileEditor(false);
+      toast.success('Care plan updated.');
+    } finally {
+      setSavingCareProfile(false);
+    }
   };
 
   const openEditBaby = (baby: any) => {
@@ -217,11 +354,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   }));
   const currentLanguageCode = i18nInstance.getLanguage();
   const currentCountryDefaults = currentBaby ? getCountryCareDefaults(currentBaby.country) : null;
-  const accountProfileType =
-    (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
-    'baby';
+  const currentCountryName =
+    currentBaby &&
+    countryOptions.find((country) => country.code === currentBaby.country)?.name;
   const careProfileSummary = getCareProfileSummary(accountProfileType, settings?.careProfilePreferences);
   const careProfileBadges = getCareProfileBadges(accountProfileType, settings?.careProfilePreferences);
+  const remotePushCopy = getRemotePushStatusCopy(remotePushStatus);
   const languageOptions = React.useMemo(
     () => getLanguageOptions(languageQuery, currentLanguageCode),
     [languageQuery, currentLanguageCode],
@@ -486,13 +624,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                          <div className="space-y-1">
                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
-                             Care Defaults
+                             {i18nT('settings.careDefaultsTitle', 'Care Defaults')}
                            </p>
                            <p className="text-base font-headline font-black text-foreground">
-                             {currentBaby?.name || 'Current baby'} in {currentCountryDefaults.countryCode}
+                             {(currentBaby?.name || i18nT('settings.currentBabyLabel', 'Current baby'))} in{' '}
+                             {currentCountryName || currentCountryDefaults.countryCode}
                            </p>
                            <p className="text-sm font-semibold text-text-dim">
                              {currentCountryDefaults.vaccinationScheduleName} · {currentCountryDefaults.vaccinationRegionName}
+                           </p>
+                           <p className="text-xs font-semibold leading-relaxed text-text-dim">
+                             {currentCountryDefaults.careGuidanceSummary}
                            </p>
                          </div>
                          {settings?.units !== currentCountryDefaults.recommendedUnits && (
@@ -500,14 +642,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                              onClick={() => handleUnitChange(currentCountryDefaults.recommendedUnits)}
                              className="rounded-full bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-secondary shadow-sm transition-all hover:bg-secondary hover:text-white dark:bg-zinc-800 dark:hover:bg-blue-500"
                            >
-                             Apply {currentCountryDefaults.recommendedUnits}
+                             {i18nT('settings.applyCountryUnits', 'Apply {units}').replace(
+                               '{units}',
+                               currentCountryDefaults.recommendedUnits,
+                             )}
                            </button>
                          )}
                        </div>
-                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                          <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
-                             Recommended Units
+                             {i18nT('settings.recommendedUnitsTitle', 'Recommended Units')}
                            </p>
                            <p className="mt-1 text-sm font-black text-foreground">
                              {currentCountryDefaults.recommendedUnits}
@@ -518,7 +663,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                          </div>
                          <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
-                             Vaccine Schedule
+                             {i18nT('settings.vaccineScheduleTitle', 'Vaccine Schedule')}
                            </p>
                            <p className="mt-1 text-sm font-black text-foreground">
                              {currentCountryDefaults.vaccinationScheduleName}
@@ -529,13 +674,49 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                          </div>
                          <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
-                             Schedule Source
+                             {i18nT('settings.temperatureTitle', 'Temperature')}
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground">
+                             {currentCountryDefaults.temperatureLabel}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             {i18nT('settings.temperatureHint', 'Use this scale for fever and medication guidance.')}
+                           </p>
+                         </div>
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             {i18nT('settings.emergencyNumberTitle', 'Emergency Number')}
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground">
+                             {currentCountryDefaults.emergencyNumber}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             {i18nT('settings.emergencyNumberHint', 'Use your local emergency or pediatric triage line as needed.')}
+                           </p>
+                         </div>
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             {i18nT('settings.newbornVisitsTitle', 'Early Visits')}
+                           </p>
+                           <p className="mt-1 text-sm font-black text-foreground">
+                             {currentCountryDefaults.newbornVisitCadence}
+                           </p>
+                           <p className="text-xs font-semibold text-text-dim">
+                             {i18nT('settings.newbornVisitsHint', 'Typical first checks after birth in this care model.')}
+                           </p>
+                         </div>
+                         <div className="rounded-2xl bg-white/80 px-4 py-3 dark:bg-zinc-950/60">
+                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-text-light">
+                             {i18nT('settings.scheduleSourceTitle', 'Schedule Source')}
                            </p>
                            <p className="mt-1 text-sm font-black text-foreground capitalize">
                              {currentCountryDefaults.vaccinationScheduleSource}
                            </p>
                            <p className="text-xs font-semibold text-text-dim">
-                             Matched from {currentCountryDefaults.countryCode}
+                             {i18nT('settings.scheduleSourceHint', 'Matched from {country}').replace(
+                               '{country}',
+                               currentCountryDefaults.countryCode,
+                             )}
                            </p>
                          </div>
                        </div>
@@ -545,20 +726,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                  {settings?.careProfilePreferences && (
                    <div className="px-4 pb-4 sm:px-8 sm:pb-8">
                      <div className="rounded-[1.6rem] border border-border-gray bg-surface-gray/55 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:rounded-[2rem] sm:p-5">
-                       <div className="space-y-2">
-                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
-                           Care profile
-                         </p>
-                         <p className="text-base font-headline font-black text-foreground">
-                           {accountProfileType === 'baby'
-                             ? `${currentBaby?.name || 'Your baby'} starter plan`
-                             : accountProfileType === 'doctor'
-                               ? 'Doctor care focus'
-                               : 'Caregiver care focus'}
-                         </p>
-                         <p className="text-sm font-semibold leading-relaxed text-text-dim">
-                           {careProfileSummary}
-                         </p>
+                       <div className="flex items-start justify-between gap-4">
+                         <div className="space-y-2 min-w-0">
+                           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                             Care profile
+                           </p>
+                           <p className="text-base font-headline font-black text-foreground">
+                             {accountProfileType === 'baby'
+                               ? `${currentBaby?.name || 'Your baby'} starter plan`
+                               : accountProfileType === 'doctor'
+                                 ? 'Doctor care focus'
+                                 : 'Caregiver care focus'}
+                           </p>
+                           <p className="text-sm font-semibold leading-relaxed text-text-dim">
+                             {careProfileSummary}
+                           </p>
+                         </div>
+                         <button
+                           onClick={() => setShowCareProfileEditor(true)}
+                           className="shrink-0 rounded-full border border-border-gray bg-white/85 px-3 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-secondary transition-all hover:border-secondary hover:text-secondary dark:border-zinc-700 dark:bg-zinc-950/70 dark:text-blue-300"
+                         >
+                           Edit plan
+                         </button>
                        </div>
                        {careProfileBadges.length > 0 && (
                          <div className="mt-4 flex flex-wrap gap-2">
@@ -606,9 +795,41 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                  </div>
                   {settings?.notificationsEnabled && (
                      <div className="p-4 sm:p-8 bg-surface-gray/30 dark:bg-zinc-900/10">
-                        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-text-light leading-relaxed">
-                          Local reminders stay on this device. Remote push is currently turned off.
-                        </p>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-text-light">
+                              {remotePushCopy.badge}
+                            </p>
+                            <p className="mt-2 text-sm font-semibold leading-relaxed text-text-dim">
+                              {remotePushCopy.detail}
+                            </p>
+                            <p className="mt-2 text-[10px] font-black uppercase tracking-[0.18em] text-text-light">
+                              {remotePushStatus?.platform === 'ios'
+                                ? 'iOS'
+                                : remotePushStatus?.platform === 'android'
+                                  ? 'Android'
+                                  : 'Web browser'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleRemotePushToggle}
+                            disabled={
+                              togglingRemotePush ||
+                              (!remotePushStatus?.available && !remotePushStatus?.subscribed)
+                            }
+                            className={`shrink-0 rounded-full px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] transition-all ${
+                              remotePushStatus?.subscribed
+                                ? 'border border-border-gray bg-white/85 text-text-dim hover:text-foreground dark:border-zinc-700 dark:bg-zinc-950/70 dark:text-zinc-300'
+                                : 'bg-secondary text-white shadow-lg hover:brightness-110'
+                            } disabled:cursor-not-allowed disabled:opacity-55`}
+                          >
+                            {togglingRemotePush
+                              ? 'Updating…'
+                              : remotePushStatus?.subscribed
+                                ? 'Disable Remote Push'
+                                : 'Enable Remote Push'}
+                          </button>
+                        </div>
                      </div>
                   )}
                  {/* Partner Sync */}
@@ -760,6 +981,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
            </div>
         </div>
       </main>
+
+      <CareProfileEditorModal
+        isOpen={showCareProfileEditor}
+        role={accountProfileType}
+        initialProfile={settings?.careProfilePreferences}
+        babyName={currentBaby?.name}
+        saving={savingCareProfile}
+        onClose={() => setShowCareProfileEditor(false)}
+        onSave={handleSaveCareProfile}
+      />
 
       <AnimatePresence>
         {showCareTeamModal && (

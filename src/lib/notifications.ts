@@ -236,6 +236,24 @@ interface WebPushSubscriptionPayload {
 
 type PushPlatform = 'android' | 'ios' | 'web';
 
+export type RemotePushStatusReason =
+  | 'native-disabled'
+  | 'vapid-missing'
+  | 'unsupported'
+  | 'install-required'
+  | 'permission-denied'
+  | 'service-worker-unavailable'
+  | 'push-manager-unavailable'
+  | 'unknown';
+
+export interface RemotePushStatus {
+  available: boolean;
+  subscribed: boolean;
+  mode: 'native' | 'web' | 'disabled';
+  platform: PushPlatform;
+  reason?: RemotePushStatusReason;
+}
+
 type NativePushTokenPayload = {
   token: string;
   platform: Extract<PushPlatform, 'android' | 'ios'>;
@@ -510,7 +528,7 @@ export class NotificationsManager {
 
   private static getPushPlatformLabel(): PushPlatform {
     if (typeof navigator === 'undefined') return 'web';
-    const userAgent = navigator.userAgent.toLowerCase();
+    const userAgent = String(navigator.userAgent || '').toLowerCase();
     if (userAgent.includes('android')) return 'android';
     if (/iphone|ipad|ipod/.test(userAgent)) return 'ios';
     return 'web';
@@ -698,6 +716,124 @@ export class NotificationsManager {
       return 'granted';
     }
     return this.isSupported() ? Notification.permission : 'default';
+  }
+
+  /**
+   * Read the current remote push availability/subscription state so UI can
+   * explain whether notifications are limited to the local device.
+   */
+  static async getRemotePushStatus(): Promise<RemotePushStatus> {
+    const nativeBridge = await this.getNativePushBridge();
+    if (nativeBridge) {
+      const nativePayload = this.getCachedNativeTokenPayload();
+      const platform = this.getPushPlatformLabel() === 'ios' ? 'ios' : 'android';
+
+      if (!NATIVE_REMOTE_PUSH_ENABLED) {
+        return {
+          available: false,
+          subscribed: Boolean(nativePayload),
+          mode: 'native',
+          platform,
+          reason: 'native-disabled',
+        };
+      }
+
+      return {
+        available: true,
+        subscribed: Boolean(nativePayload),
+        mode: 'native',
+        platform,
+      };
+    }
+
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'disabled',
+        platform: 'web',
+        reason: 'unsupported',
+      };
+    }
+
+    if (!VAPID_PUBLIC_KEY) {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+        reason: 'vapid-missing',
+      };
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+        reason: 'service-worker-unavailable',
+      };
+    }
+
+    if (typeof PushManager === 'undefined') {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+        reason: 'push-manager-unavailable',
+      };
+    }
+
+    if (this.isIOS() && !this.isStandaloneDisplayMode()) {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: 'ios',
+        reason: 'install-required',
+      };
+    }
+
+    if (this.isSupported() && Notification.permission === 'denied') {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+        reason: 'permission-denied',
+      };
+    }
+
+    try {
+      const registration = await this.ensureServiceWorkerReady();
+      if (!registration) {
+        return {
+          available: false,
+          subscribed: false,
+          mode: 'web',
+          platform: this.getPushPlatformLabel(),
+          reason: 'service-worker-unavailable',
+        };
+      }
+
+      const subscription = await registration.pushManager.getSubscription();
+      return {
+        available: true,
+        subscribed: Boolean(subscription),
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+      };
+    } catch {
+      return {
+        available: false,
+        subscribed: false,
+        mode: 'web',
+        platform: this.getPushPlatformLabel(),
+        reason: 'unknown',
+      };
+    }
   }
 
   /**

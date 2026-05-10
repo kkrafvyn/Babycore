@@ -8,6 +8,8 @@ describe('country-care-defaults', () => {
       countryCode: 'US',
       recommendedUnits: 'imperial',
       recommendedUnitsCompactLabel: 'lb / in / oz',
+      temperatureScale: 'F',
+      emergencyNumber: '911',
     });
   });
 
@@ -17,6 +19,8 @@ describe('country-care-defaults', () => {
       countryCode: 'FR',
       recommendedUnits: 'metric',
       recommendedUnitsCompactLabel: 'kg / cm / ml',
+      temperatureScale: 'C',
+      emergencyNumber: '15 / 112',
     });
   });
 

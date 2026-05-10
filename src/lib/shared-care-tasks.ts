@@ -1,3 +1,5 @@
+import { emitCareWorkspaceUpdated } from './care-workspace-events';
+
 export type CareTaskCategory =
   | 'medication'
   | 'appointment'
@@ -102,6 +104,10 @@ const readAllTasks = (): SharedCareTask[] => {
 
 const writeAllTasks = (tasks: SharedCareTask[]) => {
   getStorage().setItem(STORAGE_KEY, JSON.stringify(sortTasks(tasks)));
+  emitCareWorkspaceUpdated({
+    babyId: tasks[0]?.babyId,
+    source: 'tasks',
+  });
 };
 
 export const getAllSharedCareTasks = (): SharedCareTask[] => readAllTasks();

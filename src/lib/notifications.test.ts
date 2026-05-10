@@ -32,4 +32,24 @@ describe('NotificationsManager', () => {
 
     expect(granted).toBe(true);
   });
+
+  it('reports remote push as unavailable when browser push is not configured', async () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {},
+      configurable: true,
+    });
+
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {},
+      configurable: true,
+    });
+
+    const status = await NotificationsManager.getRemotePushStatus();
+
+    expect(status.available).toBe(false);
+    expect(status.subscribed).toBe(false);
+    expect(['vapid-missing', 'service-worker-unavailable', 'push-manager-unavailable']).toContain(
+      status.reason,
+    );
+  });
 });

@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAppContext } from '../AppContext';
 import { addVaccinationRecord, deleteVaccinationRecord, updateVaccinationRecord } from '../../lib/supabase-storage';
 import { COUNTRIES } from '../../lib/countries';
+import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 import { resolveVaccinationSchedule } from '../../lib/vaccination-schedule-resolver';
 import type { VaccinationRecord } from '../../types';
 import type { VaccineSchedule } from '../../lib/vaccination-data';
@@ -174,6 +175,10 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
 
   const scheduleContext = useMemo(
     () => resolveVaccinationSchedule(currentBaby?.country),
+    [currentBaby?.country],
+  );
+  const countryCareDefaults = useMemo(
+    () => getCountryCareDefaults(currentBaby?.country),
     [currentBaby?.country],
   );
 
@@ -498,6 +503,9 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
               <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
                 Source: {scheduleContext.source}
               </p>
+              <p className="text-xs font-semibold leading-relaxed text-text-dim">
+                {countryCareDefaults.careGuidanceSummary}
+              </p>
             </div>
 
             <div className="mt-6 grid grid-cols-3 gap-3">
@@ -515,6 +523,27 @@ export const VaccinationCalendar: React.FC<VaccinationCalendarProps> = ({ onBack
                 <AlertTriangle size={18} className="mx-auto text-red-500 mb-2" />
                 <p className="text-[9px] font-black text-text-light uppercase tracking-widest">Overdue</p>
                 <p className="text-lg font-headline font-black text-foreground">{overdueCount}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-border-gray dark:border-zinc-800 bg-surface-gray dark:bg-zinc-900 p-4">
+                <p className="text-[9px] font-black text-text-light uppercase tracking-widest">Emergency Number</p>
+                <p className="mt-1 text-base font-headline font-black text-foreground">
+                  {countryCareDefaults.emergencyNumber}
+                </p>
+                <p className="text-[11px] font-bold text-text-dim mt-1">
+                  Use this for urgent pediatric triage in {getCountryName(currentBaby?.country)}.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border-gray dark:border-zinc-800 bg-surface-gray dark:bg-zinc-900 p-4">
+                <p className="text-[9px] font-black text-text-light uppercase tracking-widest">Early Visit Rhythm</p>
+                <p className="mt-1 text-base font-headline font-black text-foreground">
+                  {countryCareDefaults.newbornVisitCadence}
+                </p>
+                <p className="text-[11px] font-bold text-text-dim mt-1">
+                  Temperature tracking uses {countryCareDefaults.temperatureLabel} in this care profile.
+                </p>
               </div>
             </div>
 

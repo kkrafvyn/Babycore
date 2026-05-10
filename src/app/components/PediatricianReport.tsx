@@ -1,9 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, FileText, Download, Share, Activity, Heart } from 'lucide-react';
+import { ChevronLeft, FileText, Download, Share, Activity, Heart, Copy } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
 import { formatDuration } from '../../lib/baby-utils';
-import { downloadCSV, generateCSV, generatePDFHTML, openPDFInNewWindow } from '../../lib/export';
+import {
+  buildDoctorVisitBrief,
+  downloadCSV,
+  generateCSV,
+  generateDoctorVisitPacketHTML,
+  generatePDFHTML,
+  openPDFInNewWindow,
+} from '../../lib/export';
 
 const MotionDiv = motion.div as any;
 
@@ -67,6 +74,11 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
     };
   }, [currentBaby, reportPeriod, feedLogs, sleepLogs, diaperLogs, growthMeasurements, vaccinationRecords, milestones, memories]);
 
+  const visitBrief = useMemo(
+    () => (reportPayload ? buildDoctorVisitBrief(reportPayload.exportData as any) : ''),
+    [reportPayload],
+  );
+
   const handleDownloadPdf = async () => {
     if (!reportPayload || !currentBaby) return;
     setExporting(true);
@@ -94,6 +106,19 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
     }
   };
 
+  const handleDownloadVisitPacket = async () => {
+    if (!reportPayload || !currentBaby) return;
+    setExporting(true);
+    setNotice('');
+    try {
+      const html = generateDoctorVisitPacketHTML(reportPayload.exportData as any);
+      openPDFInNewWindow(html);
+      setNotice('Visit packet generated in a new tab.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleShare = async () => {
     if (!reportPayload || !currentBaby) return;
     setNotice('');
@@ -115,6 +140,12 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
 
     await navigator.clipboard.writeText(text);
     setNotice('Summary copied to clipboard.');
+  };
+
+  const handleCopyVisitBrief = async () => {
+    if (!visitBrief) return;
+    await navigator.clipboard.writeText(visitBrief);
+    setNotice('Visit brief copied to clipboard.');
   };
 
   if (!currentBaby || !reportPayload) return null;
@@ -219,6 +250,21 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
               </div>
             )}
 
+            <div>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-text-light mb-4">
+                Visit Packet Brief
+              </h3>
+              <div className="rounded-[2rem] border border-border-gray bg-surface-gray p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="space-y-2">
+                  {visitBrief.split('\n').map((line, index) => (
+                    <p key={`${index}-${line}`} className="text-sm font-semibold leading-relaxed text-text-dim">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {notice && (
               <div className="rounded-2xl border border-border-gray dark:border-zinc-700 bg-surface px-4 py-3 text-xs font-semibold text-text-dim">
                 {notice}
@@ -234,26 +280,44 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
       </main>
 
       <div className="fixed bottom-0 left-0 w-full bg-background/90 backdrop-blur-md p-6 border-t border-border-gray dark:border-zinc-800 z-40">
-        <div className="max-w-md mx-auto flex gap-4">
+        <div className="max-w-md mx-auto grid grid-cols-[minmax(0,1fr)_56px_56px_56px] gap-3">
           <button
-            onClick={handleDownloadPdf}
+            onClick={handleDownloadVisitPacket}
             disabled={exporting}
             className="flex-1 bg-secondary text-white py-4 rounded-[2rem] flex items-center justify-center gap-2 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-secondary/20 active:scale-95 transition-all disabled:opacity-60"
           >
-            <Download size={18} /> Download PDF
+            <Download size={18} /> Visit Packet
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={exporting}
+            title="Open doctor summary PDF"
+            className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700 disabled:opacity-60"
+          >
+            <FileText size={20} />
           </button>
           <button
             onClick={handleShare}
+            title="Share summary"
             className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700"
           >
             <Share size={20} />
           </button>
           <button
+            onClick={handleCopyVisitBrief}
+            title="Copy visit brief"
+            className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700"
+          >
+            <Copy size={20} />
+          </button>
+        </div>
+        <div className="max-w-md mx-auto mt-3">
+          <button
             onClick={handleDownloadCsv}
             disabled={exporting}
-            className="w-14 h-14 rounded-full bg-surface-gray dark:bg-zinc-800 text-foreground flex items-center justify-center active:scale-90 transition-all border border-border-gray dark:border-zinc-700 disabled:opacity-60"
+            className="w-full rounded-[1.4rem] border border-border-gray bg-surface px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-text-dim transition-all hover:text-foreground dark:border-zinc-700 dark:bg-zinc-900 disabled:opacity-60"
           >
-            <FileText size={20} />
+            Download CSV Timeline
           </button>
         </div>
       </div>

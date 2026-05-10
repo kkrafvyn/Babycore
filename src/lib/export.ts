@@ -18,6 +18,97 @@ interface ExportData {
   dateRange: { start: Date; end: Date };
 }
 
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const getReportPeriodDays = (data: ExportData): number => {
+  const diffMs = Math.max(24 * 60 * 60 * 1000, data.dateRange.end.getTime() - data.dateRange.start.getTime());
+  return Math.max(1, Math.round(diffMs / (24 * 60 * 60 * 1000)));
+};
+
+const buildVisitChecklist = (data: ExportData): string[] => {
+  const items: string[] = [];
+  const overdueVaccines = data.vaccinationRecords.filter((record) => record.status === 'overdue');
+  const scheduledVaccines = data.vaccinationRecords
+    .filter((record) => record.status === 'scheduled')
+    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime());
+  const latestGrowth = [...data.growthMeasurements].sort(
+    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
+  )[0];
+  const latestMilestone = [...data.milestones].sort(
+    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
+  )[0];
+
+  if (overdueVaccines.length > 0) {
+    items.push(`Review catch-up timing for ${overdueVaccines.length} overdue vaccine${overdueVaccines.length === 1 ? '' : 's'}.`);
+  }
+
+  if (scheduledVaccines[0]) {
+    items.push(
+      `Confirm the next vaccine window for ${scheduledVaccines[0].name} on ${formatDate(new Date(scheduledVaccines[0].dueDate))}.`,
+    );
+  }
+
+  if (latestGrowth) {
+    items.push(
+      `Compare current weight ${latestGrowth.weight || '-'} and length ${latestGrowth.height || '-'} with prior growth trend.`,
+    );
+  } else {
+    items.push('Capture a fresh growth check if weight and length have not been recorded recently.');
+  }
+
+  if (latestMilestone) {
+    items.push(`Discuss recent milestone progress: ${latestMilestone.description}.`);
+  }
+
+  if (data.feedLogs.length > 0) {
+    items.push('Review feeding tolerance, appetite, and any recent pattern changes.');
+  }
+
+  if (data.sleepLogs.length > 0) {
+    items.push('Review sleep duration, wake windows, and overnight settling.');
+  }
+
+  return items.slice(0, 5);
+};
+
+export const buildDoctorVisitBrief = (data: ExportData): string => {
+  const reportPeriodDays = getReportPeriodDays(data);
+  const totalSleepMinutes = data.sleepLogs.reduce((sum, log) => sum + log.duration, 0);
+  const avgFeeds = data.feedLogs.length / reportPeriodDays;
+  const avgSleepMinutes = totalSleepMinutes / reportPeriodDays;
+  const avgDiapers = data.diaperLogs.length / reportPeriodDays;
+  const latestGrowth = [...data.growthMeasurements].sort(
+    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
+  )[0];
+  const nextVaccine = [...data.vaccinationRecords]
+    .filter((record) => record.status === 'scheduled' || record.status === 'overdue')
+    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())[0];
+  const checklist = buildVisitChecklist(data);
+
+  return [
+    `${data.baby.name} visit brief`,
+    `Report range: ${formatDate(data.dateRange.start)} to ${formatDate(data.dateRange.end)}`,
+    `Average feeds/day: ${avgFeeds.toFixed(1)}`,
+    `Average sleep/day: ${formatDuration(Math.round(avgSleepMinutes))}`,
+    `Average diapers/day: ${avgDiapers.toFixed(1)}`,
+    latestGrowth
+      ? `Latest growth: ${formatDate(new Date(latestGrowth.date))} · W ${latestGrowth.weight || '-'} · H ${latestGrowth.height || '-'} · HC ${latestGrowth.headCircumference || '-'}`
+      : 'Latest growth: no growth entries in this period',
+    nextVaccine
+      ? `Next vaccine to review: ${nextVaccine.name} (${nextVaccine.status}) on ${formatDate(new Date(nextVaccine.dueDate))}`
+      : 'Next vaccine to review: none currently scheduled',
+    checklist.length > 0 ? `Visit checklist: ${checklist.join(' ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 /**
  * Generate CSV export string from baby data
  */
@@ -308,6 +399,272 @@ export const generatePDFHTML = (data: ExportData): string => {
   </div>
 
   <button class="no-print" onclick="window.print()" style="position: fixed; bottom: 40px; right: 40px; padding: 16px 32px; background: #6366f1; color: white; border: none; border-radius: 50px; cursor: pointer; font-size: 16px; font-weight: 800; box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);">Save as PDF</button>
+</body>
+</html>
+  `;
+};
+
+export const generateDoctorVisitPacketHTML = (data: ExportData): string => {
+  const reportPeriodDays = getReportPeriodDays(data);
+  const totalSleepMinutes = data.sleepLogs.reduce((sum, log) => sum + log.duration, 0);
+  const avgFeeds = data.feedLogs.length / reportPeriodDays;
+  const avgSleepMinutes = totalSleepMinutes / reportPeriodDays;
+  const avgDiapers = data.diaperLogs.length / reportPeriodDays;
+  const latestGrowth = [...data.growthMeasurements].sort(
+    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
+  )[0];
+  const upcomingVaccines = [...data.vaccinationRecords]
+    .filter((record) => record.status === 'scheduled' || record.status === 'overdue')
+    .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())
+    .slice(0, 4);
+  const recentMilestones = [...data.milestones]
+    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime())
+    .slice(0, 3);
+  const recentMemories = [...data.memories]
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    .slice(0, 3);
+  const checklist = buildVisitChecklist(data);
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(data.baby.name)} Visit Packet</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 36px;
+      color: #172033;
+      background: #ffffff;
+      line-height: 1.5;
+    }
+    h1, h2, h3, p { margin: 0; }
+    .hero {
+      border: 1px solid #dbe4f0;
+      border-radius: 28px;
+      padding: 28px;
+      background: linear-gradient(135deg, #f8fbff 0%, #eef5fb 100%);
+      margin-bottom: 24px;
+    }
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #60708a;
+      margin-bottom: 10px;
+    }
+    .hero h1 {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: #1c2430;
+    }
+    .hero p {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #546174;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .stat {
+      border: 1px solid #e5edf5;
+      border-radius: 22px;
+      padding: 18px;
+      background: #fff;
+    }
+    .stat-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #7a8798;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: #1f2a39;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .panel {
+      border: 1px solid #e5edf5;
+      border-radius: 22px;
+      padding: 18px;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+    .panel h2 {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #5d6b80;
+      margin-bottom: 12px;
+    }
+    .panel h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1f2a39;
+      margin-bottom: 6px;
+    }
+    .muted {
+      font-size: 13px;
+      color: #667487;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    li {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #1f2a39;
+    }
+    .footer {
+      margin-top: 24px;
+      border-top: 1px solid #e5edf5;
+      padding-top: 14px;
+      font-size: 11px;
+      color: #7a8798;
+      text-align: center;
+    }
+    .print-button {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      border: none;
+      background: #47607e;
+      color: #fff;
+      border-radius: 999px;
+      padding: 14px 24px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 16px 36px rgba(71, 96, 126, 0.28);
+    }
+    @media print {
+      body { padding: 0; }
+      .print-button { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="eyebrow">BabyLog Visit Packet</div>
+    <h1>${escapeHtml(data.baby.name)}</h1>
+    <p>
+      Prepared for pediatric review · ${escapeHtml(formatDate(data.dateRange.start))} to ${escapeHtml(
+        formatDate(data.dateRange.end),
+      )} · Generated ${escapeHtml(new Date().toLocaleDateString())}
+    </p>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Feeds / Day</div>
+        <div class="stat-value">${avgFeeds.toFixed(1)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Sleep / Day</div>
+        <div class="stat-value">${escapeHtml(formatDuration(Math.round(avgSleepMinutes)))}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Diapers / Day</div>
+        <div class="stat-value">${avgDiapers.toFixed(1)}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Growth Snapshot</h2>
+      ${
+        latestGrowth
+          ? `
+            <h3>${escapeHtml(formatDate(new Date(latestGrowth.date)))}</h3>
+            <p class="muted">Weight ${escapeHtml(String(latestGrowth.weight || '-'))} · Length ${escapeHtml(
+              String(latestGrowth.height || '-'),
+            )} · Head ${escapeHtml(String(latestGrowth.headCircumference || '-'))}</p>
+          `
+          : '<p class="muted">No growth measurements were recorded in this report range.</p>'
+      }
+    </div>
+
+    <div class="panel">
+      <h2>Vaccines To Review</h2>
+      ${
+        upcomingVaccines.length > 0
+          ? `<ul>${upcomingVaccines
+              .map(
+                (record) =>
+                  `<li><strong>${escapeHtml(record.name)}</strong> · ${escapeHtml(record.status)} · ${escapeHtml(
+                    formatDate(new Date(record.dueDate)),
+                  )}</li>`,
+              )
+              .join('')}</ul>`
+          : '<p class="muted">No scheduled or overdue vaccines are currently flagged.</p>'
+      }
+    </div>
+
+    <div class="panel">
+      <h2>Recent Development</h2>
+      ${
+        recentMilestones.length > 0
+          ? `<ul>${recentMilestones
+              .map(
+                (milestone) =>
+                  `<li><strong>${escapeHtml(formatDate(new Date(milestone.date)))}</strong> · ${escapeHtml(
+                    milestone.description,
+                  )}</li>`,
+              )
+              .join('')}</ul>`
+          : '<p class="muted">No milestones were recorded in this report range.</p>'
+      }
+    </div>
+
+    <div class="panel">
+      <h2>Caregiver Notes</h2>
+      ${
+        recentMemories.length > 0
+          ? `<ul>${recentMemories
+              .map(
+                (memory) =>
+                  `<li><strong>${escapeHtml(formatDate(new Date(memory.timestamp)))}</strong> · ${escapeHtml(
+                    memory.text,
+                  )}</li>`,
+              )
+              .join('')}</ul>`
+          : '<p class="muted">No recent memory notes were added in this report range.</p>'
+      }
+    </div>
+  </section>
+
+  <section class="panel" style="margin-top: 16px;">
+    <h2>Suggested Review Checklist</h2>
+    ${
+      checklist.length > 0
+        ? `<ul>${checklist.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+        : '<p class="muted">No specific review flags were generated for this packet.</p>'
+    }
+  </section>
+
+  <div class="footer">
+    BabyLog visit packet · This summary is intended to support, not replace, direct clinical review.
+  </div>
+
+  <button class="print-button" onclick="window.print()">Save as PDF</button>
 </body>
 </html>
   `;

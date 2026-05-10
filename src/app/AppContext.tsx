@@ -42,8 +42,14 @@ import { useTheme } from 'next-themes';
 import { setupRealtimeSync, performFullSync, pullFromCloud } from '../lib/cloud-sync-service';
 import {
   applyCareWorkspaceSyncData,
+  applyCareWorkspaceSyncDataForBabies,
   buildCareWorkspaceSyncData,
 } from '../lib/care-workspace-sync';
+import { CARE_WORKSPACE_UPDATED_EVENT } from '../lib/care-workspace-events';
+import {
+  getSharedCareWorkspaceSnapshot,
+  saveSharedCareWorkspaceSnapshot,
+} from '../lib/shared-care-workspace-service';
 
 type AuthUser = Awaited<ReturnType<typeof getCurrentUser>>;
 
@@ -121,10 +127,28 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   const skipNextCloudPushRef = useRef(false);
   const syncLocalSnapshotPromiseRef = useRef<Promise<void> | null>(null);
   const syncLocalSnapshotRunIdRef = useRef(0);
+  const isApplyingSharedWorkspaceRef = useRef(false);
+  const skipNextSharedWorkspacePushRef = useRef(false);
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
 
   useEffect(() => {
     currentBabyRef.current = currentBaby;
   }, [currentBaby]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleWorkspaceUpdated = () => {
+      setWorkspaceVersion((current) => current + 1);
+    };
+
+    window.addEventListener(CARE_WORKSPACE_UPDATED_EVENT, handleWorkspaceUpdated as EventListener);
+    return () => {
+      window.removeEventListener(CARE_WORKSPACE_UPDATED_EVENT, handleWorkspaceUpdated as EventListener);
+    };
+  }, []);
 
   const applySettingsState = (nextSettings: UserSettings | null) => {
     if (!nextSettings) {
@@ -162,6 +186,40 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
     setSettings(normalizedSettings);
     setTheme(normalizedSettings.theme || 'system');
+  };
+
+  const hydrateSharedWorkspaceForBaby = async (babyId: string) => {
+    if (!babyId || !user?.id) {
+      return;
+    }
+
+    isApplyingSharedWorkspaceRef.current = true;
+    skipNextSharedWorkspacePushRef.current = true;
+
+    try {
+      const sharedWorkspace = await getSharedCareWorkspaceSnapshot(babyId);
+      if (sharedWorkspace) {
+        applyCareWorkspaceSyncDataForBabies(sharedWorkspace, [babyId]);
+      }
+    } catch (error) {
+      console.warn('Shared care workspace hydration skipped:', error);
+    } finally {
+      isApplyingSharedWorkspaceRef.current = false;
+    }
+  };
+
+  const pushSharedWorkspaceForBaby = async (babyId: string) => {
+    if (!babyId || !user?.id || isApplyingSharedWorkspaceRef.current) {
+      return;
+    }
+
+    if (skipNextSharedWorkspacePushRef.current) {
+      skipNextSharedWorkspacePushRef.current = false;
+      return;
+    }
+
+    const payload = buildCareWorkspaceSyncData([babyId]);
+    await saveSharedCareWorkspaceSnapshot(babyId, payload);
   };
 
   const mergeRemoteSnapshotIntoLocal = async () => {
@@ -435,6 +493,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             const selectedBabyId = currentBabyRef.current?.id;
             if (selectedBabyId) {
               await refreshLogsForBaby(selectedBabyId);
+              await hydrateSharedWorkspaceForBaby(selectedBabyId);
             }
           })();
         });
@@ -560,7 +619,28 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     milestones,
     memories,
     settings?.updatedAt,
+    workspaceVersion,
   ]);
+
+  useEffect(() => {
+    if (!user?.id || !currentBaby?.id || !navigator.onLine) {
+      return;
+    }
+
+    void hydrateSharedWorkspaceForBaby(currentBaby.id);
+  }, [user?.id, currentBaby?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !currentBaby?.id || !navigator.onLine) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void pushSharedWorkspaceForBaby(currentBaby.id);
+    }, 1800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [user?.id, currentBaby?.id, workspaceVersion]);
 
   const refreshLogsForBaby = async (babyId: string) => {
     try {

@@ -727,6 +727,22 @@ export function setupRealtimeSync(callback: (change: any) => void) {
         },
       );
 
+      realtimeChannel.on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shared_care_workspaces',
+        },
+        (payload) => {
+          callback({
+            table: 'shared_care_workspaces',
+            event: payload.eventType,
+            data: payload.new || payload.old,
+          });
+        },
+      );
+
       channel = realtimeChannel.subscribe();
     });
   } catch (error) {

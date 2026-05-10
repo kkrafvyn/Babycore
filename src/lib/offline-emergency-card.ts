@@ -1,4 +1,5 @@
 import type { EmergencyShareCardResponse } from './care-advanced-api';
+import { emitCareWorkspaceUpdated } from './care-workspace-events';
 import {
   formatEmergencyHealthCard,
   type EmergencyHealthCard,
@@ -57,6 +58,10 @@ const readAllSnapshots = (): OfflineEmergencyCardSnapshot[] => {
 
 const writeAllSnapshots = (snapshots: OfflineEmergencyCardSnapshot[]) => {
   getStorage().setItem(STORAGE_KEY, JSON.stringify(snapshots));
+  emitCareWorkspaceUpdated({
+    babyId: snapshots[0]?.babyId,
+    source: 'emergency',
+  });
 };
 
 export const getAllOfflineEmergencyCardSnapshots = (): OfflineEmergencyCardSnapshot[] =>

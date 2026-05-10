@@ -1,3 +1,5 @@
+import { emitCareWorkspaceUpdated } from './care-workspace-events';
+
 export type ParentWellnessMood =
   | 'rested'
   | 'steady'
@@ -133,6 +135,10 @@ const readAllEntries = (): ParentWellnessEntry[] => {
 
 const writeAllEntries = (entries: ParentWellnessEntry[]) => {
   getStorage().setItem(STORAGE_KEY, JSON.stringify(sortEntries(entries)));
+  emitCareWorkspaceUpdated({
+    babyId: entries[0]?.babyId,
+    source: 'wellness',
+  });
 };
 
 export const getAllParentWellnessEntries = (): ParentWellnessEntry[] => readAllEntries();

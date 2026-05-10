@@ -6,6 +6,7 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#47607e",
+  "categories": ["health", "medical", "productivity", "family"],
   "icons": [
     {
       "src": "/logo.png",
@@ -16,6 +17,60 @@
       "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Log Feeding",
+      "short_name": "Feed",
+      "description": "Open the feeding tracker quickly.",
+      "url": "/?view=feeding",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Sleep Tracker",
+      "short_name": "Sleep",
+      "description": "Jump straight into sleep tracking.",
+      "url": "/?view=sleep",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Health Records",
+      "short_name": "Health",
+      "description": "Open visits, medication, and records.",
+      "url": "/?view=health-records",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Emergency Card",
+      "short_name": "Emergency",
+      "description": "Open the emergency card right away.",
+      "url": "/?view=emergency-card",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

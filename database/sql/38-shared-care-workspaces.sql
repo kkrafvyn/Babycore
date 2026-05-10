@@ -1,0 +1,154 @@
+-- ============================================================================
+-- SHARED CARE WORKSPACES
+-- Cross-account sync for shared tasks, parent wellness, and offline emergency
+-- snapshots scoped to a baby and available to approved family/doctor members.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.shared_care_workspaces (
+  baby_id UUID PRIMARY KEY REFERENCES public.babies(id) ON DELETE CASCADE,
+  shared_care_tasks JSONB NOT NULL DEFAULT '[]'::jsonb,
+  parent_wellness_entries JSONB NOT NULL DEFAULT '[]'::jsonb,
+  offline_emergency_snapshots JSONB NOT NULL DEFAULT '[]'::jsonb,
+  synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_care_workspaces_updated_at
+  ON public.shared_care_workspaces(updated_at DESC);
+
+ALTER TABLE public.shared_care_workspaces ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc
+    WHERE proname = 'set_updated_at_now'
+      AND pg_function_is_visible(oid)
+  ) THEN
+    DROP TRIGGER IF EXISTS set_shared_care_workspaces_updated_at ON public.shared_care_workspaces;
+    CREATE TRIGGER set_shared_care_workspaces_updated_at
+      BEFORE UPDATE ON public.shared_care_workspaces
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_updated_at_now();
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_publication
+    WHERE pubname = 'supabase_realtime'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_rel pr
+    JOIN pg_publication p ON p.oid = pr.prpubid
+    JOIN pg_class c ON c.oid = pr.prrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE p.pubname = 'supabase_realtime'
+      AND n.nspname = 'public'
+      AND c.relname = 'shared_care_workspaces'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.shared_care_workspaces;
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS "Shared care workspace readable by care team" ON public.shared_care_workspaces;
+CREATE POLICY "Shared care workspace readable by care team"
+ON public.shared_care_workspaces
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = shared_care_workspaces.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = shared_care_workspaces.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = shared_care_workspaces.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
+
+DROP POLICY IF EXISTS "Shared care workspace editable by care team" ON public.shared_care_workspaces;
+CREATE POLICY "Shared care workspace editable by care team"
+ON public.shared_care_workspaces
+FOR INSERT
+WITH CHECK (
+  updated_by = auth.uid()
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM public.babies b
+      WHERE b.id = shared_care_workspaces.baby_id
+        AND b.user_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.family_sharing_invites fsi
+      WHERE fsi.baby_id = shared_care_workspaces.baby_id
+        AND fsi.accepted_at IS NOT NULL
+        AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+        AND (
+          fsi.accepted_by = auth.uid()
+          OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+        )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.doctor_baby_assignments dba
+      WHERE dba.baby_id = shared_care_workspaces.baby_id
+        AND dba.doctor_id = auth.uid()
+        AND dba.status = 'active'
+    )
+  )
+);
+
+DROP POLICY IF EXISTS "Shared care workspace updatable by care team" ON public.shared_care_workspaces;
+CREATE POLICY "Shared care workspace updatable by care team"
+ON public.shared_care_workspaces
+FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = shared_care_workspaces.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = shared_care_workspaces.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = shared_care_workspaces.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+)
+WITH CHECK (
+  updated_by = auth.uid()
+);

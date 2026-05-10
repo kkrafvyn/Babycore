@@ -597,6 +597,35 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         </div>
       )}
 
+      <div>
+         <div className="flex justify-between items-center mb-4 sm:mb-6 px-1 sm:px-2">
+            <h3 className="text-[10px] sm:text-[11px] font-black text-text-light uppercase tracking-[0.22em] sm:tracking-[0.3em]">
+              {i18nT('dashboard.quickActionsTitle', 'Quick Actions')}
+            </h3>
+         </div>
+         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { id: 'feeding' as ViewMode, label: i18nT('dashboard.quickActionFeed', 'Feed Now'), icon: <Droplets size={18} />, bg: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500' },
+              { id: 'sleep' as ViewMode, label: i18nT('dashboard.quickActionSleep', 'Sleep Timer'), icon: <Moon size={18} />, bg: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500' },
+              { id: 'doctor-reports' as ViewMode, label: i18nT('dashboard.quickActionDoctor', 'Doctor Packet'), icon: <FileText size={18} />, bg: 'bg-teal-50 dark:bg-teal-900/20 text-teal-500' },
+              { id: 'emergency-card' as ViewMode, label: i18nT('dashboard.quickActionEmergency', 'Emergency'), icon: <Shield size={18} />, bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' },
+            ].map((action) => (
+              <button
+                key={action.id}
+                onClick={() => openView(action.id, action.label)}
+                className="rounded-[1.4rem] border border-border-gray bg-surface p-4 text-left shadow-sm transition-all hover:shadow-md hover:border-secondary active:scale-[0.98] dark:border-zinc-800"
+              >
+                <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ${action.bg}`}>
+                  {action.icon}
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground sm:text-[11px]">
+                  {action.label}
+                </p>
+              </button>
+            ))}
+         </div>
+      </div>
+
       {/* Smart Features & Tools */}
       <div>
          <div className="flex justify-between items-center mb-4 sm:mb-6 px-1 sm:px-2 mt-3 sm:mt-4">
