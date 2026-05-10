@@ -5,6 +5,19 @@ type JsonRecord = Record<string, unknown>;
 const isJsonRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const USER_SETTINGS_OPTIONAL_COLUMNS = [
+  'care_profile_preferences',
+  'care_workspace_data',
+] as const;
+
+const getErrorCode = (error: unknown): string =>
+  typeof (error as any)?.code === 'string' ? (error as any).code.trim() : '';
+
+const getErrorText = (error: unknown): string =>
+  String(
+    (error as any)?.message || (error as any)?.details || (error as any)?.hint || error || '',
+  ).toLowerCase();
+
 export function toHealthLogCloudRow(log: HealthLog) {
   return {
     id: log.id,
@@ -59,6 +72,40 @@ export function toUserSettingsCloudRow(userId: string, settings: UserSettings) {
     privacy_lock_delay: settings.privacyLockDelay ?? null,
     updated_at: settings.updatedAt,
   };
+}
+
+export function toLegacyUserSettingsCloudRow(userId: string, settings: UserSettings) {
+  const row = toUserSettingsCloudRow(userId, settings) as Record<string, unknown>;
+  for (const column of USER_SETTINGS_OPTIONAL_COLUMNS) {
+    delete row[column];
+  }
+  return row;
+}
+
+export function isMissingUserSettingsOptionalColumnsError(error: unknown): boolean {
+  const code = getErrorCode(error);
+  const text = getErrorText(error);
+
+  return (
+    (code === '42703' || code === 'PGRST204') &&
+    USER_SETTINGS_OPTIONAL_COLUMNS.some((column) => text.includes(column))
+  );
+}
+
+export function isMissingSupabaseRelationError(error: unknown, relationName: string): boolean {
+  const code = getErrorCode(error);
+  const text = getErrorText(error);
+  const normalizedRelationName = relationName.toLowerCase();
+
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    text.includes(`relation "${normalizedRelationName}"`) ||
+    text.includes(`table ${normalizedRelationName}`) ||
+    text.includes(`table "${normalizedRelationName}"`) ||
+    text.includes(`table '${normalizedRelationName}'`) ||
+    text.includes(`public.${normalizedRelationName}`)
+  );
 }
 
 export function fromUserSettingsCloudRow(row: any): UserSettings {

@@ -3,7 +3,9 @@ import { getApiBaseUrl } from './api-base-url';
 import {
   fromHealthLogCloudRow,
   fromUserSettingsCloudRow,
+  isMissingUserSettingsOptionalColumnsError,
   toHealthLogCloudRow,
+  toLegacyUserSettingsCloudRow,
   toUserSettingsCloudRow,
 } from './cloud-sync-mappers';
 
@@ -244,9 +246,16 @@ export const syncUserSettings = async (userId: string, settings: any): Promise<T
   }
 
   try {
-    const { error } = await supabase
+    const primaryRow = toUserSettingsCloudRow(userId, settings);
+    let { error } = await supabase
       .from('user_settings')
-      .upsert(toUserSettingsCloudRow(userId, settings), { onConflict: 'user_id' });
+      .upsert(primaryRow, { onConflict: 'user_id' });
+
+    if (error && isMissingUserSettingsOptionalColumnsError(error)) {
+      ({ error } = await supabase
+        .from('user_settings')
+        .upsert(toLegacyUserSettingsCloudRow(userId, settings), { onConflict: 'user_id' }));
+    }
 
     if (error) throw error;
     return { table: 'user_settings', ok: true };

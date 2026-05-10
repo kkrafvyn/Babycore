@@ -4,6 +4,7 @@ import {
   parseCareWorkspaceSyncData,
   type CareWorkspaceSyncData,
 } from './care-workspace-sync';
+import { isMissingSupabaseRelationError as isMissingRelationError } from './cloud-sync-mappers';
 
 interface SharedCareWorkspaceRow {
   baby_id: string;
@@ -13,19 +14,6 @@ interface SharedCareWorkspaceRow {
   synced_at?: string | null;
   updated_at?: string | null;
 }
-
-const isMissingRelationError = (error: unknown, relationName: string): boolean => {
-  const message = String(
-    (error as any)?.message || (error as any)?.details || (error as any)?.hint || error || '',
-  ).toLowerCase();
-
-  return (
-    message.includes(`relation "${relationName.toLowerCase()}"`) ||
-    message.includes(`table ${relationName.toLowerCase()}`) ||
-    message.includes(`table "${relationName.toLowerCase()}"`) ||
-    message.includes(`table '${relationName.toLowerCase()}'`)
-  );
-};
 
 const toWorkspaceData = (row: SharedCareWorkspaceRow | null): CareWorkspaceSyncData | null => {
   if (!row) {

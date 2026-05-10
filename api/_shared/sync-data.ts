@@ -1,7 +1,9 @@
 import {
   fromHealthLogCloudRow,
   fromUserSettingsCloudRow,
+  isMissingUserSettingsOptionalColumnsError,
   toHealthLogCloudRow,
+  toLegacyUserSettingsCloudRow,
   toUserSettingsCloudRow,
 } from '../../src/lib/cloud-sync-mappers.js';
 import type { UserSettings } from '../../src/types/index.js';
@@ -313,6 +315,29 @@ const upsertTable = async (
   return { table, ok: true };
 };
 
+const upsertUserSettings = async (
+  supabaseAdmin: any,
+  userId: string,
+  settings: UserSettings,
+): Promise<TableSyncResult> => {
+  const primaryRow = toUserSettingsCloudRow(userId, settings);
+  let { error } = await supabaseAdmin
+    .from('user_settings')
+    .upsert([primaryRow], { onConflict: 'user_id' });
+
+  if (error && isMissingUserSettingsOptionalColumnsError(error)) {
+    ({ error } = await supabaseAdmin
+      .from('user_settings')
+      .upsert([toLegacyUserSettingsCloudRow(userId, settings)], { onConflict: 'user_id' }));
+  }
+
+  if (error) {
+    return { table: 'user_settings', ok: false, error: formatSyncError(error) };
+  }
+
+  return { table: 'user_settings', ok: true };
+};
+
 export const applyFullSync = async (
   supabaseAdmin: any,
   user: { id: string; email?: string },
@@ -384,12 +409,7 @@ export const applyFullSync = async (
     : null;
 
   const settingsResult = settingsPayload
-    ? await upsertTable(
-        supabaseAdmin,
-        'user_settings',
-        [toUserSettingsCloudRow(user.id, settingsPayload as UserSettings)],
-        { onConflict: 'user_id' },
-      )
+    ? await upsertUserSettings(supabaseAdmin, user.id, settingsPayload as UserSettings)
     : ({ table: 'user_settings', ok: true } as TableSyncResult);
 
   const dependentResults = await Promise.all([
