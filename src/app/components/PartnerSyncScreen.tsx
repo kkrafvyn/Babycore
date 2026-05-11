@@ -44,6 +44,16 @@ export const PartnerSyncScreen: React.FC<PartnerSyncScreenProps> = ({ onBack }) 
     () => members.filter((member) => Boolean(member.accepted_at)),
     [members],
   );
+  const profileDisplayName =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.doctor_name ||
+    user?.user_metadata?.caregiver_name ||
+    'You';
+  const profilePhotoUrl =
+    user?.user_metadata?.profile_photo_url ||
+    user?.user_metadata?.avatar_url ||
+    user?.user_metadata?.picture;
 
   const loadMembers = async () => {
     if (!currentBaby?.id) return;
@@ -219,10 +229,17 @@ export const PartnerSyncScreen: React.FC<PartnerSyncScreenProps> = ({ onBack }) 
               <div className="bg-surface p-5 rounded-[2.5rem] border border-border-gray dark:border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-surface-gray dark:bg-zinc-800 overflow-hidden border border-border-gray dark:border-zinc-700">
-                    <img src={getUserAvatar(user?.email || user?.user_metadata?.name || 'user')} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={profilePhotoUrl || getUserAvatar(user?.email || profileDisplayName)}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.src = getUserAvatar(user?.email || profileDisplayName);
+                      }}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
-                    <p className="text-sm font-headline font-black text-foreground">{user?.user_metadata?.name || 'You'}</p>
+                    <p className="text-sm font-headline font-black text-foreground">{profileDisplayName}</p>
                     <p className="text-[9px] font-black text-secondary uppercase tracking-widest">Administrator</p>
                   </div>
                 </div>

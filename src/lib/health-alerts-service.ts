@@ -27,6 +27,19 @@ export interface HealthPreferences {
   primary_region: string;
 }
 
+export interface HealthNewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  source: 'WHO' | 'CDC' | 'FDA' | 'USDA FSIS' | 'CPSC';
+  category: 'outbreak' | 'food-recall' | 'device-recall' | 'product-safety' | 'guidance';
+  severity: HealthAlert['severity'];
+  published_at: string;
+  url: string;
+  regions: string[];
+  affected_age_groups: string[];
+}
+
 const SEVERITY_PRIORITY: Record<HealthAlert['severity'], number> = {
   critical: 4,
   high: 3,
@@ -248,6 +261,47 @@ export async function syncExternalHealthAlerts(): Promise<boolean> {
   } catch (err) {
     console.error('Error syncing health alerts:', err);
     return false;
+  }
+}
+
+/**
+ * Fetch live public health news and family safety updates.
+ */
+export async function getHealthNewsFeed(countryCode = DEFAULT_COUNTRY_CODE): Promise<HealthNewsItem[]> {
+  try {
+    const authClient = supabase.auth as any;
+    const {
+      data: { session },
+      error: sessionError,
+    } = await authClient.getSession();
+
+    if (sessionError) throw sessionError;
+
+    const accessToken: string | undefined = session?.access_token;
+    if (!accessToken) {
+      return [];
+    }
+
+    const normalizedCountryCode = normalizeCountryCode(countryCode || DEFAULT_COUNTRY_CODE);
+    const response = await fetch(
+      `${API_BASE_URL}/health-alerts/news?region=${encodeURIComponent(normalizedCountryCode)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Health news fetch failed (${response.status}): ${body}`);
+    }
+
+    const payload = (await response.json()) as { items?: HealthNewsItem[] };
+    return payload.items || [];
+  } catch (err) {
+    console.error('Error fetching health news:', err);
+    return [];
   }
 }
 

@@ -32,6 +32,7 @@ import {
 } from '../../lib/care-profile';
 import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 import { CareProfileEditorModal } from './CareProfileEditorModal';
+import { updateCurrentUserMetadata } from '../../lib/supabase';
 
 const MotionDiv = motion.div as any;
 
@@ -116,7 +117,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   isAdmin = false,
   onOpenAdminPanel,
 }) => {
-  const { babies, currentBaby, settings, updateSettings, user, refreshBabies } = useAppContext();
+  const { babies, currentBaby, settings, updateSettings, user, refreshBabies, refreshUser } = useAppContext();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showEditBaby, setShowEditBaby] = useState(false);
   const [editBabyName, setEditBabyName] = useState('');
@@ -142,8 +143,49 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [savingCareProfile, setSavingCareProfile] = useState(false);
   const [remotePushStatus, setRemotePushStatus] = useState<RemotePushStatus | null>(null);
   const [togglingRemotePush, setTogglingRemotePush] = useState(false);
+  const [uploadingProfilePhoto, setUploadingProfilePhoto] = useState(false);
+  const profilePhotoInputRef = React.useRef<HTMLInputElement | null>(null);
   const accountProfileType: CareProfileRole =
     (user?.user_metadata?.onboarding_profile_type as CareProfileRole | undefined) || 'baby';
+  const profileDisplayName =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.doctor_name ||
+    user?.user_metadata?.caregiver_name ||
+    'Parent';
+  const profilePhotoUrl =
+    user?.user_metadata?.profile_photo_url ||
+    user?.user_metadata?.avatar_url ||
+    user?.user_metadata?.picture;
+
+  const handleProfilePhotoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingProfilePhoto(true);
+    try {
+      const photoUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error || new Error('Could not read image'));
+        reader.readAsDataURL(file);
+      });
+
+      await updateCurrentUserMetadata({
+        avatar_url: photoUrl,
+        profile_photo_url: photoUrl,
+        picture: photoUrl,
+      });
+      await refreshUser();
+      toast.success('Profile photo updated.');
+    } catch (error) {
+      console.error('Failed to update profile photo:', error);
+      toast.error('Could not update profile photo.');
+    } finally {
+      setUploadingProfilePhoto(false);
+      event.target.value = '';
+    }
+  };
 
   const handleUnitChange = async (unit: 'metric' | 'imperial') => {
     await updateSettings({ units: unit });
@@ -496,11 +538,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <div className="max-w-md mx-auto w-full space-y-8 sm:space-y-10">
            
            <div className="card-onboarding text-center p-6 sm:p-12 bg-surface">
-              <div className="w-20 h-20 sm:w-28 sm:h-28 mx-auto rounded-[2rem] sm:rounded-[2.5rem] bg-surface-gray dark:bg-zinc-800 flex items-center justify-center overflow-hidden mb-5 sm:mb-8 border-4 border-white dark:border-zinc-900 shadow-2xl">
-                 <img src={getUserAvatar(user?.email || user?.user_metadata?.name || 'parent')} alt="User" className="w-full h-full object-cover" />
+              <div className="relative mx-auto mb-5 h-20 w-20 rounded-[2rem] border-4 border-white bg-surface-gray shadow-2xl dark:border-zinc-900 dark:bg-zinc-800 sm:mb-8 sm:h-28 sm:w-28 sm:rounded-[2.5rem]">
+                 <div className="h-full w-full overflow-hidden rounded-[1.55rem] sm:rounded-[2rem]">
+                   <img
+                     src={profilePhotoUrl || getUserAvatar(user?.email || profileDisplayName)}
+                     alt="User"
+                     onError={(event) => {
+                       event.currentTarget.src = getUserAvatar(user?.email || profileDisplayName);
+                     }}
+                     className="h-full w-full object-cover"
+                   />
+                 </div>
+                 <button
+                   type="button"
+                   onClick={() => profilePhotoInputRef.current?.click()}
+                   disabled={uploadingProfilePhoto}
+                   className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-white shadow-lg transition-all hover:scale-105 disabled:opacity-60"
+                   title="Update profile photo"
+                 >
+                   <Edit2 size={14} />
+                 </button>
+                 <input
+                   ref={profilePhotoInputRef}
+                   type="file"
+                   accept="image/*"
+                   className="hidden"
+                   onChange={handleProfilePhotoSelect}
+                 />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter mb-2">{user?.user_metadata?.name || 'Parent'}</h2>
+              <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter mb-2">{profileDisplayName}</h2>
               <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-2 sm:mb-4 break-all">{user?.email}</p>
+              <button
+                type="button"
+                onClick={() => profilePhotoInputRef.current?.click()}
+                disabled={uploadingProfilePhoto}
+                className="rounded-full bg-surface-gray px-4 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-secondary transition-all hover:bg-secondary hover:text-white disabled:opacity-60 dark:bg-zinc-800"
+              >
+                {uploadingProfilePhoto ? 'Uploading...' : 'Change Photo'}
+              </button>
            </div>
 
            <div className="space-y-4 sm:space-y-6">

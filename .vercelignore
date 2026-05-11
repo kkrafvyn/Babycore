@@ -29,6 +29,12 @@ logs
 *.md
 *.pdf
 *.zip
+.codex-logs
+babycore-*.json
+plugins/native-wearables/android/.classpath
+plugins/native-wearables/android/.gradle
+plugins/native-wearables/android/.project
+plugins/native-wearables/android/.settings
 
 # Optional generated files
 vite.config.ts.timestamp-*.mjs

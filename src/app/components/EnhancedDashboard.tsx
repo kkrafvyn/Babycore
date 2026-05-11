@@ -422,7 +422,17 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     ? Math.ceil((new Date(nextVaccine.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
-  const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Parent';
+  const displayName =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.doctor_name ||
+    user?.user_metadata?.caregiver_name ||
+    user?.email?.split('@')[0] ||
+    'Parent';
+  const profilePhotoUrl =
+    user?.user_metadata?.profile_photo_url ||
+    user?.user_metadata?.avatar_url ||
+    user?.user_metadata?.picture;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? i18nT('dashboard.greeting') : hour < 17 ? i18nT('dashboard.greetingAfternoon') : i18nT('dashboard.greetingEvening');
   const carePlanSummary = getCareProfileSummary(accountProfileType, settings?.careProfilePreferences);
@@ -460,7 +470,14 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
          </div>
          <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-border-gray dark:border-zinc-800 p-1 shrink-0">
             <div className="w-full h-full rounded-full overflow-hidden shadow-lg border border-border-gray dark:border-zinc-700">
-               <img src={getUserAvatar(displayName)} alt="Profile" className="w-full h-full object-cover" />
+               <img
+                 src={profilePhotoUrl || getUserAvatar(displayName)}
+                 alt="Profile"
+                 onError={(event) => {
+                   event.currentTarget.src = getUserAvatar(displayName);
+                 }}
+                 className="w-full h-full object-cover"
+               />
             </div>
          </div>
       </div>
@@ -534,7 +551,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
            className="w-full h-full object-contain p-7 sm:p-12 transition-transform duration-700 group-hover:scale-110"
          />
          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-         <div className="absolute bottom-6 left-6 sm:bottom-10 sm:left-10 flex items-center gap-3 sm:gap-6">
+         <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 sm:bottom-10 sm:left-10 sm:right-10 sm:gap-6">
             <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border-2 border-white/50 p-1 backdrop-blur-md shrink-0">
                <img
                  src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
@@ -545,7 +562,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                  className="w-full h-full rounded-2xl bg-white/20 object-cover"
                />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
                <h3 className="text-xl sm:text-3xl font-headline font-black text-white tracking-tighter leading-none mb-1 truncate">{currentBaby?.name || 'Your Baby'}</h3>
                <p className="text-[10px] sm:text-xs font-black text-white/60 tracking-[0.14em] sm:tracking-widest uppercase truncate">{ageStr}</p>
             </div>
@@ -637,7 +654,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'timeline', label: 'Daily Timeline', icon: <Utensils size={20} />, bg: 'bg-rose-50 dark:bg-rose-900/20 text-rose-500' },
               { id: 'predictor', label: 'Routine Predictor', icon: <TrendingUp size={20} />, bg: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500' },
               { id: 'tips', label: 'Age Tips', icon: <Heart size={20} />, bg: 'bg-purple-50 dark:bg-purple-900/20 text-purple-500' },
-              { id: 'health-alerts', label: 'Health Alerts', icon: <Heart size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
+              { id: 'health-alerts', label: 'Health Updates', icon: <Heart size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
               { id: 'photo-gallery', label: 'Photos', icon: <Moon size={20} />, bg: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500' },
               { id: 'advanced-analytics', label: 'Analytics', icon: <TrendingUp size={20} />, bg: 'bg-blue-50 dark:bg-blue-900/20 text-blue-500' },
               { id: 'ai-insights', label: 'AI Insights', icon: <Sparkles size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500' },
@@ -850,7 +867,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       case 'reminders': return <SmartReminders onBack={backToDashboard} />;
       case 'compare': return <MultiBabyComparison onBack={backToDashboard} />;
       case 'scrapbook': return <AIScrapbook onBack={backToDashboard} />;
-      case 'health-alerts': return currentBaby ? <HealthAlerts babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
+      case 'health-alerts': return currentBaby ? <HealthAlerts babyId={currentBaby.id} babyName={currentBaby.name} countryCode={currentBaby.country} /> : null;
       case 'photo-gallery': return currentBaby ? <PhotoGallery babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'advanced-analytics': return currentBaby ? <AnalyticsDashboard babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'ai-insights': return currentBaby ? <AIInsights babyId={currentBaby.id} babyName={currentBaby.name} /> : null;

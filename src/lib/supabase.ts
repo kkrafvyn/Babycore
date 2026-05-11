@@ -250,6 +250,24 @@ export const signInWithEmail = async (email: string, password: string) => {
   return data;
 };
 
+export const updateCurrentUserMetadata = async (metadata: SignUpMetadata) => {
+  if (!hasSupabaseConfig) {
+    throw missingSupabaseConfigError();
+  }
+
+  const currentUser = await getCurrentUser();
+  const auth = supabase.auth as any;
+  const { data, error } = await auth.updateUser({
+    data: {
+      ...(currentUser?.user_metadata || {}),
+      ...metadata,
+    },
+  });
+
+  if (error) throw error;
+  return data?.user || null;
+};
+
 export const signInWithSocialProvider = async (provider: SocialAuthProvider) => {
   if (!hasSupabaseConfig) {
     throw missingSupabaseConfigError();

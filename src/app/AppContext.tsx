@@ -56,6 +56,7 @@ type AuthUser = Awaited<ReturnType<typeof getCurrentUser>>;
 interface AppContextType {
   // Auth
   user: AuthUser;
+  refreshUser: () => Promise<void>;
   
   // Babies
   babies: Baby[];
@@ -409,6 +410,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     };
   }, []);
 
+  const refreshUser = async () => {
+    const authUser = await getCurrentUser();
+    setUser(authUser);
+  };
+
   // Initialize app when user logs in
   useEffect(() => {
     if (!user) return;
@@ -753,6 +759,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
   const value: AppContextType = {
     user,
+    refreshUser,
     babies,
     currentBaby,
     setCurrentBaby,

@@ -3,7 +3,7 @@
  * Syncs WHO + CDC outbreak data and serves user-specific active alerts.
  */
 
-import { Router, Response } from 'express';
+import { Router, Response as ExpressResponse } from 'express';
 import { AuthRequest } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
 
@@ -13,13 +13,33 @@ const WHO_DON_ENDPOINT =
   'https://www.who.int/api/news/diseaseoutbreaknews?$top=40&$orderby=PublicationDateAndTime%20desc&$select=Title,PublicationDateAndTime,ItemDefaultUrl,UrlName,Summary,Advice,DonId';
 const CDC_US_OUTBREAKS_ENDPOINT = 'https://www.cdc.gov/outbreaks/rss/us-outbreaks.html';
 const CDC_INT_OUTBREAKS_ENDPOINT = 'https://www.cdc.gov/outbreaks/rss/int-outbreaks.html';
+const FDA_FOOD_RECALLS_ENDPOINT =
+  'https://api.fda.gov/food/enforcement.json?limit=12&sort=report_date%3Adesc';
+const FDA_DEVICE_RECALLS_ENDPOINT =
+  'https://api.fda.gov/device/enforcement.json?limit=8&sort=report_date%3Adesc';
+const CPSC_BABY_RECALLS_ENDPOINT =
+  'https://www.saferproducts.gov/RestWebServices/Recall?ProductName=Baby&format=json';
+const CPSC_TODDLER_RECALLS_ENDPOINT =
+  'https://www.saferproducts.gov/RestWebServices/Recall?ProductName=Toddler&format=json';
+const USDA_FSIS_RECALLS_ENDPOINT = 'https://www.fsis.usda.gov/fsis/api/recall/v/1';
+const FDA_RECALLS_URL = 'https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts';
+const USDA_RECALLS_URL = 'https://www.fsis.usda.gov/recalls-alerts';
 const DEFAULT_REGION = 'US';
 const GLOBAL_REGION = 'GLOBAL';
 const ACTIVE_WINDOW_DAYS = 180;
 const DEFAULT_AGE_GROUPS = ['0-6', '6-12', '12+'];
+const SOURCE_TIMEOUT_MS = 8000;
+const NEWS_FEED_LIMIT = 40;
 
 type AlertType = 'epidemic' | 'seasonal' | 'outbreak' | 'warning';
 type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
+type HealthNewsCategory =
+  | 'outbreak'
+  | 'food-recall'
+  | 'device-recall'
+  | 'product-safety'
+  | 'guidance';
+type HealthNewsSource = 'WHO' | 'CDC' | 'FDA' | 'USDA FSIS' | 'CPSC';
 
 interface HealthAlertInsert {
   type: AlertType;
@@ -33,6 +53,19 @@ interface HealthAlertInsert {
   affected_age_groups: string[];
   source: 'WHO' | 'CDC';
   data_source_url: string;
+}
+
+interface HealthNewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  source: HealthNewsSource;
+  category: HealthNewsCategory;
+  severity: AlertSeverity;
+  published_at: string;
+  url: string;
+  regions: string[];
+  affected_age_groups: string[];
 }
 
 interface WhoOutbreakItem {
@@ -73,7 +106,16 @@ const SEVERITY_WEIGHT: Record<AlertSeverity, number> = {
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 
 const stripHtml = (value: string): string =>
-  normalizeWhitespace(value.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' '));
+  normalizeWhitespace(
+    value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&rsquo;/gi, "'")
+      .replace(/&ldquo;|&rdquo;/gi, '"'),
+  );
 
 const truncate = (value: string, maxLength: number): string =>
   value.length > maxLength ? `${value.slice(0, maxLength - 1).trim()}…` : value;
@@ -120,6 +162,87 @@ const addDays = (isoDate: string, days: number): string => {
   const date = new Date(isoDate);
   date.setDate(date.getDate() + days);
   return date.toISOString();
+};
+
+const fetchWithTimeout = async (
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = SOURCE_TIMEOUT_MS,
+): Promise<globalThis.Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json, text/html;q=0.9, */*;q=0.8',
+        ...(init.headers || {}),
+      },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const slugify = (value: string): string =>
+  normalizeWhitespace(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 96);
+
+const createNewsId = (source: HealthNewsSource, value: string, fallback: string): string =>
+  `${source.toLowerCase().replace(/\s+/g, '-')}-${slugify(value || fallback || Date.now().toString())}`;
+
+const toOpenFdaIsoDate = (value: string | undefined): string => {
+  if (!value) return new Date().toISOString();
+  if (/^\d{8}$/.test(value)) {
+    const year = value.slice(0, 4);
+    const month = value.slice(4, 6);
+    const day = value.slice(6, 8);
+    return toIsoDateOrNow(`${year}-${month}-${day}T00:00:00.000Z`);
+  }
+
+  return toIsoDateOrNow(value);
+};
+
+const deriveNewsSeverity = (value: string): AlertSeverity => {
+  const text = value.toLowerCase();
+  if (/(class i|critical|emergency|fatal|death|serious injury|listeria|botulism)/.test(text)) {
+    return 'critical';
+  }
+
+  if (/(class ii|outbreak|recall|salmonella|e\. coli|lead|choking|suffocation|fall hazard)/.test(text)) {
+    return 'high';
+  }
+
+  if (/(advisory|warning|allergen|undeclared|monitor|update)/.test(text)) {
+    return 'medium';
+  }
+
+  return 'low';
+};
+
+const sortNewsItems = (items: HealthNewsItem[]): HealthNewsItem[] =>
+  [...items].sort((left, right) => {
+    const severityDiff =
+      (SEVERITY_WEIGHT[right.severity] || 0) - (SEVERITY_WEIGHT[left.severity] || 0);
+
+    if (severityDiff !== 0) return severityDiff;
+    return new Date(right.published_at).getTime() - new Date(left.published_at).getTime();
+  });
+
+const uniqueNewsItems = (items: HealthNewsItem[]): HealthNewsItem[] => {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = `${item.source}|${item.url || item.title}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
 
 const normalizeWhoItemUrl = (itemDefaultUrl?: string, urlName?: string): string => {
@@ -197,7 +320,7 @@ const parseCdcFeed = (html: string, regions: string[]): HealthAlertInsert[] => {
 };
 
 const fetchWhoAlerts = async (): Promise<HealthAlertInsert[]> => {
-  const response = await fetch(WHO_DON_ENDPOINT, {
+  const response = await fetchWithTimeout(WHO_DON_ENDPOINT, {
     headers: {
       Accept: 'application/json',
     },
@@ -240,8 +363,8 @@ const fetchWhoAlerts = async (): Promise<HealthAlertInsert[]> => {
 
 const fetchCdcAlerts = async (): Promise<HealthAlertInsert[]> => {
   const [usResponse, internationalResponse] = await Promise.all([
-    fetch(CDC_US_OUTBREAKS_ENDPOINT),
-    fetch(CDC_INT_OUTBREAKS_ENDPOINT),
+    fetchWithTimeout(CDC_US_OUTBREAKS_ENDPOINT),
+    fetchWithTimeout(CDC_INT_OUTBREAKS_ENDPOINT),
   ]);
 
   const usAlerts = usResponse.ok
@@ -254,11 +377,227 @@ const fetchCdcAlerts = async (): Promise<HealthAlertInsert[]> => {
   return [...usAlerts, ...internationalAlerts];
 };
 
+const alertToNewsItem = (alert: HealthAlertInsert): HealthNewsItem => ({
+  id: createNewsId(alert.source, alert.data_source_url, alert.disease_name),
+  title: alert.disease_name,
+  summary: alert.description || `${alert.source} health update`,
+  source: alert.source,
+  category: 'outbreak',
+  severity: alert.severity,
+  published_at: alert.start_date,
+  url: alert.data_source_url,
+  regions: alert.regions,
+  affected_age_groups: alert.affected_age_groups,
+});
+
+const fetchWhoNews = async (): Promise<HealthNewsItem[]> =>
+  (await fetchWhoAlerts()).map(alertToNewsItem);
+
+const fetchCdcNews = async (): Promise<HealthNewsItem[]> =>
+  (await fetchCdcAlerts()).map(alertToNewsItem);
+
+const fetchOpenFdaNews = async (
+  endpoint: string,
+  category: 'food-recall' | 'device-recall',
+): Promise<HealthNewsItem[]> => {
+  const response = await fetchWithTimeout(endpoint);
+  if (!response.ok) {
+    throw new Error(`openFDA fetch failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    results?: Array<{
+      recall_number?: string;
+      product_description?: string;
+      reason_for_recall?: string;
+      classification?: string;
+      report_date?: string;
+      recall_initiation_date?: string;
+      distribution_pattern?: string;
+      product_type?: string;
+    }>;
+  };
+
+  return (payload.results || [])
+    .map((item) => {
+      const title = truncate(stripHtml(item.product_description || item.product_type || 'FDA recall'), 160);
+      const reason = stripHtml(item.reason_for_recall || 'FDA recall notice');
+      const classification = item.classification ? `${item.classification}. ` : '';
+      const summary = truncate(
+        `${classification}${reason}${
+          item.distribution_pattern ? ` Distribution: ${item.distribution_pattern}` : ''
+        }`,
+        320,
+      );
+      const publishedAt = toOpenFdaIsoDate(item.report_date || item.recall_initiation_date);
+
+      return {
+        id: createNewsId('FDA', item.recall_number || title, publishedAt),
+        title,
+        summary,
+        source: 'FDA' as const,
+        category,
+        severity: deriveNewsSeverity(`${classification} ${title} ${summary}`),
+        published_at: publishedAt,
+        url: FDA_RECALLS_URL,
+        regions: [DEFAULT_REGION],
+        affected_age_groups: DEFAULT_AGE_GROUPS,
+      };
+    })
+    .filter((item) => item.title.trim().length > 0);
+};
+
+const fetchCpscChildProductNews = async (): Promise<HealthNewsItem[]> => {
+  const responses = await Promise.all([
+    fetchWithTimeout(CPSC_BABY_RECALLS_ENDPOINT),
+    fetchWithTimeout(CPSC_TODDLER_RECALLS_ENDPOINT),
+  ]);
+
+  const payloads = await Promise.all(
+    responses
+      .filter((response) => response.ok)
+      .map((response) => response.json() as Promise<any[]>),
+  );
+
+  return payloads.flat().map((item) => {
+    const hazards = Array.isArray(item.Hazards)
+      ? item.Hazards.map((hazard: any) => stripHtml(String(hazard?.Name || ''))).filter(Boolean)
+      : [];
+    const products = Array.isArray(item.Products)
+      ? item.Products.map((product: any) => stripHtml(String(product?.Name || ''))).filter(Boolean)
+      : [];
+    const publishedAt = toIsoDateOrNow(item.LastPublishDate || item.RecallDate);
+    const title = truncate(stripHtml(item.Title || products[0] || 'Children product recall'), 180);
+    const summary = truncate(
+      hazards[0] || stripHtml(item.Description || 'Consumer product safety recall.'),
+      320,
+    );
+
+    return {
+      id: createNewsId('CPSC', String(item.RecallID || item.URL || title), publishedAt),
+      title,
+      summary,
+      source: 'CPSC' as const,
+      category: 'product-safety' as const,
+      severity: deriveNewsSeverity(`${title} ${summary}`),
+      published_at: publishedAt,
+      url: item.URL || 'https://www.cpsc.gov/Recalls',
+      regions: [DEFAULT_REGION],
+      affected_age_groups: DEFAULT_AGE_GROUPS,
+    };
+  });
+};
+
+const fetchUsdaFsisNews = async (): Promise<HealthNewsItem[]> => {
+  const response = await fetchWithTimeout(USDA_FSIS_RECALLS_ENDPOINT);
+  if (!response.ok) {
+    throw new Error(`USDA FSIS fetch failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const records = Array.isArray(payload)
+    ? payload
+    : payload?.results || payload?.data || payload?.items || payload?.rows || [];
+
+  return records.slice(0, 10).map((item: any) => {
+    const title = truncate(
+      stripHtml(
+        item.title ||
+          item.recall_title ||
+          item.field_title ||
+          item.product_name ||
+          item.name ||
+          'USDA food safety recall',
+      ),
+      180,
+    );
+    const summary = truncate(
+      stripHtml(
+        item.summary ||
+          item.field_summary ||
+          item.reason ||
+          item.reason_for_recall ||
+          item.description ||
+          'USDA FSIS recall or public health alert.',
+      ),
+      320,
+    );
+    const publishedAt = toIsoDateOrNow(
+      item.recall_date || item.field_recall_date || item.date || item.created || item.published_at,
+    );
+
+    return {
+      id: createNewsId('USDA FSIS', item.id || item.url || title, publishedAt),
+      title,
+      summary,
+      source: 'USDA FSIS' as const,
+      category: 'food-recall' as const,
+      severity: deriveNewsSeverity(`${title} ${summary}`),
+      published_at: publishedAt,
+      url: item.url || item.link || USDA_RECALLS_URL,
+      regions: [DEFAULT_REGION],
+      affected_age_groups: DEFAULT_AGE_GROUPS,
+    };
+  });
+};
+
+/**
+ * GET /api/health-alerts/news
+ * Live family health updates from public health and safety sources.
+ */
+router.get('/news', async (req: AuthRequest, res: ExpressResponse) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const region = normalizeRegion(String(req.query.region || DEFAULT_REGION));
+    const sourceRequests = [
+      { source: 'WHO', load: fetchWhoNews },
+      { source: 'CDC', load: fetchCdcNews },
+      {
+        source: 'FDA',
+        load: () => fetchOpenFdaNews(FDA_FOOD_RECALLS_ENDPOINT, 'food-recall'),
+      },
+      {
+        source: 'FDA',
+        load: () => fetchOpenFdaNews(FDA_DEVICE_RECALLS_ENDPOINT, 'device-recall'),
+      },
+      { source: 'CPSC', load: fetchCpscChildProductNews },
+      { source: 'USDA FSIS', load: fetchUsdaFsisNews },
+    ] as const;
+
+    const settled = await Promise.allSettled(sourceRequests.map((request) => request.load()));
+    const failures = settled.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [{ source: sourceRequests[index].source, message: String(result.reason) }]
+        : [],
+    );
+    const items = settled.flatMap((result) =>
+      result.status === 'fulfilled' ? result.value : [],
+    );
+
+    const filteredItems = uniqueNewsItems(items).filter((item) => {
+      const regions = item.regions.map((itemRegion) => itemRegion.toUpperCase());
+      return regions.includes(region) || regions.includes(GLOBAL_REGION);
+    });
+
+    return res.json({
+      items: sortNewsItems(filteredItems).slice(0, NEWS_FEED_LIMIT),
+      total: filteredItems.length,
+      region,
+      failures,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch health news';
+    return res.status(500).json({ error: message });
+  }
+});
+
 /**
  * GET /api/health-alerts/active
  * Get active health alerts for the current user region.
  */
-router.get('/active', async (req: AuthRequest, res: Response) => {
+router.get('/active', async (req: AuthRequest, res: ExpressResponse) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -310,7 +649,7 @@ router.get('/active', async (req: AuthRequest, res: Response) => {
  * POST /api/health-alerts/sync-external
  * Fetch latest alerts from WHO + CDC and insert new items.
  */
-router.post('/sync-external', async (req: AuthRequest, res: Response) => {
+router.post('/sync-external', async (req: AuthRequest, res: ExpressResponse) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -395,7 +734,7 @@ router.post('/sync-external', async (req: AuthRequest, res: Response) => {
  * POST /api/health-alerts/dismiss
  * Dismiss an alert for current user.
  */
-router.post('/dismiss', async (req: AuthRequest, res: Response) => {
+router.post('/dismiss', async (req: AuthRequest, res: ExpressResponse) => {
   try {
     const userId = req.user?.id;
     const { alertId } = req.body as { alertId?: string };

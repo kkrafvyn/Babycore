@@ -28,10 +28,15 @@ import { getMemoryLogsByBaby, addMemoryLog, deleteMemoryLog, updateMemoryLog } f
 import { MemoryLog } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { i18nT } from '../../lib/i18n';
+import {
+  DAILY_JOURNAL_ARTICLES,
+  DAILY_JOURNAL_CHANNELS,
+  getDailyJournalArticle,
+  getRelatedJournalArticles,
+  type DailyJournalChannel,
+} from '../../lib/daily-journal-articles';
 
 const MotionDiv = motion.div as any;
-
-type GuideSearchSource = 'all' | 'who' | 'cdc' | 'aap';
 
 interface PediatricGuide {
   id: string;
@@ -45,13 +50,6 @@ interface PediatricGuide {
   keyPoints: string[];
   redFlags: string[];
 }
-
-const GUIDE_SEARCH_SOURCES: Array<{ value: GuideSearchSource; label: string }> = [
-  { value: 'all', label: 'All Web' },
-  { value: 'who', label: 'WHO' },
-  { value: 'cdc', label: 'CDC' },
-  { value: 'aap', label: 'AAP' },
-];
 
 const PEDIATRIC_GUIDES: PediatricGuide[] = [
   {
@@ -246,35 +244,45 @@ const PEDIATRIC_GUIDES: PediatricGuide[] = [
   },
 ];
 
-const buildGuideSearchUrl = (query: string, source: GuideSearchSource) => {
+const buildGuideSearchUrl = (query: string) => {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) {
     return '';
   }
 
-  const scopedQuery =
-    source === 'who'
-      ? `${normalizedQuery} site:who.int`
-      : source === 'cdc'
-        ? `${normalizedQuery} site:cdc.gov`
-        : source === 'aap'
-          ? `${normalizedQuery} site:healthychildren.org`
-          : normalizedQuery;
+  return `https://www.google.com/search?q=${encodeURIComponent(normalizedQuery)}`;
+};
 
-  return `https://www.google.com/search?q=${encodeURIComponent(scopedQuery)}`;
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatLocalDateKey = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 };
 
 export const JournalScreen: React.FC = () => {
   const { currentBaby } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'memories' | 'guides'>('memories');
+  const [activeTab, setActiveTab] = useState<'memories' | 'guides'>('guides');
   const [memories, setMemories] = useState<MemoryLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [memorySearchQuery, setMemorySearchQuery] = useState('');
-  const [guideSearchQuery, setGuideSearchQuery] = useState('');
-  const [guideSearchSource, setGuideSearchSource] = useState<GuideSearchSource>('all');
   const [selectedGuide, setSelectedGuide] = useState<PediatricGuide | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMemory, setEditingMemory] = useState<MemoryLog | null>(null);
+  const [todayKey, setTodayKey] = useState(() => getLocalDateKey());
+  const [selectedJournalChannel, setSelectedJournalChannel] =
+    useState<DailyJournalChannel>('Journal');
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   const [formText, setFormText] = useState('');
   const [formIsMilestone, setFormIsMilestone] = useState(false);
@@ -283,6 +291,18 @@ export const JournalScreen: React.FC = () => {
   useEffect(() => {
     loadMemories();
   }, [currentBaby]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setTodayKey(getLocalDateKey());
+    }, 60 * 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setSelectedArticleId(null);
+  }, [selectedJournalChannel, todayKey]);
 
   const loadMemories = async () => {
     if (!currentBaby) return;
@@ -349,7 +369,7 @@ export const JournalScreen: React.FC = () => {
 
   const openWebSearch = (query: string) => {
     const contextualQuery = `${query} baby health parenting`.trim();
-    const searchUrl = buildGuideSearchUrl(contextualQuery, guideSearchSource);
+    const searchUrl = buildGuideSearchUrl(contextualQuery);
     if (!searchUrl) {
       return;
     }
@@ -361,18 +381,33 @@ export const JournalScreen: React.FC = () => {
     memory.text.toLowerCase().includes(memorySearchQuery.toLowerCase()),
   );
 
-  const filteredGuides = useMemo(() => {
-    const query = guideSearchQuery.trim().toLowerCase();
-    if (!query) {
-      return PEDIATRIC_GUIDES;
-    }
-
-    return PEDIATRIC_GUIDES.filter((guide) =>
-      [guide.title, guide.desc, guide.tag, guide.searchHint].some((field) =>
-        field.toLowerCase().includes(query),
+  const dailyArticle = useMemo(
+    () => getDailyJournalArticle(new Date(`${todayKey}T12:00:00`), selectedJournalChannel),
+    [selectedJournalChannel, todayKey],
+  );
+  const displayedArticle = useMemo(
+    () =>
+      DAILY_JOURNAL_ARTICLES.find((article) => article.id === selectedArticleId) ||
+      dailyArticle,
+    [dailyArticle, selectedArticleId],
+  );
+  const relatedArticles = useMemo(
+    () =>
+      getRelatedJournalArticles(
+        displayedArticle.id,
+        3,
+        selectedJournalChannel,
+        new Date(`${todayKey}T12:00:00`),
       ),
-    );
-  }, [guideSearchQuery]);
+    [displayedArticle.id, selectedJournalChannel, todayKey],
+  );
+  const categoryGuides = useMemo(
+    () =>
+      PEDIATRIC_GUIDES.filter((guide) =>
+        guide.tag.toLowerCase() === displayedArticle.category.toLowerCase(),
+      ).slice(0, 3),
+    [displayedArticle.category],
+  );
 
   return (
     <div className="pb-40">
@@ -517,86 +552,248 @@ export const JournalScreen: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
-          <div className="px-2">
-            <h2 className="text-3xl font-headline font-black text-foreground tracking-tighter leading-none mb-3">
-              Expert Guides
-            </h2>
-            <p className="text-sm font-bold text-text-dim">
-              Curated pediatric guidance for {currentBaby?.name || 'your baby'} plus custom internet search.
-            </p>
-          </div>
-
-          <div className="bg-surface p-5 sm:p-6 rounded-[2.4rem] border border-border-gray dark:border-zinc-800 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-light" size={18} />
-              <input
-                type="text"
-                value={guideSearchQuery}
-                onChange={(event) => setGuideSearchQuery(event.target.value)}
-                placeholder="Search guide topics or type a custom question..."
-                className="w-full h-12 rounded-2xl bg-surface-gray dark:bg-zinc-800 border border-border-gray dark:border-zinc-700 pl-11 pr-3 text-sm font-bold text-foreground outline-none focus:ring-2 focus:ring-secondary/10 transition-all"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={guideSearchSource}
-                onChange={(event) => setGuideSearchSource(event.target.value as GuideSearchSource)}
-                className="h-11 rounded-2xl bg-surface-gray dark:bg-zinc-800 border border-border-gray dark:border-zinc-700 px-4 text-xs font-black uppercase tracking-widest text-foreground outline-none"
-              >
-                {GUIDE_SEARCH_SOURCES.map((source) => (
-                  <option key={source.value} value={source.value}>
-                    {source.label}
-                  </option>
-                ))}
-              </select>
-
+        <article className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-[#07090b] text-white shadow-2xl">
+          <header className="border-b border-white/10 px-4 py-4 lg:flex lg:items-center lg:justify-between lg:gap-8 lg:px-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="whitespace-nowrap font-['Plus_Jakarta_Sans',sans-serif] text-[1.35rem] font-black leading-none tracking-[-0.04em] text-white lg:text-sm lg:tracking-normal">
+                The Digital Midwife
+              </div>
               <button
-                onClick={() => openWebSearch(guideSearchQuery || 'baby care guide')}
-                className="h-11 px-4 rounded-2xl bg-secondary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-95 transition-all"
+                type="button"
+                title="Search baby care topics"
+                onClick={() => openWebSearch(displayedArticle.title)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-200 shadow-[0_14px_30px_rgba(0,0,0,0.35)] lg:hidden"
               >
-                <Globe size={14} />
-                Search Internet
+                <Globe size={17} />
               </button>
             </div>
-          </div>
 
-          <div className="grid gap-6">
-            {filteredGuides.map((guide, index) => (
-              <MotionDiv
-                key={guide.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.06 }}
-                onClick={() => setSelectedGuide(guide)}
-                className="bg-surface p-6 sm:p-8 rounded-[2.4rem] border border-border-gray dark:border-zinc-800 shadow-sm flex items-center gap-5 group cursor-pointer hover:shadow-xl transition-all"
-              >
-                <div className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center shrink-0 shadow-inner ${guide.color}`}>
-                  <guide.icon size={24} />
-                </div>
-                <div className="flex-1 space-y-1 min-w-0">
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-50">{guide.tag}</span>
-                    <ExternalLink size={14} className="text-text-light opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                  </div>
-                  <h4 className="text-xl font-headline font-black text-foreground leading-tight tracking-tight">
-                    {guide.title}
-                  </h4>
-                  <p className="text-xs font-bold text-text-dim leading-relaxed">{guide.desc}</p>
-                </div>
-              </MotionDiv>
-            ))}
+            <nav className="mt-4 flex w-full items-center gap-7 overflow-x-auto border-t border-white/10 pt-3 text-[12px] font-black text-zinc-300 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mt-0 lg:flex-1 lg:justify-center lg:gap-12 lg:border-t-0 lg:pt-0 lg:text-[11px] lg:font-bold">
+              {DAILY_JOURNAL_CHANNELS.map((channel) => {
+                const isActive = selectedJournalChannel === channel;
+                return (
+                  <button
+                    key={channel}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => setSelectedJournalChannel(channel)}
+                    className={`shrink-0 border-b pb-1 transition ${
+                      isActive
+                        ? 'border-sky-300 text-white'
+                        : 'border-transparent hover:border-white/30 hover:text-white'
+                    }`}
+                  >
+                    {channel}
+                  </button>
+                );
+              })}
+            </nav>
+            <button
+              type="button"
+              title="Search baby care topics"
+              onClick={() => openWebSearch(displayedArticle.title)}
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-200 lg:flex"
+            >
+              <Globe size={14} />
+            </button>
+          </header>
 
-            {filteredGuides.length === 0 && (
-              <div className="py-14 text-center bg-surface-gray dark:bg-zinc-900/30 rounded-[2.8rem] border border-dashed border-border-gray dark:border-zinc-800">
-                <p className="text-xs font-black uppercase tracking-widest text-text-light">
-                  No matching guides. Try internet search above.
+          <div className="px-4 py-6 sm:px-8 lg:px-10">
+            <section className="relative min-h-[360px] overflow-hidden rounded-[1.8rem] sm:min-h-[520px]">
+              <img
+                src={displayedArticle.heroImage}
+                alt={displayedArticle.heroAlt}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/20 to-black/88" />
+              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
+                <span className="inline-flex rounded-full bg-sky-300/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-sky-100">
+                  {selectedJournalChannel} daily pick
+                </span>
+                <h1 className="mt-4 max-w-4xl text-3xl font-black leading-none tracking-tight text-white sm:text-5xl lg:text-6xl">
+                  {displayedArticle.title}
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm font-medium leading-relaxed text-zinc-200 sm:text-base">
+                  {displayedArticle.dek}
                 </p>
               </div>
-            )}
+            </section>
+
+            <div className="grid gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <main className="min-w-0 space-y-10">
+                <div className="flex flex-wrap items-center gap-4 border-b border-white/10 pb-8">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-sky-300/30 bg-sky-300/10 text-sky-100">
+                    <Baby size={22} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-white">{displayedArticle.authorName}</p>
+                    <p className="text-xs font-medium text-zinc-400">
+                      {displayedArticle.authorRole} - {displayedArticle.readMinutes} min read - Updated {formatLocalDateKey(todayKey)} - Shuffles daily
+                    </p>
+                  </div>
+                </div>
+
+                <blockquote className="border-l-2 border-sky-300 pl-5 text-lg font-medium italic leading-relaxed text-zinc-200">
+                  "{displayedArticle.quote}"
+                </blockquote>
+
+                {displayedArticle.sections.map((section) => (
+                  <section key={section.heading} className="space-y-4">
+                    <h2 className="text-2xl font-black tracking-tight text-white">{section.heading}</h2>
+                    {section.body.map((paragraph) => (
+                      <p key={paragraph} className="max-w-3xl text-sm leading-7 text-zinc-300">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </section>
+                ))}
+
+                <div className="rounded-[1.7rem] border border-white/10 bg-white/[0.06] p-5">
+                  <p className="text-xs font-black text-white">{displayedArticle.callout.title}</p>
+                  <p className="mt-3 text-sm leading-6 text-zinc-300">{displayedArticle.callout.body}</p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {displayedArticle.routineCards.map((card, index) => {
+                    const Icon = index % 2 === 0 ? Sparkles : Moon;
+                    return (
+                      <div key={card.title} className="rounded-[1.7rem] border border-white/10 bg-sky-950/30 p-5">
+                        <Icon size={18} className="text-sky-200" />
+                        <p className="mt-4 text-sm font-black text-white">{card.title}</p>
+                        <p className="mt-2 text-xs leading-5 text-zinc-300">{card.body}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <section className="space-y-5">
+                  <h2 className="text-2xl font-black tracking-tight text-white">Expert Tips for Parents</h2>
+                  <div className="space-y-4">
+                    {displayedArticle.tips.map((tip) => (
+                      <div key={tip} className="flex gap-3 text-sm leading-6 text-zinc-300">
+                        <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-200 text-[#071016]">
+                          <Check size={13} strokeWidth={4} />
+                        </span>
+                        <p>{tip}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[1.8rem] border border-white/10 bg-white/[0.07] p-6 sm:p-8">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-200/30 bg-[#0d1a20] text-sky-100">
+                      <Stethoscope size={34} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white">{displayedArticle.authorName}</h3>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">{displayedArticle.authorBio}</p>
+                      <div className="mt-4 flex flex-wrap gap-4 text-[11px] font-black text-sky-100">
+                        <button type="button" onClick={() => openWebSearch(`${displayedArticle.category} infant care`)}>
+                          Open Research Search
+                        </button>
+                        <button type="button" onClick={() => openWebSearch('HealthyChildren baby care')}>
+                          Trusted Sources
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-5">
+                  <h2 className="text-2xl font-black tracking-tight text-white">Related Articles</h2>
+                  <div className="grid gap-5 md:grid-cols-3">
+                    {relatedArticles.map((article) => (
+                      <button
+                        type="button"
+                        key={article.id}
+                        onClick={() => setSelectedArticleId(article.id)}
+                        className="group text-left"
+                      >
+                        <div className="aspect-[1.65] overflow-hidden rounded-[1.4rem] bg-zinc-900">
+                          <img
+                            src={article.heroImage}
+                            alt={article.heroAlt}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        </div>
+                        <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                          {article.category}
+                        </p>
+                        <h3 className="mt-1 text-sm font-black leading-snug text-white">{article.title}</h3>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-400">{article.dek}</p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </main>
+
+              <aside className="space-y-8 lg:sticky lg:top-4 lg:self-start">
+                <section className="rounded-[2rem] border border-white/10 bg-white/[0.08] p-6">
+                  <p className="text-sm font-black text-white">The Journal Newsletter</p>
+                  <p className="mt-4 text-xs leading-5 text-zinc-300">
+                    Get concise baby-care notes for sleep, feeding, safety, and milestones.
+                  </p>
+                  <form
+                    className="mt-5 space-y-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                    }}
+                  >
+                    <input
+                      type="email"
+                      placeholder="Email address"
+                      className="h-11 w-full rounded-full border border-white/10 bg-black/20 px-4 text-xs text-white outline-none placeholder:text-zinc-500 focus:border-sky-300"
+                    />
+                    <button
+                      type="submit"
+                      className="h-11 w-full rounded-full bg-sky-700 text-xs font-black text-white transition hover:bg-sky-600"
+                    >
+                      Subscribe
+                    </button>
+                  </form>
+                </section>
+
+                <section className="space-y-4">
+                  <p className="text-sm font-black text-white">In This Category</p>
+                  {(categoryGuides.length > 0 ? categoryGuides : PEDIATRIC_GUIDES.slice(0, 3)).map((guide, index) => (
+                    <button
+                      key={guide.id}
+                      type="button"
+                      onClick={() => setSelectedGuide(guide)}
+                      className={`w-full rounded-[1.5rem] p-4 text-left transition ${
+                        index === 0 ? 'bg-white/10' : 'hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{guide.tag}</p>
+                      <p className="mt-1 text-sm font-black leading-snug text-white">{guide.title}</p>
+                    </button>
+                  ))}
+                </section>
+              </aside>
+            </div>
           </div>
-        </div>
+
+          <footer className="grid gap-8 border-t border-white/10 px-6 py-10 text-xs text-zinc-400 sm:grid-cols-[1fr_auto_auto] sm:px-10">
+            <div className="max-w-md">
+              <p className="text-sm font-black text-white">The Digital Midwife</p>
+              <p className="mt-4 leading-6">
+                Educational baby-care guidance for everyday routines. This does not replace advice from your pediatric clinician.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <p className="font-black text-white">Resources</p>
+              <button type="button" onClick={() => openWebSearch('baby sleep tracker')}>Sleep Tracker</button>
+              <button type="button" onClick={() => openWebSearch('infant feeding log')}>Feeding Log</button>
+              <button type="button" onClick={() => openWebSearch('infant health records')}>Health Records</button>
+            </div>
+            <div className="space-y-3">
+              <p className="font-black text-white">Today</p>
+              <p>{selectedJournalChannel}</p>
+              <p>{todayKey}</p>
+            </div>
+          </footer>
+        </article>
       )}
 
       <AnimatePresence>

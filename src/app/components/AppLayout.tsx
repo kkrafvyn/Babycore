@@ -232,7 +232,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
       {/* Main Content */}
       <main
-        className={`flex-1 overflow-y-auto no-scrollbar pb-24 sm:pb-28 lg:pb-10 ${
+        className={`min-h-0 flex-1 overflow-y-auto no-scrollbar pb-8 sm:pb-10 lg:pb-10 mb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:mb-[calc(6rem+env(safe-area-inset-bottom))] lg:mb-0 ${
           showTopHeader ? 'pt-16 sm:pt-20' : 'pt-0'
         }`}
       >

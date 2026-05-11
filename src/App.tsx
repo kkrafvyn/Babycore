@@ -487,6 +487,7 @@ function AppShell() {
     babyDateOfBirth: string;
     babyGender: 'boy' | 'girl' | 'other';
     babyPhotoUrl?: string;
+    profilePhotoUrl?: string;
     doctorName: string;
     doctorSpecialty: string;
     caregiverName: string;
@@ -502,12 +503,14 @@ function AppShell() {
         ? {
             name: data.doctorName.trim(),
             specialty: data.doctorSpecialty.trim() || undefined,
+            photoUrl: data.profilePhotoUrl || undefined,
           }
         : undefined,
       isCaregiverProfile
         ? {
             name: data.caregiverName.trim(),
             relationship: data.caregiverRelationship,
+            photoUrl: data.profilePhotoUrl || undefined,
           }
         : undefined,
     );

@@ -140,6 +140,12 @@
     flex-direction: column;
   }
 
+  .fit-screen > header.fixed.top-0 {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
   .theme-transition {
     transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   }

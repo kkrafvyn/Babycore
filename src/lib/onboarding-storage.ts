@@ -6,11 +6,13 @@ export type OnboardingProfileType = 'baby' | 'doctor' | 'caregiver';
 export interface OnboardingDoctorProfile {
   name: string;
   specialty?: string;
+  photoUrl?: string;
 }
 
 export interface OnboardingCaregiverProfile {
   name: string;
   relationship: string;
+  photoUrl?: string;
 }
 
 interface OnboardingCache {

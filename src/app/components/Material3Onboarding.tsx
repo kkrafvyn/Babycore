@@ -46,6 +46,7 @@ interface OnboardingData {
   babyDateOfBirth: string;
   babyGender: 'boy' | 'girl' | 'other';
   babyPhotoUrl?: string;
+  profilePhotoUrl?: string;
   doctorName: string;
   doctorSpecialty: string;
   caregiverName: string;
@@ -169,6 +170,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
     babyDateOfBirth: '',
     babyGender: 'other',
     babyPhotoUrl: undefined,
+    profilePhotoUrl: undefined,
     doctorName: '',
     doctorSpecialty: '',
     caregiverName: '',
@@ -253,9 +255,9 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   ];
   const avatarPreview =
     formData.profileType === 'doctor'
-      ? getUserAvatar(formData.doctorName.trim() || 'doctor')
+      ? formData.profilePhotoUrl || getUserAvatar(formData.doctorName.trim() || 'doctor')
       : formData.profileType === 'caregiver'
-        ? getUserAvatar(formData.caregiverName.trim() || 'caregiver')
+        ? formData.profilePhotoUrl || getUserAvatar(formData.caregiverName.trim() || 'caregiver')
         : formData.babyPhotoUrl || getDefaultAvatar(formData.babyGender, formData.babyName || 'baby');
 
   const profileCopy = {
@@ -283,7 +285,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
       ),
       helper: i18nT(
         'onboarding.doctorHelper',
-        'We generate a clean avatar preview from the name you enter below.',
+        'Upload a profile photo or keep the generated avatar from your name.',
       ),
       note: i18nT(
         'onboarding.doctorNote',
@@ -299,7 +301,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
       ),
       helper: i18nT(
         'onboarding.caregiverHelper',
-        'Choose the relationship that best matches how this caregiver supports the child.',
+        'Upload a profile photo and choose how this caregiver supports the child.',
       ),
       note: i18nT(
         'onboarding.caregiverNote',
@@ -414,16 +416,24 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
     setCurrentStep(activeSteps[safeActiveStepIndex + 1]);
   };
 
-  const handleBabyPhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      setFormData((prev) => ({
-        ...prev,
-        babyPhotoUrl: reader.result as string,
-      }));
+      const photoUrl = reader.result as string;
+      setFormData((prev) =>
+        prev.profileType === 'baby'
+          ? {
+              ...prev,
+              babyPhotoUrl: photoUrl,
+            }
+          : {
+              ...prev,
+              profilePhotoUrl: photoUrl,
+            },
+      );
     };
     reader.readAsDataURL(file);
   };
@@ -822,26 +832,18 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                       <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-[5px] border-[#dfe4f0] bg-[#dff3ff] shadow-inner dark:border-zinc-700 dark:bg-zinc-900">
                         <img src={avatarPreview} alt={`${formData.profileType} preview`} className="h-full w-full object-cover" />
                       </div>
-                      {formData.profileType === 'baby' ? (
-                        <label className="absolute bottom-1 right-0 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg">
-                          <span className="material-symbols-outlined text-lg">edit</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleBabyPhotoSelect}
-                          />
-                        </label>
-                      ) : (
-                        <div className="absolute bottom-1 right-0 flex h-11 w-11 items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg">
-                          <span className="material-symbols-outlined text-lg">{currentProfileCopy.accent}</span>
-                        </div>
-                      )}
+                      <label className="absolute bottom-1 right-0 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg">
+                        <span className="material-symbols-outlined text-lg">edit</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePhotoSelect}
+                        />
+                      </label>
                     </div>
                     <p className="mt-4 font-['Plus_Jakarta_Sans',sans-serif] text-[10px] font-black uppercase tracking-[0.18em] text-[#45627d] dark:text-blue-300">
-                      {formData.profileType === 'baby'
-                        ? i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')
-                        : i18nT('onboarding.profilePreview', 'Profile preview')}
+                      {i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')}
                     </p>
                   </div>
 
@@ -1056,34 +1058,24 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                         <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-[4px] border-[#dfe4f0] bg-[#dff3ff] shadow-inner dark:border-zinc-700 dark:bg-zinc-900 sm:h-28 sm:w-28 sm:border-[5px]">
                           <img src={avatarPreview} alt={`${formData.profileType} preview`} className="h-full w-full object-cover" />
                         </div>
-                        {formData.profileType === 'baby' ? (
-                          <label className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg transition-transform hover:scale-105 sm:h-10 sm:w-10">
-                            <span className="material-symbols-outlined text-base sm:text-[17px]">edit</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleBabyPhotoSelect}
-                            />
-                          </label>
-                        ) : (
-                          <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg sm:h-10 sm:w-10">
-                            <span className="material-symbols-outlined text-base sm:text-[17px]">{currentProfileCopy.accent}</span>
-                          </div>
-                        )}
+                        <label className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#5e5f61] text-white shadow-lg transition-transform hover:scale-105 sm:h-10 sm:w-10">
+                          <span className="material-symbols-outlined text-base sm:text-[17px]">edit</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleProfilePhotoSelect}
+                          />
+                        </label>
                       </div>
                       <p className="mt-2 font-['Plus_Jakarta_Sans',sans-serif] text-[9px] font-black uppercase tracking-[0.12em] text-[#45627d] dark:text-blue-300 sm:mt-3 sm:text-[10px] sm:tracking-[0.18em]">
-                        {formData.profileType === 'baby'
-                          ? i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')
-                          : i18nT('onboarding.profilePreview', 'Profile preview')}
+                        {i18nT('onboarding.tapToAddPhoto', 'Tap to add photo')}
                       </p>
                       <p className="mt-1 hidden max-w-[11rem] text-[11px] font-semibold leading-snug text-[#8d9299] dark:text-zinc-400 lg:inline lg:text-[11px]">
                         <span className="sm:hidden">
-                          {formData.profileType === 'baby'
-                            ? 'Photo is optional.'
-                            : formData.profileType === 'doctor'
-                              ? 'Auto avatar preview.'
-                              : 'Choose the relationship below.'}
+                          {formData.profileType === 'caregiver'
+                            ? 'Choose the relationship below.'
+                            : 'Photo is optional.'}
                         </span>
                         <span className="hidden sm:inline">{currentProfileCopy.helper}</span>
                       </p>

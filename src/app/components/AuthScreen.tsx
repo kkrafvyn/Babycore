@@ -91,13 +91,30 @@ export function AuthScreen({
       } else {
         const onboarding = getOnboardingCache();
         const profileType = onboarding.profileType;
+        const profileName =
+          profileType === 'doctor'
+            ? onboarding.doctorProfile?.name
+            : profileType === 'caregiver'
+              ? onboarding.caregiverProfile?.name
+              : onboarding.baby?.name;
+        const profilePhotoUrl =
+          profileType === 'doctor'
+            ? onboarding.doctorProfile?.photoUrl
+            : profileType === 'caregiver'
+              ? onboarding.caregiverProfile?.photoUrl
+              : onboarding.baby?.photoUrl;
 
         const signUpResult: any = await signUpWithEmail(email, password, {
           onboarding_profile_type: profileType,
+          name: profileName || undefined,
+          full_name: profileName || undefined,
           doctor_name: onboarding.doctorProfile?.name || undefined,
           doctor_specialty: onboarding.doctorProfile?.specialty || undefined,
           caregiver_name: onboarding.caregiverProfile?.name || undefined,
           caregiver_relationship: onboarding.caregiverProfile?.relationship || undefined,
+          avatar_url: profilePhotoUrl || undefined,
+          profile_photo_url: profilePhotoUrl || undefined,
+          picture: profilePhotoUrl || undefined,
         });
 
         // Supabase can require email confirmation and return no session on sign up.
