@@ -205,17 +205,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   const handleDeleteBaby = async () => {
-    if (!deleteTarget) return;
-    setDeleting(deleteTarget.id);
+    if (!deleteTarget || deleting) return;
+
+    const target = deleteTarget;
+    setDeleting(target.id);
     try {
-      await deleteBaby(deleteTarget.id);
+      await deleteBaby(target.id);
       await refreshBabies();
-    } catch (err) {
-      console.error('Failed to delete baby', err);
+      if (editBabyId === target.id) {
+        setShowEditBaby(false);
+        setEditBabyId('');
+      }
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      toast.success(`${target.name} deleted.`);
+    } catch (error) {
+      console.error('Failed to delete baby', error);
+      toast.error('Could not delete baby. Please try again.');
+    } finally {
+      setDeleting(null);
     }
-    setDeleting(null);
-    setShowDeleteConfirm(false);
-    setDeleteTarget(null);
+  };
+
+  const openDeleteBabyConfirm = (baby: { id: string; name: string }) => {
+    setDeleteTarget({
+      id: baby.id,
+      name: baby.name?.trim() || 'this baby',
+    });
+    setShowDeleteConfirm(true);
   };
 
   const handleNotificationToggle = async () => {
@@ -611,7 +628,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        </button>
                        <div className="flex gap-1 sm:gap-2 shrink-0">
                           <button onClick={() => openEditBaby(baby)} title={`Edit ${baby.name}`} className="w-10 h-10 flex items-center justify-center text-text-light hover:text-secondary transition-all"><Edit2 size={16} /></button>
-                          <button onClick={() => { setDeleteTarget({ id: baby.id, name: baby.name }); setShowDeleteConfirm(true); }} title={`Delete ${baby.name}`} className="w-10 h-10 flex items-center justify-center text-text-light hover:text-error transition-all"><Trash2 size={16} /></button>
+                          <button
+                            onClick={() => openDeleteBabyConfirm(baby)}
+                            disabled={deleting === baby.id}
+                            title={`Delete ${baby.name}`}
+                            className="w-10 h-10 flex items-center justify-center text-text-light hover:text-error transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deleting === baby.id ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                          </button>
                        </div>
                     </div>
                  ))}
@@ -1318,6 +1342,79 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <Check size={24} />
                   <span>{editBabyId ? i18nT('common.update') : 'Add Baby'}</span>
                 </button>
+                {editBabyId && (
+                  <button
+                    type="button"
+                    onClick={() => openDeleteBabyConfirm({ id: editBabyId, name: editBabyName })}
+                    disabled={deleting === editBabyId}
+                    className="w-full rounded-2xl border border-error/25 bg-error/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-error transition-all hover:bg-error hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {deleting === editBabyId ? 'Deleting...' : 'Delete Baby'}
+                  </button>
+                )}
+             </MotionDiv>
+          </MotionDiv>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDeleteConfirm && deleteTarget && (
+          <MotionDiv
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          >
+             <MotionDiv
+                initial={{ y: 100, scale: 0.98 }}
+                animate={{ y: 0, scale: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                className="w-full max-w-md bg-surface rounded-[3rem] p-8 space-y-6 shadow-2xl border border-border-gray dark:border-zinc-800"
+             >
+                <div className="flex items-start justify-between gap-4">
+                   <div className="space-y-2">
+                     <div className="h-12 w-12 rounded-2xl bg-error/10 text-error flex items-center justify-center">
+                       <Trash2 size={22} />
+                     </div>
+                     <h3 className="text-2xl font-headline font-black text-foreground">Delete {deleteTarget.name}?</h3>
+                     <p className="text-sm font-semibold leading-relaxed text-text-dim">
+                       This removes the baby profile and the care logs saved for this baby. This cannot be undone.
+                     </p>
+                   </div>
+                   <button
+                     type="button"
+                     onClick={() => {
+                       if (deleting) return;
+                       setShowDeleteConfirm(false);
+                       setDeleteTarget(null);
+                     }}
+                     title="Cancel delete baby"
+                     className="text-text-light hover:text-foreground transition-colors"
+                   >
+                     <X size={20} />
+                   </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setDeleteTarget(null);
+                    }}
+                    disabled={Boolean(deleting)}
+                    className="rounded-2xl bg-surface-gray px-4 py-4 text-[10px] font-black uppercase tracking-[0.18em] text-text-dim transition-all hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-800"
+                  >
+                    Keep Baby
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteBaby}
+                    disabled={Boolean(deleting)}
+                    className="rounded-2xl bg-error px-4 py-4 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-lg transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {deleting === deleteTarget.id ? 'Deleting...' : 'Delete Baby'}
+                  </button>
+                </div>
              </MotionDiv>
           </MotionDiv>
         )}

@@ -38,6 +38,19 @@ const STORES = {
   ACHIEVEMENTS: 'achievements',
 };
 
+const BABY_PROFILE_DEPENDENT_STORES = [
+  STORES.SLEEP_LOGS,
+  STORES.FEED_LOGS,
+  STORES.DIAPER_LOGS,
+  STORES.GROWTH_MEASUREMENTS,
+  STORES.VACCINATION_RECORDS,
+  STORES.MILESTONES,
+  STORES.MEMORIES,
+  STORES.HEALTH_LOGS,
+  STORES.JOURNAL_ENTRIES,
+  STORES.ACHIEVEMENTS,
+] as const;
+
 let db: IDBDatabase | null = null;
 
 export const initializeDB = (): Promise<IDBDatabase> => {
@@ -333,26 +346,57 @@ export const deleteBaby = async (id: string, ownerScopeId?: string): Promise<voi
   const normalizedScopeId = normalizeOwnerScopeId(ownerScopeId);
 
   return new Promise((resolve, reject) => {
-    const tx = database.transaction([STORES.BABIES], 'readwrite');
+    const tx = database.transaction([STORES.BABIES, ...BABY_PROFILE_DEPENDENT_STORES], 'readwrite');
     const store = tx.objectStore(STORES.BABIES);
     const getRequest = store.get(id);
+    let settled = false;
 
-    getRequest.onerror = () => reject(getRequest.error);
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error || 'Failed to delete baby profile.')));
+    };
+
+    const deleteStoreRecordsForBaby = (storeName: string) => {
+      const dependentStore = tx.objectStore(storeName);
+      const cursorRequest = dependentStore.openCursor();
+
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+
+        const record = cursor.value as { babyId?: string };
+        if (record.babyId === id) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+    };
+
+    tx.oncomplete = resolveOnce;
+    tx.onerror = () => rejectOnce(tx.error || getRequest.error);
+    tx.onabort = () => rejectOnce(tx.error || new Error('Baby profile deletion was cancelled.'));
+    getRequest.onerror = () => rejectOnce(getRequest.error);
     getRequest.onsuccess = () => {
       const existingRecord = getRequest.result as StoredBaby | undefined;
       if (!existingRecord) {
-        resolve();
         return;
       }
 
       if (existingRecord.ownerScopeId !== normalizedScopeId) {
-        reject(new Error('Cannot delete a baby profile owned by another account.'));
+        rejectOnce(new Error('Cannot delete a baby profile owned by another account.'));
+        tx.abort();
         return;
       }
 
-      const deleteRequest = store.delete(id);
-      deleteRequest.onerror = () => reject(deleteRequest.error);
-      deleteRequest.onsuccess = () => resolve();
+      store.delete(id);
+      BABY_PROFILE_DEPENDENT_STORES.forEach(deleteStoreRecordsForBaby);
     };
   });
 };
