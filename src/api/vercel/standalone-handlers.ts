@@ -7,6 +7,22 @@ import { applyFullSync, buildSyncSnapshot } from '../../../api/_shared/sync-data
 
 const isTruthy = (value: string | undefined): boolean => Boolean(value && value.trim().length > 0);
 
+const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
+
+const normalizeAdminEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const normalizeRole = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+const getFallbackUserRole = (user: any, requestRole?: string): string =>
+  normalizeRole(requestRole) ||
+  normalizeRole(user?.app_metadata?.role) ||
+  normalizeRole(user?.user_metadata?.role) ||
+  (MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user');
+
 const isLikelyPlaceholder = (value: string | undefined): boolean => {
   if (!value) return true;
   const normalized = value.trim().toLowerCase();
@@ -511,13 +527,13 @@ export async function currentRoleHandler(req: AuthRequest, res: Response): Promi
 
     res.status(200).json({
       success: true,
-      role: data?.role || req.userRole || req.user.user_metadata?.role || 'user',
+      role: data?.role || getFallbackUserRole(req.user, req.userRole),
     });
   } catch (error) {
     console.error('Failed to load current user role:', error);
     res.status(200).json({
       success: true,
-      role: req.userRole || req.user.user_metadata?.role || 'user',
+      role: getFallbackUserRole(req.user, req.userRole),
     });
   }
 }

@@ -112,6 +112,22 @@ const getAdminAuthToken = async (): Promise<string | null> => {
   return session.access_token;
 };
 
+const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
+
+const normalizeAdminEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const normalizeRole = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+const getFallbackUserRole = (user: any): string => {
+  const metadataRole = normalizeRole(user?.app_metadata?.role) || normalizeRole(user?.user_metadata?.role);
+  if (metadataRole) return metadataRole;
+  return MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user';
+};
+
 const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { success: boolean; error?: string }> => {
   const accessToken = await getAdminAuthToken();
   if (!accessToken) {
@@ -160,7 +176,7 @@ export const getCurrentUserRole = async (): Promise<string> => {
 
     if (!user?.id) return 'user';
 
-    const fallbackRole = user.user_metadata?.role || 'user';
+    const fallbackRole = getFallbackUserRole(user);
     const accessToken = await getAdminAuthToken();
     if (!accessToken) {
       return fallbackRole;

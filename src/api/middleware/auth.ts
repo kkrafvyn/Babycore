@@ -11,7 +11,20 @@ export interface AuthRequest extends Request {
   userRole?: string;
 }
 
+const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
+
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const normalizeRole = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+const getFallbackUserRole = (user: any): string =>
+  normalizeRole(user?.app_metadata?.role) ||
+  normalizeRole(user?.user_metadata?.role) ||
+  (MAIN_ADMIN_EMAILS.has(normalizeEmail(user?.email)) ? 'admin' : 'user');
 
 /**
  * Main authentication middleware
@@ -61,7 +74,7 @@ export default async function authMiddleware(
         .eq('user_id', user.id)
         .single();
 
-      req.userRole = userRole?.role || 'user';
+      req.userRole = userRole?.role || getFallbackUserRole(user);
 
       next();
     } catch (tokenError) {

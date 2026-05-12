@@ -16,6 +16,21 @@ type RunExpressRouterOptions = {
   requireAuth?: boolean;
 };
 
+const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
+
+const normalizeAdminEmail = (value?: string): string => value?.trim().toLowerCase() || '';
+
+const normalizeRole = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
+
+const getFallbackUserRole = (user: any): string =>
+  normalizeRole(user?.app_metadata?.role) ||
+  normalizeRole(user?.user_metadata?.role) ||
+  (MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user');
+
 const normalizeMountPath = (input: string): string => {
   const normalized = input.trim();
   if (!normalized) return '';
@@ -88,6 +103,7 @@ export const runExpressRouter = async ({
     }
 
     reqAny.user = user;
+    const fallbackUserRole = getFallbackUserRole(user);
 
     try {
       const supabase = createSupabaseAdminClient();
@@ -96,9 +112,9 @@ export const runExpressRouter = async ({
         .select('role')
         .eq('user_id', user.id)
         .maybeSingle();
-      reqAny.userRole = roleData?.role || 'user';
+      reqAny.userRole = roleData?.role || fallbackUserRole;
     } catch {
-      reqAny.userRole = reqAny.userRole || 'user';
+      reqAny.userRole = reqAny.userRole || fallbackUserRole;
     }
   }
 
