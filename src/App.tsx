@@ -15,6 +15,7 @@ import { deriveSettingsFromCareProfile } from './lib/care-profile';
 import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
+import { getCurrentUserRole } from './lib/admin-api';
 import {
   type AppView,
   type PublicRoute,
@@ -188,6 +189,8 @@ function AppShell() {
   const [isGuestHydrating, setIsGuestHydrating] = React.useState(guestSession);
   const [showMobileSplash, setShowMobileSplash] = React.useState(() => shouldShowMobileSplash());
   const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
+  const [accountRole, setAccountRole] = React.useState('user');
+  const [isAccountRoleLoading, setIsAccountRoleLoading] = React.useState(false);
 
   const hasSession = Boolean(user) || guestSession;
   const publicRoute = locationRoute.kind === 'public' ? locationRoute.publicRoute : 'welcome';
@@ -201,6 +204,31 @@ function AppShell() {
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     cachedOnboardingProfileType;
+  const isAdminAccount = accountRole === 'admin';
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    if (!user?.id) {
+      setAccountRole('user');
+      setIsAccountRoleLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setIsAccountRoleLoading(true);
+    (async () => {
+      const role = await getCurrentUserRole();
+      if (!mounted) return;
+      setAccountRole(role);
+      setIsAccountRoleLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   const navigateToPath = React.useCallback(
     (path: string, options?: { replace?: boolean; preserveSearch?: boolean }) => {
@@ -581,8 +609,21 @@ function AppShell() {
   }
 
   if (hasSession) {
+    if (
+      Boolean(user) &&
+      babies.length === 0 &&
+      accountProfileType !== 'doctor' &&
+      accountProfileType !== 'caregiver' &&
+      isAccountRoleLoading
+    ) {
+      return <FullScreenLoader label="Checking account role..." />;
+    }
+
     const shouldForceBabySetup =
-      babies.length === 0 && accountProfileType !== 'doctor' && accountProfileType !== 'caregiver';
+      babies.length === 0 &&
+      accountProfileType !== 'doctor' &&
+      accountProfileType !== 'caregiver' &&
+      !isAdminAccount;
 
     if (shouldForceBabySetup) {
       return renderWithSuspense(
