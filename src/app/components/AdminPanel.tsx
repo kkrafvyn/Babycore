@@ -58,7 +58,7 @@ const getRecoveryClass = (status?: string | null): string => {
   }
 };
 
-const ROLE_OPTIONS = ['admin', 'manager', 'user', 'caregiver', 'viewer'] as const;
+const ROLE_OPTIONS = ['admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'] as const;
 const LIMITED_ADMIN_ROLE_OPTIONS = ['manager', 'admin'] as const;
 const PROFILE_TYPE_OPTIONS = ['baby', 'doctor', 'caregiver'] as const;
 const LIMITED_ADMIN_ROLE_LABELS: Record<
@@ -300,6 +300,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       | 'admin'
       | 'manager'
       | 'user'
+      | 'doctor'
       | 'caregiver'
       | 'viewer';
 

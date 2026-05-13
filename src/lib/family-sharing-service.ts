@@ -245,8 +245,8 @@ export async function sendFamilySharingInvite(
  */
 async function sendInviteEmail(
   email: string,
-  babyId: string,
-  role: string,
+  _babyId: string,
+  _role: string,
   token: string
 ): Promise<void> {
   try {
@@ -263,11 +263,9 @@ async function sendInviteEmail(
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({
-        recipient_email: email,
-        baby_id: babyId,
-        role,
         invite_token: token,
-        invite_link: buildInviteLink(token, 'patients'),
+        recipient_email: email,
+        view: 'patients',
       }),
     });
   } catch (err) {

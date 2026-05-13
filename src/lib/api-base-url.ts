@@ -26,24 +26,6 @@ const warnOnce = (message: string): void => {
   }
 };
 
-const shouldIgnoreCrossOriginConfiguredUrl = (
-  sanitizedUrl: string,
-  appOrigin: string,
-  hostname: string,
-): boolean => {
-  if (sanitizedUrl.startsWith('/')) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(sanitizedUrl);
-    const runningOnVercelPreviewOrProd = hostname.endsWith('vercel.app');
-    return runningOnVercelPreviewOrProd && parsed.origin !== appOrigin;
-  } catch {
-    return false;
-  }
-};
-
 const sanitizeConfiguredBaseUrl = (
   configuredUrl: string,
   appIsLocal: boolean,
@@ -114,31 +96,17 @@ export const getApiBaseUrl = (): string => {
     }
 
     const appIsLocal = isLocalHost(window.location.hostname);
-    const appOrigin = window.location.origin;
-    const currentHostname = window.location.hostname.toLowerCase();
 
     if (!appIsLocal && configuredProductionBaseUrl) {
       const safeProductionBaseUrl = sanitizeConfiguredBaseUrl(configuredProductionBaseUrl, appIsLocal);
       if (safeProductionBaseUrl) {
-        if (shouldIgnoreCrossOriginConfiguredUrl(safeProductionBaseUrl, appOrigin, currentHostname)) {
-          warnOnce(
-            `Ignoring cross-origin production API base URL "${safeProductionBaseUrl}" in favor of same-origin /api.`,
-          );
-        } else {
-          return safeProductionBaseUrl;
-        }
+        return safeProductionBaseUrl;
       }
     }
 
     const safeConfiguredBaseUrl = sanitizeConfiguredBaseUrl(configuredBaseUrl, appIsLocal);
     if (safeConfiguredBaseUrl) {
-      if (shouldIgnoreCrossOriginConfiguredUrl(safeConfiguredBaseUrl, appOrigin, currentHostname)) {
-        warnOnce(
-          `Ignoring cross-origin API base URL "${safeConfiguredBaseUrl}" in favor of same-origin /api.`,
-        );
-      } else {
-        return safeConfiguredBaseUrl;
-      }
+      return safeConfiguredBaseUrl;
     }
 
     return '/api';

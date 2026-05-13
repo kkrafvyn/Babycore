@@ -38,6 +38,10 @@ scratch/
 package-lock.broken-*.json
 
 .vercel
+api/_shared/*.js
+api/_shared/*.js.map
+api/_shared/*.d.ts
+api/_shared/*.d.ts.map
 android/app/google-services.json
 android/google-services.json
 ios/App/App/GoogleService-Info.plist

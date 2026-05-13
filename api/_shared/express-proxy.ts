@@ -2,8 +2,8 @@ import { getAuthenticatedUser } from './supabase.js';
 import {
   parseRequestBody,
   setCommonHeaders,
-  type VercelRequest,
-  type VercelResponse,
+  type ApiAdapterRequest,
+  type ApiAdapterResponse,
 } from './http.js';
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -11,8 +11,8 @@ type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type ExpressLikeHandler = (req: any, res: any) => Promise<void> | void;
 
 type RunExpressHandlerOptions = {
-  request: VercelRequest;
-  response: VercelResponse;
+  request: ApiAdapterRequest;
+  response: ApiAdapterResponse;
   methods: RequestMethod[];
   requireAuth?: boolean;
   handler: ExpressLikeHandler;

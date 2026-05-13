@@ -19,7 +19,8 @@ export interface AdminUserRecord {
   email: string;
   phone?: string;
   name: string;
-  role: 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer' | string;
+  role: 'admin' | 'manager' | 'user' | 'doctor' | 'caregiver' | 'viewer' | string;
+  source?: string;
   assignedAt?: string | null;
   assignedBy?: string | null;
   createdAt?: string | null;
@@ -122,10 +123,26 @@ const normalizeRole = (value: unknown): string | null => {
   return normalized || null;
 };
 
+const normalizeProfileType = (value: unknown): 'baby' | 'doctor' | 'caregiver' | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'baby' || normalized === 'doctor' || normalized === 'caregiver') {
+    return normalized;
+  }
+  return null;
+};
+
 const getFallbackUserRole = (user: any): string => {
-  const metadataRole = normalizeRole(user?.app_metadata?.role) || normalizeRole(user?.user_metadata?.role);
-  if (metadataRole) return metadataRole;
-  return MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user';
+  const appRole = normalizeRole(user?.app_metadata?.role);
+  if (MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email))) return 'admin';
+  if (appRole) return appRole;
+
+  const profileType = normalizeProfileType(user?.user_metadata?.onboarding_profile_type);
+  if (profileType === 'doctor' || profileType === 'caregiver') {
+    return profileType;
+  }
+
+  return 'user';
 };
 
 const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { success: boolean; error?: string }> => {
@@ -252,7 +269,7 @@ export const createAdminUser = async (input: {
 
 export const updateAdminUserRole = async (
   userId: string,
-  role: 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer',
+  role: 'admin' | 'manager' | 'user' | 'doctor' | 'caregiver' | 'viewer',
   reason?: string,
 ): Promise<AdminMutationResponse> =>
   adminRequest<AdminMutationResponse>(`/admin/users/${encodeURIComponent(userId)}/role`, {

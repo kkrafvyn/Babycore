@@ -41,7 +41,7 @@
     "cap:add:ios": "node scripts/run-capacitor.mjs add ios",
     "cap:add:android": "node scripts/run-capacitor.mjs add android",
     "generate:vapid": "web-push generate-vapid-keys",
-    "clean": "rm -rf dist node_modules"
+    "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
     "@babycore/native-wearables": "file:plugins/native-wearables",

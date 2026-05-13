@@ -317,8 +317,8 @@ describe('supabase-storage guest migration', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
-          hostname: 'babycore.vercel.app',
-          origin: 'https://babycore.vercel.app',
+          hostname: 'app.babycore.example',
+          origin: 'https://app.babycore.example',
         },
       },
       configurable: true,

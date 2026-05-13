@@ -4,6 +4,8 @@ import type { AuthRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
 import { logger } from '../../utils/logger.js';
+import { ensureDoctorAssignmentRecord } from '../utils/doctor-assignment.js';
+import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
 
 const router = Router();
 
@@ -25,27 +27,12 @@ const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() |
 
 const createInviteToken = (): string => crypto.randomBytes(24).toString('base64url');
 
-const buildClientBaseUrl = (req: AuthRequest): string => {
-  const configured = process.env.CLIENT_URL || process.env.APP_URL || process.env.VERCEL_URL || '';
-
-  if (configured) {
-    if (configured.startsWith('http://') || configured.startsWith('https://')) {
-      return configured.replace(/\/+$/, '');
-    }
-    return `https://${configured.replace(/\/+$/, '')}`;
-  }
-
-  const origin = req.get('origin');
-  if (origin) return origin.replace(/\/+$/, '');
-  return 'https://babycore.vercel.app';
-};
-
 const buildInviteLink = (
   req: AuthRequest,
   inviteToken: string,
   view: 'patients' | 'family-sharing' = 'patients',
 ): string => {
-  const inviteUrl = new URL('/login', buildClientBaseUrl(req));
+  const inviteUrl = new URL('/login', resolveClientAppBaseUrl(req));
   inviteUrl.searchParams.set('invite', inviteToken);
   inviteUrl.searchParams.set('view', view);
   return inviteUrl.toString();
@@ -223,6 +210,19 @@ const acceptInviteRecord = async (invite: any, userId: string) => {
 
   if (error) {
     throw error;
+  }
+
+  const doctorId = String(userId || '').trim();
+  const babyId = String(data?.baby_id || invite?.baby_id || '').trim();
+  const parentId = String(data?.created_by || invite?.created_by || '').trim();
+
+  if (String(data?.role || '').trim().toLowerCase() === 'doctor' && doctorId && babyId && parentId) {
+    await ensureDoctorAssignmentRecord({
+      doctorId,
+      babyId,
+      parentId,
+      assignmentReason: 'Accepted care-team doctor invite',
+    });
   }
 
   return data;

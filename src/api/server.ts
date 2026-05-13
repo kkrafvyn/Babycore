@@ -6,7 +6,7 @@
 import express, { Express, Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authMiddleware from './middleware/auth.js';
+import authMiddleware, { rateLimit } from './middleware/auth.js';
 import babiesRoutes from './routes/babies.js';
 import feedingRoutes from './routes/feeding.js';
 import sleepRoutes from './routes/sleep.js';
@@ -35,6 +35,18 @@ import managerRoutes from './routes/manager.js';
 import doctorRoutes from './routes/doctor.js';
 import careAdvancedRoutes from './routes/care-advanced.js';
 import cronRoutes from './routes/cron.js';
+import {
+  adminOverviewHandler,
+  currentRoleHandler,
+  healthCheckHandler,
+  healthConfigHandler,
+  sendEmailHandler,
+  sendInviteEmailHandler,
+  sendReportEmailHandler,
+  syncFullHandler,
+  syncSnapshotHandler,
+  voiceTranscribeHandler,
+} from './handlers/system-handlers.js';
 
 // Load baseline environment values from .env in every runtime.
 dotenv.config({ path: '.env' });
@@ -44,6 +56,11 @@ if ((process.env.NODE_ENV || 'development') !== 'production') {
 }
 
 const app: Express = express();
+const genericEmailRateLimit = rateLimit(3, '1m');
+const inviteEmailRateLimit = rateLimit(6, '1m');
+const reportEmailRateLimit = rateLimit(4, '1m');
+const syncRateLimit = rateLimit(8, '1m');
+const voiceTranscriptionRateLimit = rateLimit(12, '1m');
 
 // ==================== MIDDLEWARE ====================
 
@@ -96,9 +113,20 @@ app.get('/health', (req: Request, res: Response) => {
     version: process.env.API_VERSION || '1.0.0',
   });
 });
+app.get('/api/health', healthCheckHandler);
+app.get('/api/health/config', healthConfigHandler);
 
 // API v1 routes
 const apiRouter = express.Router();
+
+apiRouter.post('/send-email', genericEmailRateLimit, sendEmailHandler);
+apiRouter.post('/email/send-invite', inviteEmailRateLimit, sendInviteEmailHandler);
+apiRouter.post('/email/send-report', reportEmailRateLimit, sendReportEmailHandler);
+apiRouter.get('/admin/current-role', currentRoleHandler);
+apiRouter.get('/admin/overview', adminOverviewHandler);
+apiRouter.post('/sync/full', syncRateLimit, syncFullHandler);
+apiRouter.get('/sync/snapshot', syncSnapshotHandler);
+apiRouter.post('/voice/transcribe', voiceTranscriptionRateLimit, voiceTranscribeHandler);
 
 // ===== CORE FUNCTIONALITY =====
 // Baby Management

@@ -17,6 +17,7 @@ import {
   summarizeEmergencyShareUserAgent,
   type EmergencyShareSectionKey,
 } from '../../lib/emergency-share-utils.js';
+import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
 
 const router = Router();
 
@@ -48,25 +49,6 @@ const getUserProfileType = (user: any): string => {
     return profileType;
   }
   return 'baby';
-};
-
-const buildClientBaseUrl = (req: Request): string => {
-  const configured =
-    process.env.CLIENT_URL ||
-    process.env.APP_URL ||
-    process.env.VERCEL_URL ||
-    '';
-
-  if (configured) {
-    if (configured.startsWith('http://') || configured.startsWith('https://')) {
-      return configured.replace(/\/+$/, '');
-    }
-    return `https://${configured.replace(/\/+$/, '')}`;
-  }
-
-  const origin = req.get('origin');
-  if (origin) return origin.replace(/\/+$/, '');
-  return 'https://babycore.vercel.app';
 };
 
 const createEmergencyShareToken = (): string =>
@@ -297,16 +279,41 @@ const getEmergencyShareHeaderValue = (req: Request, headerName: string): string 
   return String(rawValue || '').trim();
 };
 
+const getEmergencyShareFirstHeaderValue = (req: Request, headerNames: string[]): string => {
+  for (const headerName of headerNames) {
+    const value = getEmergencyShareHeaderValue(req, headerName);
+    if (value) {
+      return value;
+    }
+  }
+
+  return '';
+};
+
 const getEmergencyShareLocationParts = (req: Request) => {
-  const countryCode =
-    getEmergencyShareHeaderValue(req, 'x-vercel-ip-country') ||
-    getEmergencyShareHeaderValue(req, 'cf-ipcountry') ||
-    '';
-  const region =
-    getEmergencyShareHeaderValue(req, 'x-vercel-ip-country-region') ||
-    getEmergencyShareHeaderValue(req, 'x-vercel-ip-region') ||
-    '';
-  const city = getEmergencyShareHeaderValue(req, 'x-vercel-ip-city') || '';
+  const countryCode = getEmergencyShareFirstHeaderValue(req, [
+    'x-country-code',
+    'x-geo-country',
+    'cf-ipcountry',
+    'cloudfront-viewer-country',
+    'x-appengine-country',
+    'x-vercel-ip-country',
+  ]);
+  const region = getEmergencyShareFirstHeaderValue(req, [
+    'x-region-code',
+    'x-region',
+    'x-geo-region',
+    'cloudfront-viewer-country-region',
+    'x-appengine-region',
+    'x-vercel-ip-country-region',
+    'x-vercel-ip-region',
+  ]);
+  const city = getEmergencyShareFirstHeaderValue(req, [
+    'x-city',
+    'x-geo-city',
+    'x-appengine-city',
+    'x-vercel-ip-city',
+  ]);
 
   return {
     countryCode: countryCode || null,
@@ -2530,7 +2537,7 @@ router.post('/emergency-card/:babyId/share-link', requireAuth, async (req: AuthR
     });
     if (insertError) throw insertError;
 
-    const baseUrl = buildClientBaseUrl(req);
+    const baseUrl = resolveClientAppBaseUrl(req);
     const shareUrl = `${baseUrl}/emergency-card/${token}`;
     const apiUrl = `${baseUrl}/api/care/public/emergency-card/${token}`;
     const qrCodeDataUrl = await QRCode.toDataURL(shareUrl);

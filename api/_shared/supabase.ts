@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getBearerToken, type VercelRequest } from './http.js';
+import { getBearerToken, type ApiAdapterRequest } from './http.js';
 
 export const createSupabaseAdminClient = () => {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -47,7 +47,7 @@ export const createSupabaseAuthClient = () => {
   });
 };
 
-export const getAuthenticatedUser = async (request: VercelRequest) => {
+export const getAuthenticatedUser = async (request: ApiAdapterRequest) => {
   const token = getBearerToken(request.headers.authorization);
   if (!token) {
     return null;

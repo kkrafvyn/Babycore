@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient, getAuthenticatedUser } from './supabase.js';
-import { type VercelRequest } from './http.js';
+import { type ApiAdapterRequest } from './http.js';
 
 export type AdminContext = {
   user: any;
@@ -18,7 +18,7 @@ export type AdminContextResult =
     };
 
 export const ensureAdminContext = async (
-  request: VercelRequest,
+  request: ApiAdapterRequest,
 ): Promise<AdminContextResult> => {
   let supabase: ReturnType<typeof createSupabaseAdminClient>;
   try {
@@ -63,7 +63,7 @@ export const ensureAdminContext = async (
   };
 };
 
-export const getQueryString = (request: VercelRequest, key: string): string => {
+export const getQueryString = (request: ApiAdapterRequest, key: string): string => {
   const value = request.query?.[key];
   if (Array.isArray(value)) {
     return String(value[0] || '').trim();
@@ -72,7 +72,7 @@ export const getQueryString = (request: VercelRequest, key: string): string => {
 };
 
 export const getQueryNumber = (
-  request: VercelRequest,
+  request: ApiAdapterRequest,
   key: string,
   fallback: number,
   min?: number,
@@ -88,7 +88,7 @@ export const getQueryNumber = (
   return value;
 };
 
-export const getPathParam = (request: VercelRequest, key: string): string => {
+export const getPathParam = (request: ApiAdapterRequest, key: string): string => {
   const direct = getQueryString(request, key);
   if (direct) return direct;
 

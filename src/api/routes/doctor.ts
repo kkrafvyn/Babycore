@@ -9,6 +9,7 @@ import { supabase } from '../utils/supabase.js';
 import { ensureBabyAccess, ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
+import { syncAcceptedDoctorInvitesForDoctor } from '../utils/doctor-assignment.js';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => 
       fullName,
       specialization,
       licenseNumber,
+      medicalBoard,
       qualification,
       clinicName,
       clinicAddress,
@@ -39,10 +41,10 @@ router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => 
       availabilityHours,
     } = req.body;
 
-    if (!fullName || !specialization || !licenseNumber) {
+    if (!fullName || !specialization || !licenseNumber || !qualification) {
       return res.status(400).json({
         success: false,
-        error: 'Full name, specialization, and license number are required',
+        error: 'Full name, specialization, qualification, and license number are required',
       });
     }
 
@@ -54,6 +56,7 @@ router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => 
           full_name: fullName,
           specialization,
           license_number: licenseNumber,
+          medical_board: medicalBoard,
           qualification,
           clinic_name: clinicName,
           clinic_address: clinicAddress,
@@ -72,12 +75,19 @@ router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => 
 
     if (error) throw error;
 
+    const linkedInviteCount = userId
+      ? await syncAcceptedDoctorInvitesForDoctor(String(userId), String(req.user?.email || ''))
+      : 0;
+
     logger.info('Doctor profile created/updated', 'DOCTOR', { userId });
 
     res.json({
       success: true,
       data: profile,
-      message: 'Doctor profile saved successfully',
+      message:
+        linkedInviteCount > 0
+          ? `Doctor profile saved successfully and ${linkedInviteCount} patient assignment(s) were activated`
+          : 'Doctor profile saved successfully',
     });
   } catch (error) {
     logger.error('Failed to save doctor profile', error as Error, 'DOCTOR');
@@ -201,10 +211,51 @@ router.get('/babies', requireAuth, async (req: AuthRequest, res: Response) => {
 
     if (error) throw error;
 
+    const babyIds = Array.from(
+      new Set(
+        (assignments || [])
+          .map((assignment: any) => String(assignment?.baby_id || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const { data: babyRows, error: babyError } = babyIds.length
+      ? await supabase
+          .from('babies')
+          .select('id,name,date_of_birth,gender,photo_url,country,created_at')
+          .in('id', babyIds)
+      : { data: [], error: null };
+
+    if (babyError) throw babyError;
+
+    const babiesById = new Map<string, any>();
+    for (const row of babyRows || []) {
+      babiesById.set(String(row.id), row);
+    }
+
+    const enrichedAssignments = (assignments || []).map((assignment: any) => {
+      const babyId = String(assignment?.baby_id || '');
+      const baby = babiesById.get(babyId);
+
+      return {
+        babyId,
+        babyName: baby?.name || assignment?.baby_name || `Baby ${babyId.slice(0, 8)}`,
+        babyDateOfBirth: baby?.date_of_birth || null,
+        babyGender: baby?.gender || 'other',
+        babyPhotoUrl: baby?.photo_url || null,
+        babyCountry: baby?.country || 'US',
+        babyCreatedAt: baby?.created_at || null,
+        parentId: assignment?.parent_id || null,
+        parentEmail: assignment?.parent_email || null,
+        status: assignment?.status || 'active',
+        assignmentReason: assignment?.assignment_reason || null,
+      };
+    });
+
     res.json({
       success: true,
-      data: assignments || [],
-      count: (assignments || []).length,
+      data: enrichedAssignments,
+      count: enrichedAssignments.length,
     });
   } catch (error) {
     logger.error('Failed to fetch doctor babies', error as Error, 'DOCTOR');
@@ -802,33 +853,30 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
   try {
     const doctorId = req.user?.id;
 
-    // Get patient count
-    const { data: patientCount, error: e1 } = await supabase
-      .rpc('get_doctor_patient_count', { doctor_user_id: doctorId });
+    const [{ data: patientCount, error: patientCountError }, { data: appointments, error: appointmentsError }, { data: recentDiagnoses, error: diagnosisError }] =
+      await Promise.all([
+        supabase.rpc('get_doctor_patient_count', { doctor_user_id: doctorId }),
+        supabase.rpc('get_doctor_upcoming_appointments', {
+          doctor_user_id: doctorId,
+          days_ahead: 14,
+        }),
+        supabase
+          .from('diagnoses')
+          .select('*')
+          .eq('doctor_id', doctorId)
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ]);
 
-    // Get upcoming appointments
-    const { data: upcomingAppointments } = await supabase
-      .from('appointment_reminders')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .eq('status', 'pending')
-      .lte('scheduled_date', new Date().toISOString())
-      .order('scheduled_date', { ascending: true })
-      .limit(5);
-
-    // Get recent diagnoses
-    const { data: recentDiagnoses } = await supabase
-      .from('diagnoses')
-      .select('*')
-      .eq('doctor_id', doctorId)
-      .order('created_at', { ascending: false })
-      .limit(10);
+    if (patientCountError) throw patientCountError;
+    if (appointmentsError) throw appointmentsError;
+    if (diagnosisError) throw diagnosisError;
 
     res.json({
       success: true,
       data: {
         patientCount: patientCount || 0,
-        upcomingAppointments: upcomingAppointments || [],
+        upcomingAppointments: (appointments || []).slice(0, 5),
         recentDiagnoses: recentDiagnoses || [],
       },
     });

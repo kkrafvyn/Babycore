@@ -2,26 +2,17 @@ import type { Request, Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { supabase } from '../utils/supabase.js';
-import { createSupabaseAdminClient } from '../../../api/_shared/supabase.js';
-import { applyFullSync, buildSyncSnapshot } from '../../../api/_shared/sync-data.js';
+import { applyFullSync, buildSyncSnapshot } from '../utils/sync-data.js';
+import { resolveFallbackRoleFromUser } from '../utils/effective-role.js';
+import { getRoleDistribution } from '../utils/role-manager.js';
+import { ensureRecordBabyAccess } from '../utils/baby-access.js';
+import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
 
 const isTruthy = (value: string | undefined): boolean => Boolean(value && value.trim().length > 0);
 
-const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
-
-const normalizeAdminEmail = (value?: string): string => value?.trim().toLowerCase() || '';
-
-const normalizeRole = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  return normalized || null;
-};
-
-const getFallbackUserRole = (user: any, requestRole?: string): string =>
-  normalizeRole(requestRole) ||
-  normalizeRole(user?.app_metadata?.role) ||
-  normalizeRole(user?.user_metadata?.role) ||
-  (MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user');
+const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
+const INVITE_ROLES = new Set(['editor', 'viewer', 'caregiver', 'doctor']);
+const INVITE_VIEWS = new Set(['patients', 'family-sharing']);
 
 const isLikelyPlaceholder = (value: string | undefined): boolean => {
   if (!value) return true;
@@ -46,6 +37,36 @@ const isLocalUrl = (value: string | undefined): boolean => {
     return false;
   }
 };
+
+const isTrueEnvFlag = (value: string | undefined): boolean =>
+  TRUE_VALUES.has(String(value || '').trim().toLowerCase());
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const normalizeEmail = (value: unknown): string => String(value || '').trim().toLowerCase();
+
+const isValidEmail = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+
+const buildInviteLink = (
+  req: Pick<Request, 'get' | 'headers'> & Partial<Pick<Request, 'protocol'>>,
+  inviteToken: string,
+  view: 'patients' | 'family-sharing',
+): string => {
+  const inviteUrl = new URL('/login', resolveClientAppBaseUrl(req));
+  inviteUrl.searchParams.set('invite', inviteToken);
+  inviteUrl.searchParams.set('view', view);
+  return inviteUrl.toString();
+};
+
+const isGenericEmailEndpointEnabled = (): boolean =>
+  isTrueEnvFlag(process.env.ENABLE_GENERIC_EMAIL_ENDPOINT);
 
 const hasSupabasePublishableKey = (): boolean =>
   isTruthy(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) || isTruthy(process.env.VITE_SUPABASE_ANON_KEY);
@@ -365,6 +386,23 @@ export function healthConfigHandler(_req: Request, res: Response): void {
   const missingCritical = criticalCheckKeys.filter((key) => !checks[key]);
   const missingRecommended = recommendedCheckKeys.filter((key) => !checks[key]);
 
+  const shouldExposeDetails =
+    (process.env.NODE_ENV || 'development') !== 'production' ||
+    isTrueEnvFlag(process.env.EXPOSE_HEALTH_CONFIG_DETAILS);
+
+  if (!shouldExposeDetails) {
+    res.status(200).json({
+      success: true,
+      ready: missingCritical.length === 0,
+      checks: {
+        redacted: true,
+      },
+      missingCriticalCount: missingCritical.length,
+      missingRecommendedCount: missingRecommended.length,
+    });
+    return;
+  }
+
   res.status(200).json({
     success: true,
     ready: missingCritical.length === 0,
@@ -384,13 +422,41 @@ export function healthConfigHandler(_req: Request, res: Response): void {
 export async function sendEmailHandler(req: AuthRequest, res: Response): Promise<void> {
   if (!requireUser(req, res)) return;
 
-  const to = String(req.body?.to || '').trim();
+  if (!isGenericEmailEndpointEnabled()) {
+    res.status(410).json({
+      success: false,
+      error: 'Generic email endpoint is disabled. Use a dedicated email workflow.',
+    });
+    return;
+  }
+
+  if (req.userRole !== 'admin') {
+    res.status(403).json({ success: false, error: 'Admin role required' });
+    return;
+  }
+
+  const to = normalizeEmail(req.body?.to);
   const subject = String(req.body?.subject || '').trim();
   const html = String(req.body?.html || '').trim();
   const from = typeof req.body?.from === 'string' ? req.body.from : undefined;
 
   if (!to || !subject || !html) {
     res.status(400).json({ success: false, error: 'Missing to/subject/html' });
+    return;
+  }
+
+  if (!isValidEmail(to)) {
+    res.status(400).json({ success: false, error: 'Invalid recipient email address' });
+    return;
+  }
+
+  if (from && !isValidEmail(from)) {
+    res.status(400).json({ success: false, error: 'Invalid sender email address' });
+    return;
+  }
+
+  if (subject.length > 200 || html.length > 100_000) {
+    res.status(400).json({ success: false, error: 'Email payload exceeds allowed limits' });
     return;
   }
 
@@ -417,37 +483,100 @@ export async function sendEmailHandler(req: AuthRequest, res: Response): Promise
 export async function sendInviteEmailHandler(req: AuthRequest, res: Response): Promise<void> {
   if (!requireUser(req, res)) return;
 
-  const recipientEmail = String(req.body?.recipient_email || '').trim();
-  const inviteLink = String(req.body?.invite_link || '').trim();
-  const role = String(req.body?.role || 'caregiver').trim();
-  const babyId = String(req.body?.baby_id || '').trim();
+  const inviteToken = String(req.body?.invite_token || '').trim();
+  const requestedView = String(req.body?.view || req.body?.invite_view || 'patients')
+    .trim()
+    .toLowerCase();
+  const view = INVITE_VIEWS.has(requestedView) ? (requestedView as 'patients' | 'family-sharing') : 'patients';
+  const providedRecipientEmail = normalizeEmail(req.body?.recipient_email);
 
-  if (!recipientEmail || !inviteLink) {
-    res.status(400).json({ success: false, error: 'Missing recipient_email or invite_link' });
+  if (!inviteToken) {
+    res.status(400).json({ success: false, error: 'Missing invite_token' });
     return;
   }
 
-  const subject = `BabyCore invite: ${role}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
-      <h2 style="margin-bottom: 12px;">You have been invited to BabyCore</h2>
-      <p>You were invited as <strong>${role}</strong>${babyId ? ` for baby ID <strong>${babyId}</strong>` : ''}.</p>
-      <p>Click the button below to accept:</p>
-      <p style="margin: 24px 0;">
-        <a href="${inviteLink}" style="display:inline-block;padding:12px 18px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:8px;">
-          Accept Invite
-        </a>
-      </p>
-      <p style="color:#555;">If the button does not work, open this link:</p>
-      <p style="word-break: break-all; color:#1f6feb;">${inviteLink}</p>
-    </div>
-  `.trim();
-
   try {
+    const { data: invite, error } = await supabase
+      .from('family_sharing_invites')
+      .select(
+        'id, invited_email, invited_name, role, invite_token, created_by, expires_at, is_public_link, baby_name_snapshot',
+      )
+      .eq('invite_token', inviteToken)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!invite) {
+      res.status(404).json({ success: false, error: 'Invite not found' });
+      return;
+    }
+
+    if (String(invite.created_by || '').trim() !== String(req.user.id || '').trim() && req.userRole !== 'admin') {
+      res.status(403).json({ success: false, error: 'You cannot send email for this invite' });
+      return;
+    }
+
+    if (invite.is_public_link) {
+      res.status(400).json({ success: false, error: 'Public invite links do not support email delivery' });
+      return;
+    }
+
+    if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+      res.status(400).json({ success: false, error: 'Invite has expired' });
+      return;
+    }
+
+    const recipientEmail = normalizeEmail(invite.invited_email);
+    if (!recipientEmail || !isValidEmail(recipientEmail)) {
+      res.status(400).json({ success: false, error: 'Invite is missing a valid recipient email' });
+      return;
+    }
+
+    if (providedRecipientEmail && providedRecipientEmail !== recipientEmail) {
+      res.status(400).json({
+        success: false,
+        error: 'recipient_email does not match the stored invite recipient',
+      });
+      return;
+    }
+
+    const normalizedRole = String(invite.role || '').trim().toLowerCase();
+    const role = INVITE_ROLES.has(normalizedRole) ? normalizedRole : 'caregiver';
+    const inviteLink = buildInviteLink(req, inviteToken, view);
+    const safeRoleLabel = escapeHtml(role);
+    const safeInviteLink = escapeHtml(inviteLink);
+    const safeBabyName = String(invite.baby_name_snapshot || '').trim();
+    const safeRecipientName = String(invite.invited_name || '').trim();
+    const subject = `BabyCore invite: ${role}`;
+    const introCopy = safeBabyName
+      ? `You were invited as <strong>${safeRoleLabel}</strong> to help care for <strong>${escapeHtml(safeBabyName)}</strong>.`
+      : `You were invited as <strong>${safeRoleLabel}</strong> to BabyCore.`;
+    const greeting = safeRecipientName ? `<p>Hi ${escapeHtml(safeRecipientName)},</p>` : '';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
+        <h2 style="margin-bottom: 12px;">You have been invited to BabyCore</h2>
+        ${greeting}
+        <p>${introCopy}</p>
+        <p>Click the button below to accept:</p>
+        <p style="margin: 24px 0;">
+          <a href="${safeInviteLink}" style="display:inline-block;padding:12px 18px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:8px;">
+            Accept Invite
+          </a>
+        </p>
+        <p style="color:#555;">If the button does not work, open this link:</p>
+        <p style="word-break: break-all; color:#1f6feb;">${safeInviteLink}</p>
+      </div>
+    `.trim();
+    const text = [
+      'You have been invited to BabyCore.',
+      safeBabyName ? `Role: ${role} for ${safeBabyName}` : `Role: ${role}`,
+      `Accept invite: ${inviteLink}`,
+    ].join('\n');
+
     const result = await sendTransactionalEmail({
       to: recipientEmail,
       subject,
       html,
+      text,
     });
 
     res.status(200).json({
@@ -466,74 +595,25 @@ export async function sendInviteEmailHandler(req: AuthRequest, res: Response): P
 export async function sendReportEmailHandler(req: AuthRequest, res: Response): Promise<void> {
   if (!requireUser(req, res)) return;
 
-  const recipientEmail = String(req.body?.recipient_email || '').trim();
-  const babyName = String(req.body?.baby_name || 'Baby').trim();
-  const reportUrl = String(req.body?.report_url || '').trim();
-  const reportType = String(req.body?.report_type || 'health_summary').trim();
-
-  if (!recipientEmail || !reportUrl) {
-    res.status(400).json({ success: false, error: 'Missing recipient_email or report_url' });
-    return;
-  }
-
-  const subject = `${babyName} ${reportType.replace(/_/g, ' ')} report`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
-      <h2 style="margin-bottom: 12px;">${babyName}'s report is ready</h2>
-      <p>Report type: <strong>${reportType.replace(/_/g, ' ')}</strong></p>
-      <p style="margin: 24px 0;">
-        <a href="${reportUrl}" style="display:inline-block;padding:12px 18px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:8px;">
-          Open Report
-        </a>
-      </p>
-      <p style="color:#555;">If the button does not work, open this link:</p>
-      <p style="word-break: break-all; color:#1f6feb;">${reportUrl}</p>
-    </div>
-  `.trim();
-
-  try {
-    const result = await sendTransactionalEmail({
-      to: recipientEmail,
-      subject,
-      html,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Report email processed',
-      result,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: error?.message || 'Failed to send report email',
-    });
-  }
+  res.status(410).json({
+    success: false,
+    error: 'Deprecated endpoint. Use /api/reports/email so report links are generated server-side.',
+  });
 }
 
 export async function currentRoleHandler(req: AuthRequest, res: Response): Promise<void> {
   if (!requireUser(req, res)) return;
 
   try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', req.user.id)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
     res.status(200).json({
       success: true,
-      role: data?.role || getFallbackUserRole(req.user, req.userRole),
+      role: req.userRole || resolveFallbackRoleFromUser(req.user),
     });
   } catch (error) {
     console.error('Failed to load current user role:', error);
     res.status(200).json({
       success: true,
-      role: getFallbackUserRole(req.user, req.userRole),
+      role: req.userRole || resolveFallbackRoleFromUser(req.user),
     });
   }
 }
@@ -551,24 +631,7 @@ export async function adminOverviewHandler(req: AuthRequest, res: Response): Pro
   );
   const counts = Object.fromEntries(countResults) as Record<string, number>;
 
-  const roleDistribution = await (async () => {
-    try {
-      const { data, error } = await supabase.from('user_roles').select('role');
-      if (error || !data) return [];
-
-      const rollup = data.reduce<Record<string, number>>((acc, row) => {
-        const role = (row as any).role || 'unknown';
-        acc[role] = (acc[role] || 0) + 1;
-        return acc;
-      }, {});
-
-      return Object.entries(rollup)
-        .map(([role, count]) => ({ role, count }))
-        .sort((a, b) => b.count - a.count);
-    } catch {
-      return [];
-    }
-  })();
+  const roleDistribution = await getRoleDistribution().catch(() => []);
 
   const recentResults = await Promise.all(
     RECENT_TABLES.map(async (table) => [table, await fetchRecentRows(table)] as const),
@@ -593,8 +656,7 @@ export async function syncFullHandler(req: AuthRequest, res: Response): Promise<
     const localData =
       req.body?.localData && typeof req.body.localData === 'object' ? req.body.localData : req.body;
 
-    const supabaseAdmin = createSupabaseAdminClient();
-    const result = await applyFullSync(supabaseAdmin, req.user, localData);
+    const result = await applyFullSync(supabase, req.user, localData);
 
     res.status(result.success ? 200 : 500).json({
       success: result.success,
@@ -613,8 +675,7 @@ export async function syncSnapshotHandler(req: AuthRequest, res: Response): Prom
   if (!requireUser(req, res)) return;
 
   try {
-    const supabaseAdmin = createSupabaseAdminClient();
-    const snapshot = await buildSyncSnapshot(supabaseAdmin, req.user);
+    const snapshot = await buildSyncSnapshot(supabase, req.user);
     res.status(200).json({ success: true, snapshot });
   } catch (error) {
     console.error('Failed to build sync snapshot:', error);
@@ -629,33 +690,41 @@ export async function voiceTranscribeHandler(req: AuthRequest, res: Response): P
   if (!requireUser(req, res)) return;
 
   const voiceLogId = String(req.body?.voice_log_id || req.body?.voiceLogId || '').trim();
-  const audioUrl = String(req.body?.audio_url || '').trim() || undefined;
   if (!voiceLogId) {
     res.status(400).json({ success: false, error: 'Missing voice_log_id' });
     return;
   }
 
   try {
-    const supabaseAdmin = createSupabaseAdminClient();
-
-    const { data: voiceLog, error: fetchError } = await supabaseAdmin
-      .from('voice_logs')
-      .select('id, transcription, audio_url, storage_key')
-      .eq('id', voiceLogId)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
-    if (!voiceLog) {
-      res.status(404).json({ success: false, error: 'Voice log not found' });
-      return;
-    }
+    const voiceLog = await ensureRecordBabyAccess<{
+      id: string;
+      baby_id: string;
+      transcription?: string | null;
+      audio_url?: string | null;
+      storage_key?: string | null;
+      storage_url?: string | null;
+    }>(req, res, {
+      table: 'voice_logs',
+      idValue: voiceLogId,
+      select: 'id,baby_id,transcription,audio_url,storage_key,storage_url',
+      write: true,
+      missingMessage: 'Voice log not found',
+      forbiddenMessage: 'You do not have permission to transcribe this voice log',
+    });
+    if (!voiceLog) return;
 
     if (voiceLog.transcription) {
       res.status(200).json({ success: true, transcription: voiceLog.transcription });
       return;
     }
 
-    const storagePath = extractStoragePath(audioUrl || voiceLog.audio_url, voiceLog.storage_key);
+    const storagePath =
+      extractStoragePath(
+        String(voiceLog.audio_url || voiceLog.storage_url || ''),
+        voiceLog.storage_key || undefined,
+      ) ||
+      String(voiceLog.storage_key || '').trim() ||
+      null;
     if (!storagePath) {
       res.status(200).json({
         success: true,
@@ -665,7 +734,7 @@ export async function voiceTranscribeHandler(req: AuthRequest, res: Response): P
       return;
     }
 
-    const { data: audioBlob, error: downloadError } = await supabaseAdmin.storage
+    const { data: audioBlob, error: downloadError } = await supabase.storage
       .from('voice-logs')
       .download(storagePath);
 
@@ -675,7 +744,7 @@ export async function voiceTranscribeHandler(req: AuthRequest, res: Response): P
     const transcription = await transcribeAudio(audioBuffer);
 
     if (transcription) {
-      await supabaseAdmin.from('voice_logs').update({ transcription }).eq('id', voiceLogId);
+      await supabase.from('voice_logs').update({ transcription }).eq('id', voiceLogId);
     }
 
     res.status(200).json({ success: true, transcription });

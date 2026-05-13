@@ -5,26 +5,14 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabase.js';
+import { resolveEffectiveRoleForUser, resolveFallbackRoleFromUser } from '../utils/effective-role.js';
 
 export interface AuthRequest extends Request {
   user?: any;
   userRole?: string;
 }
 
-const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
-
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
-
-const normalizeRole = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  return normalized || null;
-};
-
-const getFallbackUserRole = (user: any): string =>
-  normalizeRole(user?.app_metadata?.role) ||
-  normalizeRole(user?.user_metadata?.role) ||
-  (MAIN_ADMIN_EMAILS.has(normalizeEmail(user?.email)) ? 'admin' : 'user');
 
 /**
  * Main authentication middleware
@@ -67,14 +55,12 @@ export default async function authMiddleware(
       // Attach user to request
       req.user = user;
 
-      // Get user role for RBAC
-      const { data: userRole } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      req.userRole = userRole?.role || getFallbackUserRole(user);
+      try {
+        req.userRole = await resolveEffectiveRoleForUser(user);
+      } catch (roleError) {
+        console.warn('Falling back to default user role after role lookup failed:', roleError);
+        req.userRole = resolveFallbackRoleFromUser(user);
+      }
 
       next();
     } catch (tokenError) {
@@ -99,7 +85,9 @@ export default async function authMiddleware(
 function isPublicEndpoint(path: string): boolean {
   const publicEndpoints = [
     '/health',
+    '/health/config',
     '/api/health',
+    '/api/health/config',
     '/payments/pricing',
     '/api/payments/pricing',
     '/payments/webhook/paystack',

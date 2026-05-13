@@ -17,15 +17,20 @@ vi.mock('./supabase', () => ({
   },
 }));
 
-vi.mock('./cloud-sync-mappers', () => ({
-  fromHealthLogCloudRow: (value: any) => value,
-  fromUserSettingsCloudRow: (value: any) => value,
-  toHealthLogCloudRow: (value: any) => value,
-  toUserSettingsCloudRow: (userId: string, value: any) => ({
-    ...value,
-    user_id: userId,
-  }),
-}));
+vi.mock('./cloud-sync-mappers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./cloud-sync-mappers')>();
+
+  return {
+    ...actual,
+    fromHealthLogCloudRow: (value: any) => value,
+    fromUserSettingsCloudRow: (value: any) => value,
+    toHealthLogCloudRow: (value: any) => value,
+    toUserSettingsCloudRow: (userId: string, value: any) => ({
+      ...value,
+      user_id: userId,
+    }),
+  };
+});
 
 import { getSyncStatus, performFullSync } from './cloud-sync-service';
 

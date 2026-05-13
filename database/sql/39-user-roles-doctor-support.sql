@@ -1,0 +1,13 @@
+ALTER TABLE public.user_roles
+  DROP CONSTRAINT IF EXISTS user_roles_role_check;
+
+ALTER TABLE public.user_roles
+  ADD CONSTRAINT user_roles_role_check
+  CHECK (role IN ('admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'));
+
+ALTER TABLE public.role_assignment_logs
+  DROP CONSTRAINT IF EXISTS role_assignment_logs_new_role_check;
+
+ALTER TABLE public.role_assignment_logs
+  ADD CONSTRAINT role_assignment_logs_new_role_check
+  CHECK (new_role IN ('admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'));

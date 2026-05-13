@@ -46,7 +46,7 @@ const APP_URL =
   getEnv('VITE_APP_URL') ||
   getEnv('CLIENT_URL') ||
   getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL') ||
-  'https://babycore.vercel.app';
+  'https://app.example.com';
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');
 const hasValue = (value) => toStringValue(value).length > 0;
@@ -307,7 +307,7 @@ const nativeChecks = [
         !isPlaceholder(getEnv('VITE_NATIVE_API_BASE_URL')) &&
         isHostedUrl(getEnv('VITE_NATIVE_API_BASE_URL'))),
     help:
-      'Set VITE_NATIVE_API_BASE_URL to a hosted API root such as https://babycore.vercel.app/api because this Capacitor app bundles local web assets.',
+      'Set VITE_NATIVE_API_BASE_URL to a hosted API root such as https://app.example.com/api because this Capacitor app bundles local web assets.',
   },
   {
     key: 'ANDROID_RELEASE_SIGNING',

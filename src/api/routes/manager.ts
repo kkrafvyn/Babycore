@@ -6,7 +6,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, requireRole } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
-import { requirePermission } from '../utils/role-manager.js';
+import { getRoleStatistics, requirePermission } from '../utils/role-manager.js';
 import { logger } from '../../utils/logger.js';
 
 const router = Router();
@@ -21,27 +21,7 @@ const router = Router();
  */
 router.get('/dashboard', requireRole('manager'), async (req: AuthRequest, res: Response) => {
   try {
-    // Get role statistics
-    const { data: roleStats, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role', { count: 'exact' });
-
-    if (roleError) throw roleError;
-
-    const stats = {
-      admin: 0,
-      manager: 0,
-      user: 0,
-      caregiver: 0,
-      viewer: 0,
-    };
-
-    roleStats?.forEach((record: any) => {
-      const role = String(record.role) as keyof typeof stats;
-      if (role in stats) {
-        stats[role] += 1;
-      }
-    });
+    const stats = await getRoleStatistics();
 
     // Get recent activity
     const { data: recentActivity, error: activityError } = await supabase

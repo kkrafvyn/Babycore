@@ -1,5 +1,11 @@
-import { parseRequestBody, setCommonHeaders, type VercelRequest, type VercelResponse } from './http.js';
+import {
+  parseRequestBody,
+  setCommonHeaders,
+  type ApiAdapterRequest,
+  type ApiAdapterResponse,
+} from './http.js';
 import { createSupabaseAdminClient, getAuthenticatedUser } from './supabase.js';
+import { resolveEffectiveRoleForUser, resolveFallbackRoleFromUser } from '../../src/api/utils/effective-role.js';
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -8,28 +14,13 @@ type RouterLike = {
 };
 
 type RunExpressRouterOptions = {
-  request: VercelRequest;
-  response: VercelResponse;
+  request: ApiAdapterRequest;
+  response: ApiAdapterResponse;
   router: RouterLike;
   mountPath: string;
   methods: RequestMethod[];
   requireAuth?: boolean;
 };
-
-const MAIN_ADMIN_EMAILS = new Set(['ponk3020@gmail.com']);
-
-const normalizeAdminEmail = (value?: string): string => value?.trim().toLowerCase() || '';
-
-const normalizeRole = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  return normalized || null;
-};
-
-const getFallbackUserRole = (user: any): string =>
-  normalizeRole(user?.app_metadata?.role) ||
-  normalizeRole(user?.user_metadata?.role) ||
-  (MAIN_ADMIN_EMAILS.has(normalizeAdminEmail(user?.email)) ? 'admin' : 'user');
 
 const normalizeMountPath = (input: string): string => {
   const normalized = input.trim();
@@ -37,7 +28,7 @@ const normalizeMountPath = (input: string): string => {
   return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
 };
 
-const resolveRequestUrl = (request: VercelRequest) => {
+const resolveRequestUrl = (request: ApiAdapterRequest) => {
   const rawUrl = String(request.url || '/');
   try {
     return new URL(rawUrl, 'http://localhost');
@@ -59,7 +50,7 @@ const getRelativeRouterUrl = (requestUrl: URL, mountPath: string): string => {
   return `${relativePath}${requestUrl.search}`;
 };
 
-const getRequestMethod = (request: VercelRequest): string =>
+const getRequestMethod = (request: ApiAdapterRequest): string =>
   String(request.method || '').toUpperCase();
 
 export const runExpressRouter = async ({
@@ -103,18 +94,12 @@ export const runExpressRouter = async ({
     }
 
     reqAny.user = user;
-    const fallbackUserRole = getFallbackUserRole(user);
 
     try {
-      const supabase = createSupabaseAdminClient();
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      reqAny.userRole = roleData?.role || fallbackUserRole;
+      createSupabaseAdminClient();
+      reqAny.userRole = await resolveEffectiveRoleForUser(user);
     } catch {
-      reqAny.userRole = reqAny.userRole || fallbackUserRole;
+      reqAny.userRole = reqAny.userRole || resolveFallbackRoleFromUser(user);
     }
   }
 

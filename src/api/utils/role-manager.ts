@@ -1,8 +1,15 @@
-import { Request, Response } from 'express';
-import { supabase } from '../utils/supabase.js';
-import { AuthRequest } from '../middleware/auth.js';
+import type { Response } from 'express';
+import { supabase } from './supabase.js';
+import type { AuthRequest } from '../middleware/auth.js';
+import {
+  USER_ROLE_VALUES,
+  enrichAuthUsersWithEffectiveRoles,
+  getEffectiveRoleForUserId,
+  listAllAuthUsers,
+  type UserRole,
+} from './effective-role.js';
 
-export type UserRole = 'admin' | 'manager' | 'user' | 'caregiver' | 'viewer';
+export type { UserRole } from './effective-role.js';
 
 export interface RolePermissions {
   canManageUsers: boolean;
@@ -14,7 +21,6 @@ export interface RolePermissions {
   canModerateContent: boolean;
 }
 
-// Role-based permissions matrix
 const rolePermissions: Record<UserRole, RolePermissions> = {
   admin: {
     canManageUsers: true,
@@ -33,6 +39,15 @@ const rolePermissions: Record<UserRole, RolePermissions> = {
     canAccessPayments: true,
     canAccessReports: true,
     canModerateContent: true,
+  },
+  doctor: {
+    canManageUsers: false,
+    canManageRoles: false,
+    canViewAnalytics: false,
+    canDeleteData: false,
+    canAccessPayments: false,
+    canAccessReports: true,
+    canModerateContent: false,
   },
   user: {
     canManageUsers: false,
@@ -63,22 +78,19 @@ const rolePermissions: Record<UserRole, RolePermissions> = {
   },
 };
 
-// Get permissions for a role
 export function getPermissions(role: UserRole): RolePermissions {
   return rolePermissions[role] || rolePermissions.user;
 }
 
-// Check if user has permission
 export function hasPermission(role: UserRole, permission: keyof RolePermissions): boolean {
   const perms = getPermissions(role);
   return perms[permission] || false;
 }
 
-// Middleware factory for permission checks
 export function requirePermission(permission: keyof RolePermissions) {
   return (req: AuthRequest, res: Response, next: any) => {
     const role = (req.userRole || 'user') as UserRole;
-    
+
     if (!hasPermission(role, permission)) {
       return res.status(403).json({
         error: 'Insufficient permissions',
@@ -91,54 +103,53 @@ export function requirePermission(permission: keyof RolePermissions) {
   };
 }
 
-/**
- * Assign role to user (Admin only)
- */
 export async function assignRoleToUser(
   userId: string,
   role: UserRole,
-  assignedBy: string
+  assignedBy: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if user exists
-    const { data: user, error: userError } = await supabase
+    const { data: existingRole, error: fetchError } = await supabase
       .from('user_roles')
       .select('id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (userError && userError.code !== 'PGRST116') {
-      return { success: false, error: 'Failed to check user' };
+    if (fetchError) {
+      return { success: false, error: fetchError.message || 'Failed to check current role' };
     }
 
-    if (user) {
-      // Update existing role
+    const now = new Date().toISOString();
+
+    if (existingRole?.id) {
       const { error: updateError } = await supabase
         .from('user_roles')
         .update({
           role,
-          updated_at: new Date().toISOString(),
+          assigned_by: assignedBy,
+          assigned_at: now,
+          updated_at: now,
         })
         .eq('user_id', userId);
 
       if (updateError) {
         return { success: false, error: updateError.message };
       }
-    } else {
-      // Insert new role
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: userId,
-          role,
-          assigned_by: assignedBy,
-          assigned_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
 
-      if (insertError) {
-        return { success: false, error: insertError.message };
-      }
+      return { success: true };
+    }
+
+    const { error: insertError } = await supabase.from('user_roles').insert({
+      user_id: userId,
+      role,
+      assigned_by: assignedBy,
+      assigned_at: now,
+      updated_at: now,
+      created_at: now,
+    });
+
+    if (insertError) {
+      return { success: false, error: insertError.message };
     }
 
     return { success: true };
@@ -147,139 +158,98 @@ export async function assignRoleToUser(
   }
 }
 
-/**
- * Get user role
- */
 export async function getUserRole(userId: string): Promise<UserRole> {
   try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-
-    if (error || !data) {
-      return 'user';
-    }
-
-    return data.role as UserRole;
-  } catch (error) {
+    return await getEffectiveRoleForUserId(userId);
+  } catch {
     return 'user';
   }
 }
 
-/**
- * List all users with their roles (Admin only)
- */
-export async function listUsersWithRoles(limit = 50, offset = 0) {
-  try {
-    const { data, error, count } = await supabase
-      .from('user_roles')
-      .select(
-        `
-        id,
-        user_id,
-        role,
-        assigned_at,
-        assigned_by
-      `,
-        { count: 'exact' }
+export async function listUsersWithRoles(limit = 50, offset = 0, search = '') {
+  const authUsers = await listAllAuthUsers();
+  const enrichedUsers = await enrichAuthUsersWithEffectiveRoles(authUsers);
+  const normalizedQuery = String(search || '').trim().toLowerCase();
+
+  const filteredUsers = normalizedQuery
+    ? enrichedUsers.filter((user) =>
+        `${user.name} ${user.email} ${user.phone || ''} ${user.role} ${user.profileType || ''}`
+          .toLowerCase()
+          .includes(normalizedQuery),
       )
-      .range(offset, offset + limit - 1);
+    : enrichedUsers;
 
-    if (error) {
-      throw error;
-    }
+  const users = filteredUsers.slice(offset, offset + limit);
 
-    return {
-      users: data,
-      total: count,
-      limit,
-      offset,
-    };
-  } catch (error) {
-    throw error;
-  }
+  return {
+    users,
+    total: filteredUsers.length,
+    limit,
+    offset,
+    page: limit > 0 ? Math.floor(offset / limit) + 1 : 1,
+    hasMore: offset + users.length < filteredUsers.length,
+  };
 }
 
-/**
- * Get role statistics (Admin only)
- */
-export async function getRoleStatistics() {
-  try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role', { count: 'exact' });
+export async function getRoleStatistics(): Promise<Record<UserRole, number>> {
+  const authUsers = await listAllAuthUsers();
+  const enrichedUsers = await enrichAuthUsersWithEffectiveRoles(authUsers);
+  const stats = Object.fromEntries(USER_ROLE_VALUES.map((role) => [role, 0])) as Record<UserRole, number>;
 
-    if (error) {
-      throw error;
-    }
-
-    const stats = {
-      admin: 0,
-      manager: 0,
-      user: 0,
-      caregiver: 0,
-      viewer: 0,
-    };
-
-    data?.forEach((record: any) => {
-      const role = record.role as UserRole;
-      if (role in stats) {
-        stats[role]++;
-      }
-    });
-
-    return stats;
-  } catch (error) {
-    throw error;
+  for (const user of enrichedUsers) {
+    stats[user.role] = (stats[user.role] || 0) + 1;
   }
+
+  return stats;
 }
 
-/**
- * Promote user to manager or admin
- */
-export async function promoteUser(userId: string, newRole: 'manager' | 'admin', promotedBy: string) {
+export async function getRoleDistribution(): Promise<Array<{ role: UserRole; count: number }>> {
+  const stats = await getRoleStatistics();
+
+  return Object.entries(stats)
+    .map(([role, count]) => ({
+      role: role as UserRole,
+      count,
+    }))
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => right.count - left.count);
+}
+
+export async function promoteUser(
+  userId: string,
+  newRole: 'manager' | 'admin',
+  promotedBy: string,
+) {
   try {
-    // Can only promote to manager or admin
     if (!['manager', 'admin'].includes(newRole)) {
       return { success: false, error: 'Invalid promotion role' };
     }
 
-    // Check current role
     const currentRole = await getUserRole(userId);
     if (currentRole === 'admin' && newRole === 'manager') {
       return { success: false, error: 'Cannot demote an admin' };
     }
 
-    const result = await assignRoleToUser(userId, newRole, promotedBy);
-    return result;
+    return assignRoleToUser(userId, newRole, promotedBy);
   } catch (error) {
     return { success: false, error: String(error) };
   }
 }
 
-/**
- * Demote user back to regular user
- */
 export async function demoteUser(userId: string, demotedBy: string) {
   try {
-    const result = await assignRoleToUser(userId, 'user', demotedBy);
-    return result;
+    return assignRoleToUser(userId, 'user', demotedBy);
   } catch (error) {
     return { success: false, error: String(error) };
   }
 }
 
-/**
- * Log role assignment for audit purposes
- */
 export async function logRoleAssignment(
   userId: string,
   previousRole: string,
   newRole: string,
   assignedBy: string,
-  reason?: string
+  reason?: string,
 ) {
   try {
     const { error } = await supabase.from('role_assignment_logs').insert({

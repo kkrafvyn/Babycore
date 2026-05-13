@@ -108,13 +108,15 @@ router.get('/users', requireRole('admin'), async (req: AuthRequest, res: Respons
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
+    const search = String(req.query.search || '').trim();
 
-    const result = await listUsersWithRoles(limit, offset);
+    const result = await listUsersWithRoles(limit, offset, search);
 
     logger.info('Admin fetched users list', 'ADMIN', {
       userId: req.user?.id,
       limit,
       offset,
+      search,
       count: result.users.length,
     });
 
@@ -182,7 +184,7 @@ router.post('/users/:userId/role', requireRole('admin'), async (req: AuthRequest
     const { role, reason } = req.body;
 
     // Validate role
-    const validRoles = ['admin', 'manager', 'user', 'caregiver', 'viewer'];
+    const validRoles = ['admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,

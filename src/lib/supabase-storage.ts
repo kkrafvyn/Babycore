@@ -307,6 +307,123 @@ const getAssignedSharedBabies = async (): Promise<Baby[]> => {
   return Array.from(merged.values());
 };
 
+type DoctorAssignedBabyApiRow = {
+  babyId: string;
+  babyName: string;
+  babyDateOfBirth?: string | null;
+  babyGender?: 'boy' | 'girl' | 'other' | string | null;
+  babyPhotoUrl?: string | null;
+  babyCountry?: string | null;
+  babyCreatedAt?: string | null;
+};
+
+const mapDoctorAssignedBabyApiRow = (row: DoctorAssignedBabyApiRow): Baby => ({
+  id: String(row.babyId || ''),
+  name: row.babyName?.trim() || `Baby ${String(row.babyId || '').slice(0, 8)}`,
+  dateOfBirth: row.babyDateOfBirth || row.babyCreatedAt || new Date().toISOString(),
+  gender:
+    row.babyGender === 'boy' || row.babyGender === 'girl' || row.babyGender === 'other'
+      ? row.babyGender
+      : 'other',
+  photoUrl: row.babyPhotoUrl || undefined,
+  country: row.babyCountry || 'US',
+  createdAt: row.babyCreatedAt || new Date().toISOString(),
+});
+
+const getDoctorAssignedBabiesViaBackend = async (): Promise<Baby[] | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const accessToken = await getActiveSessionAccessToken();
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/doctor/babies`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.status === 404 || response.status === 405) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || payload?.success === false) {
+      return null;
+    }
+
+    return Array.isArray(payload?.data)
+      ? payload.data.map((row: DoctorAssignedBabyApiRow) => mapDoctorAssignedBabyApiRow(row))
+      : [];
+  } catch {
+    return null;
+  }
+};
+
+const getDoctorAssignedBabiesDirect = async (): Promise<Baby[]> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return [];
+  }
+
+  try {
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from('doctor_baby_assignments')
+      .select('baby_id')
+      .eq('doctor_id', user.id)
+      .eq('status', 'active');
+
+    if (assignmentError) {
+      throw assignmentError;
+    }
+
+    const babyIds = Array.from(
+      new Set(
+        (assignmentRows || [])
+          .map((assignment) => String(assignment.baby_id || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (babyIds.length === 0) {
+      return [];
+    }
+
+    const { data: babyRows, error: babyError } = await supabase
+      .from('babies')
+      .select('id,name,date_of_birth,gender,photo_url,country,created_at')
+      .in('id', babyIds);
+
+    if (babyError) {
+      throw babyError;
+    }
+
+    return (babyRows || []).map(fromBabyCloudRow);
+  } catch (error) {
+    if (isCloudBabyAccessPermissionDenied(error)) {
+      return [];
+    }
+
+    console.warn('Failed to fetch doctor assigned babies directly from cloud:', error);
+    return [];
+  }
+};
+
+const getDoctorAssignedBabies = async (): Promise<Baby[]> => {
+  const backendBabies = await getDoctorAssignedBabiesViaBackend();
+  if (backendBabies !== null) {
+    return backendBabies;
+  }
+
+  return getDoctorAssignedBabiesDirect();
+};
+
 const upsertBabyToCloud = async (baby: Baby): Promise<void> => {
   const user = await getCurrentUser();
   if (!user?.id) {
@@ -646,8 +763,9 @@ export const migrateGuestBabiesToCurrentUser = async (): Promise<number> => {
 export const getBabies = async (): Promise<Baby[]> => {
   const scopeId = await resolveStorageScopeId();
   const user = await getCurrentUser();
-  const [sharedAssignedBabies, remoteOwnedBabies] = await Promise.all([
+  const [sharedAssignedBabies, doctorAssignedBabies, remoteOwnedBabies] = await Promise.all([
     getAssignedSharedBabies(),
+    getDoctorAssignedBabies(),
     user?.id ? getRemoteOwnedBabies() : Promise.resolve([] as Baby[]),
   ]);
 
@@ -677,6 +795,9 @@ export const getBabies = async (): Promise<Baby[]> => {
   for (const baby of sharedAssignedBabies) {
     merged.set(baby.id, baby);
   }
+  for (const baby of doctorAssignedBabies) {
+    merged.set(baby.id, baby);
+  }
 
   return Array.from(merged.values());
 };
@@ -689,7 +810,8 @@ export const getBaby = async (id: string): Promise<Baby | undefined> => {
   }
 
   const sharedAssignedBabies = await getAssignedSharedBabies();
-  return sharedAssignedBabies.find((baby) => baby.id === id);
+  const doctorAssignedBabies = await getDoctorAssignedBabies();
+  return doctorAssignedBabies.find((baby) => baby.id === id) || sharedAssignedBabies.find((baby) => baby.id === id);
 };
 
 export const updateBaby = async (baby: Baby, options?: SyncWriteOptions): Promise<void> => {

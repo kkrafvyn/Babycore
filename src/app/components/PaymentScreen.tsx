@@ -132,7 +132,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   React.useEffect(() => {
     try {
       if (!paystackPublicKey) {
-        setError('Paystack public key is missing. Set VITE_PAYSTACK_PUBLIC_KEY in Vercel and redeploy.');
+        setError(
+          'Paystack public key is missing. Set VITE_PAYSTACK_PUBLIC_KEY in your frontend deployment environment and redeploy.',
+        );
         return;
       }
 

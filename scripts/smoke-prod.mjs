@@ -1,7 +1,22 @@
 #!/usr/bin/env node
 
 const baseArg = process.argv[2];
-const baseUrl = (baseArg || process.env.SMOKE_BASE_URL || 'https://babycore.vercel.app').replace(/\/$/, '');
+const configuredBaseUrl =
+  baseArg ||
+  process.env.SMOKE_BASE_URL ||
+  process.env.VITE_APP_URL ||
+  process.env.CLIENT_URL ||
+  process.env.APP_URL ||
+  '';
+
+if (!configuredBaseUrl) {
+  console.error(
+    'Missing target URL. Pass a base URL as the first argument or set SMOKE_BASE_URL, VITE_APP_URL, CLIENT_URL, or APP_URL.',
+  );
+  process.exit(1);
+}
+
+const baseUrl = configuredBaseUrl.replace(/\/$/, '');
 const authToken = process.env.SMOKE_AUTH_TOKEN || '';
 
 const fetchJson = async (url, options = {}) => {

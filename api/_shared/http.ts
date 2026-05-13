@@ -1,4 +1,4 @@
-export type VercelRequest = {
+export type ApiAdapterRequest = {
   method?: string;
   body?: unknown;
   headers: Record<string, string | string[] | undefined>;
@@ -6,13 +6,13 @@ export type VercelRequest = {
   url?: string;
 };
 
-export type VercelResponse = {
-  status: (code: number) => VercelResponse;
+export type ApiAdapterResponse = {
+  status: (code: number) => ApiAdapterResponse;
   json: (body: Record<string, unknown>) => void;
   setHeader: (name: string, value: string) => void;
 };
 
-export const setCommonHeaders = (res: VercelResponse): void => {
+export const setCommonHeaders = (res: ApiAdapterResponse): void => {
   res.setHeader('Cache-Control', 'no-store');
 };
 

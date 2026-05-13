@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'manager', 'user', 'caregiver', 'viewer')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer')),
   assigned_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   assigned_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS role_assignment_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   previous_role TEXT,
-  new_role TEXT NOT NULL CHECK (new_role IN ('admin', 'manager', 'user', 'caregiver', 'viewer')),
+  new_role TEXT NOT NULL CHECK (new_role IN ('admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer')),
   assigned_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   reason TEXT,
   created_at TIMESTAMP DEFAULT NOW()

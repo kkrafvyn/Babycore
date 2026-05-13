@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import authMiddleware from '../src/api/middleware/auth.js';
+import authMiddleware, { rateLimit } from '../src/api/middleware/auth.js';
 import babiesRoutes from '../src/api/routes/babies.js';
 import feedingRoutes from '../src/api/routes/feeding.js';
 import sleepRoutes from '../src/api/routes/sleep.js';
@@ -39,25 +39,30 @@ import {
   syncFullHandler,
   syncSnapshotHandler,
   voiceTranscribeHandler,
-} from '../src/api/vercel/standalone-handlers.js';
+} from '../src/api/handlers/system-handlers.js';
 import { runExpressRouter } from './_shared/router-proxy.js';
-import type { VercelRequest, VercelResponse } from './_shared/http.js';
+import type { ApiAdapterRequest, ApiAdapterResponse } from './_shared/http.js';
 
 const router = Router();
+const genericEmailRateLimit = rateLimit(3, '1m');
+const inviteEmailRateLimit = rateLimit(6, '1m');
+const reportEmailRateLimit = rateLimit(4, '1m');
+const syncRateLimit = rateLimit(8, '1m');
+const voiceTranscriptionRateLimit = rateLimit(12, '1m');
 
 router.get('/health', healthCheckHandler);
 router.get('/health/config', healthConfigHandler);
 
 router.use(authMiddleware);
 
-router.post('/send-email', sendEmailHandler);
-router.post('/email/send-invite', sendInviteEmailHandler);
-router.post('/email/send-report', sendReportEmailHandler);
+router.post('/send-email', genericEmailRateLimit, sendEmailHandler);
+router.post('/email/send-invite', inviteEmailRateLimit, sendInviteEmailHandler);
+router.post('/email/send-report', reportEmailRateLimit, sendReportEmailHandler);
 router.get('/admin/current-role', currentRoleHandler);
 router.get('/admin/overview', adminOverviewHandler);
-router.post('/sync/full', syncFullHandler);
+router.post('/sync/full', syncRateLimit, syncFullHandler);
 router.get('/sync/snapshot', syncSnapshotHandler);
-router.post('/voice/transcribe', voiceTranscribeHandler);
+router.post('/voice/transcribe', voiceTranscriptionRateLimit, voiceTranscribeHandler);
 router.post('/webhooks/paystack', handlePaystackWebhook);
 router.post('/webhooks/flutterwave', handleFlutterwaveWebhook);
 
@@ -95,7 +100,10 @@ router.use((req, res) => {
   });
 });
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+export default async function handler(
+  req: ApiAdapterRequest,
+  res: ApiAdapterResponse,
+): Promise<void> {
   await runExpressRouter({
     request: req,
     response: res,
