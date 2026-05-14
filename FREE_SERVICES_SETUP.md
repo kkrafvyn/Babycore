@@ -17,7 +17,7 @@
 | **Sentry (Error Tracking)** | 5,000 events/month | FREE | Enough for small app |
 | **Google Analytics** | Unlimited | FREE | Standard analytics |
 | **Gmail SMTP** | Unlimited | FREE | Using your own Gmail |
-| **Vercel (Hosting)** | Unlimited free tier | FREE | Perfect for Next.js |
+| **Hosting Platform** | Often free or low-cost tiers | Varies | Pick the host that fits your stack |
 | **GitHub (Git/CI)** | Unlimited public repos | FREE | Standard setup |
 | **---** | | | |
 | **TOTAL** | | **FREE** | Perfect startup budget! |
@@ -135,7 +135,7 @@ Free tier includes:
 - Release tracking
 ```
 
-### 8. Hosting - Vercel (FREE)
+### 8. Hosting - Choose Your Platform
 ```
 ✅ Perfect for Next.js/Vite
 Already configured in vercel.json
@@ -221,7 +221,7 @@ Features:
 ```
 ✅ Keep .env local (NEVER commit)
 ✅ .env.production.example for templates
-✅ Vercel: Add prod keys to settings
+✅ Add production keys to your hosting platform settings
 ✅ Never share keys in code/GitHub
 ```
 
@@ -268,7 +268,7 @@ Paid Services to Add:
 2. ✅ Resend - Create account, get key
 3. ✅ Paystack Test - Get test keys
 4. ✅ OpenAI - Sign up for free $5 credit
-5. ✅ Vercel - Connect GitHub, deploy
+5. ✅ Connect GitHub to your hosting platform and deploy
 ```
 
 ### Cost: $0
@@ -292,21 +292,21 @@ Paid Services to Add:
 - Supabase free
 - Resend free (100 emails/day)
 - OpenAI free trial
-- Vercel free
+- Hosting free tier
 - Paystack/Flutterwave test mode
 
 ### Phase 2: Beta ($25/month)
 - Supabase Pro ($25)
 - Resend free still
 - OpenAI pay-as-you-go (~$10)
-- Vercel free still
+- Hosting free tier still
 - Paystack/Flutterwave live mode
 
 ### Phase 3: Production ($100+/month)
 - Supabase Pro or Business
 - Resend paid ($20)
 - OpenAI usage-based
-- Vercel Pro ($20)
+- Paid hosting tier (if needed)
 - Full payment processing
 - Email service scaled
 - Error tracking Pro ($29)
@@ -320,7 +320,7 @@ Paid Services to Add:
 - [ ] Paystack test keys added
 - [ ] OpenAI account created
 - [ ] Gmail app password generated (if using SMTP)
-- [ ] Vercel deployed
+- [ ] App deployed on chosen host
 - [ ] All test keys in .env
 - [ ] Backup .env file
 - [ ] .env added to .gitignore
@@ -357,7 +357,7 @@ Verify: Account has credit
 ```
 SETUP COST:
 - Domain: ~$12/year (optional)
-- Server: FREE (Vercel)
+- Server: FREE or low-cost depending on host
 - Database: FREE (Supabase)
 - Email: FREE (Resend/Gmail)
 - AI: FREE ($5 credit)

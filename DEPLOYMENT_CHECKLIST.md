@@ -82,7 +82,7 @@ VITE_SUPABASE_URL=https://your-prod-project.supabase.co
 VITE_SUPABASE_ANON_KEY=<prod_anon_key>
 
 # API
-VITE_API_BASE_URL=https://babycore.vercel.app/api
+VITE_API_BASE_URL=https://app.example.com/api
 NODE_ENV=production
 
 # Payments
@@ -119,7 +119,7 @@ npm run build
 # Test production build locally
 npm run preview
 
-# Deploy to hosting (Vercel, Netlify, etc)
+# Deploy to hosting (your platform of choice)
 # or
 npm run deploy
 ```
@@ -139,10 +139,10 @@ npm run build:api
 # Deploy to hosting platform
 # Heroku: git push heroku main
 # Railway: railway up
-# Vercel: vercel --prod
+# Or use your host's CLI / dashboard deploy flow
 
 # Verify deployment
-curl https://babycore.vercel.app/api/health
+curl https://app.example.com/api/health
 ```
 
 - [ ] API deployed
@@ -155,15 +155,15 @@ curl https://babycore.vercel.app/api/health
 **Paystack:**
 - [ ] Go to Paystack Dashboard
 - [ ] Settings → API Keys & Webhooks
-- [ ] Add Webhook URL: `https://babycore.vercel.app/api/payments/webhook/paystack`
-- [ ] Optional compatibility URL: `https://babycore.vercel.app/api/webhooks/paystack`
+- [ ] Add Webhook URL: `https://app.example.com/api/payments/webhook/paystack`
+- [ ] Optional compatibility URL: `https://app.example.com/api/webhooks/paystack`
 - [ ] Events: charge.success, charge.failed
 
 **Flutterwave:**
 - [ ] Go to Flutterwave Dashboard
 - [ ] Settings → Webhooks
-- [ ] Add URL: `https://babycore.vercel.app/api/payments/webhook/flutterwave`
-- [ ] Optional compatibility URL: `https://babycore.vercel.app/api/webhooks/flutterwave`
+- [ ] Add URL: `https://app.example.com/api/payments/webhook/flutterwave`
+- [ ] Optional compatibility URL: `https://app.example.com/api/webhooks/flutterwave`
 - [ ] Select all events
 
 ### 6. Notification Service Setup (15 min)
@@ -179,7 +179,7 @@ curl -X POST \
       "keys": {...}
     }
   }' \
-  https://babycore.vercel.app/api/notifications/subscribe
+  https://app.example.com/api/notifications/subscribe
 ```
 
 - [ ] VAPID keys loaded
@@ -227,16 +227,16 @@ curl -X POST \
 
 ```bash
 # Check CORS headers
-curl -i -H "Origin: https://babycore.vercel.app" \
-  https://babycore.vercel.app/api/health
+curl -i -H "Origin: https://app.example.com" \
+  https://app.example.com/api/health
 
 # Test authentication
 curl -H "Authorization: Bearer invalid" \
-  https://babycore.vercel.app/api/health-alerts/active
+  https://app.example.com/api/health-alerts/active
 # Should return 401
 
 # Check HTTPS redirect
-curl -i http://babycore.vercel.app
+curl -i http://app.example.com
 # Should redirect to https
 ```
 
@@ -254,13 +254,13 @@ Test critical user journeys:
 ```bash
 # Test health alert retrieval
 curl -H "Authorization: Bearer $USER_TOKEN" \
-  https://babycore.vercel.app/api/health-alerts/active
+  https://app.example.com/api/health-alerts/active
 
 # Test report generation
 curl -X POST \
   -H "Authorization: Bearer $USER_TOKEN" \
   -d '{"babyId":"...", "reportType":"pediatrician"}' \
-  https://babycore.vercel.app/api/reports/generate
+  https://app.example.com/api/reports/generate
 
 # Test notification subscription
 # (Use browser dev tools or automated tool)
@@ -325,7 +325,7 @@ npm run test:performance
 supabase db reset
 
 # Revert frontend (rollback deployment)
-# Vercel: Click "rollback" button
+# Use your host's rollback flow or redeploy the previous version
 # or redeploy previous version
 
 # Revert API

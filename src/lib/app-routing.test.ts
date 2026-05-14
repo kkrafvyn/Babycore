@@ -11,6 +11,8 @@ describe('app-routing', () => {
     expect(resolveAppViewIntent('dashboard')).toBe('dashboard');
     expect(resolveAppViewIntent('/emergency-card')).toBe('emergency-card');
     expect(resolveAppViewIntent('/app/sync-center')).toBe('sync-center');
+    expect(resolveAppViewIntent('/app/expenses')).toBe('expenses');
+    expect(resolveAppViewIntent('/nutrition')).toBe('nutrition');
   });
 
   it('does not confuse public emergency share URLs with app views', () => {

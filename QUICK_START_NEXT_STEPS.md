@@ -107,7 +107,7 @@ Including 15 new doctor endpoints:
 - Flutterwave: FREE (test mode)
 - OpenAI: FREE ($5 trial)
 - Sentry: FREE (5K errors/month)
-- Vercel: FREE (unlimited deploys)
+- Hosting: often FREE or low-cost on your chosen platform
 - Gmail: FREE (unlimited emails)
 - Google Analytics: FREE
 
@@ -124,7 +124,7 @@ Optional - Can do later:
 - [ ] Integrate payment processing (Paystack/Flutterwave)
 - [ ] Set up email templates (Resend)
 - [ ] Configure monitoring (Sentry)
-- [ ] Deploy to Vercel
+- [ ] Deploy to your hosting platform
 ```
 
 ---
@@ -169,7 +169,7 @@ Optional - Can do later:
 **What You Need to Do:**
 1. Run database migrations (5 min)
 2. Test endpoints locally (5 min)
-3. Deploy to Vercel (5 min)
+3. Deploy to your hosting platform (5 min)
 
 **Total Time to Production**: ~30 minutes
 

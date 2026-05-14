@@ -1,5 +1,7 @@
 # BabyLog Vercel Deployment Guide
 
+> Optional provider-specific example: BabyCore is platform-neutral. Use [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the primary host-agnostic deployment path, and use this guide only if you specifically choose Vercel.
+
 **Status**: ✅ Ready for Production Deployment  
 **Last Updated**: April 25, 2026  
 **Framework**: Vite + Express.js + React

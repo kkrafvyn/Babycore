@@ -411,7 +411,7 @@ railway up
 3. Set environment variables
 4. Deploy
 
-### Option 4: Vercel (for Edge Functions)
+### Option 4: Vercel (Optional for Edge Functions)
 
 ```bash
 npm i -g vercel

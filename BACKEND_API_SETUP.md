@@ -35,8 +35,8 @@ supabase functions create doctor-reports
 ### Option 3: AWS Lambda + API Gateway
 Best for: Enterprise, high volume, integrations
 
-### Option 4: Vercel Functions
-Best for: Tight Next.js integration, hosting
+### Option 4: Vercel Functions (Optional Provider-Specific Adapter)
+Best for: Teams that specifically want Vercel-hosted serverless functions
 
 ---
 
@@ -338,7 +338,7 @@ railway up
 3. Set environment variables
 4. Deploy
 
-### Option D: Deploy to Vercel Functions
+### Option D: Deploy to Vercel Functions (Optional)
 
 ```bash
 # Move API to API directory

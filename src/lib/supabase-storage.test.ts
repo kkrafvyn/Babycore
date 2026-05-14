@@ -6,6 +6,8 @@ const {
   getBabiesMock,
   transferBabyOwnerScopeMock,
   addBabyMock,
+  addFeedLogMock,
+  deleteSleepLogMock,
   updateBabyMock,
   supabaseFromMock,
   upsertMock,
@@ -15,6 +17,8 @@ const {
   getBabiesMock: vi.fn(),
   transferBabyOwnerScopeMock: vi.fn(),
   addBabyMock: vi.fn(),
+  addFeedLogMock: vi.fn(),
+  deleteSleepLogMock: vi.fn(),
   updateBabyMock: vi.fn(),
   supabaseFromMock: vi.fn(),
   upsertMock: vi.fn(),
@@ -32,12 +36,21 @@ vi.mock('./supabase', () => ({
 
 vi.mock('./storage', () => ({
   addBaby: addBabyMock,
+  addFeedLog: addFeedLogMock,
+  deleteSleepLog: deleteSleepLogMock,
   getBabies: getBabiesMock,
   updateBaby: updateBabyMock,
   transferBabyOwnerScope: transferBabyOwnerScopeMock,
 }));
 
-import { addBaby, getBabies, migrateGuestBabiesToCurrentUser, updateBaby } from './supabase-storage';
+import {
+  addBaby,
+  addFeedLog,
+  deleteSleepLog,
+  getBabies,
+  migrateGuestBabiesToCurrentUser,
+  updateBaby,
+} from './supabase-storage';
 
 const createInviteQuery = () => ({
   eq: vi.fn().mockReturnValue({
@@ -65,6 +78,8 @@ describe('supabase-storage guest migration', () => {
     });
     upsertMock.mockResolvedValue({ error: null });
     addBabyMock.mockResolvedValue(undefined);
+    addFeedLogMock.mockResolvedValue(undefined);
+    deleteSleepLogMock.mockResolvedValue(undefined);
     updateBabyMock.mockResolvedValue(undefined);
     supabaseFromMock.mockImplementation((table: string) => {
       if (table === 'family_sharing_invites') {
@@ -375,5 +390,74 @@ describe('supabase-storage guest migration', () => {
         configurable: true,
       });
     }
+  });
+
+  it('syncs feed logs directly to cloud and normalizes breast milk values', async () => {
+    const feedUpsertMock = vi.fn().mockResolvedValue({ error: null });
+
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    addFeedLogMock.mockResolvedValue(undefined);
+    supabaseFromMock.mockImplementation((table: string) => {
+      if (table === 'feed_logs') {
+        return {
+          upsert: feedUpsertMock,
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue(createInviteQuery()),
+      };
+    });
+
+    await addFeedLog({
+      id: 'feed-1',
+      babyId: 'baby-1',
+      timestamp: '2026-05-14T08:00:00.000Z',
+      type: 'bottle',
+      bottleAmount: 120,
+      bottleType: 'breast_milk',
+      createdAt: '2026-05-14T08:01:00.000Z',
+    });
+
+    expect(addFeedLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'feed-1',
+        bottleType: 'breast_milk',
+      }),
+    );
+    expect(feedUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'feed-1',
+        baby_id: 'baby-1',
+        amount: 120,
+        milk_type: 'breast',
+      }),
+      { onConflict: 'id' },
+    );
+  });
+
+  it('deletes sleep logs from local storage and cloud', async () => {
+    const eqMock = vi.fn().mockResolvedValue({ error: null });
+    const deleteMock = vi.fn().mockReturnValue({ eq: eqMock });
+
+    getCurrentUserMock.mockResolvedValue({ id: 'user-123', email: 'donfrass0551@gmail.com' });
+    deleteSleepLogMock.mockResolvedValue(undefined);
+    supabaseFromMock.mockImplementation((table: string) => {
+      if (table === 'sleep_logs') {
+        return {
+          delete: deleteMock,
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue(createInviteQuery()),
+      };
+    });
+
+    await deleteSleepLog('sleep-1');
+
+    expect(deleteSleepLogMock).toHaveBeenCalledWith('sleep-1');
+    expect(deleteMock).toHaveBeenCalled();
+    expect(eqMock).toHaveBeenCalledWith('id', 'sleep-1');
   });
 });

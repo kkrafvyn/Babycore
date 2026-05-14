@@ -1,5 +1,7 @@
 # Doctor Role - Quick Reference Guide
 
+> Historical note: this document was written when Vercel was the example deployment target. The current app and API can be deployed on any platform.
+
 ## ⚡ Quick Start
 
 ### 1. Doctor Creates Profile
@@ -117,9 +119,9 @@ POST /api/doctor/appointments/reminders
 | `src/api/routes/doctor.ts` | API endpoints | ✅ Created |
 | `DOCTOR_ROLE_API_DOCUMENTATION.md` | Full API docs | ✅ Created |
 | `.env` | Fixed placeholders | ✅ Updated |
-| `vercel.json` | Vercel config | ✅ Created |
+| `vercel.json` | Optional Vercel config | ✅ Created |
 | `.env.production.example` | Prod template | ✅ Created |
-| `VERCEL_DEPLOYMENT_GUIDE.md` | Deployment guide | ✅ Created |
+| `DEPLOYMENT_CHECKLIST.md` | Platform-neutral deployment guide | ✅ Available |
 
 ---
 
@@ -145,9 +147,9 @@ POST /api/doctor/appointments/reminders
 
 ### For Deployment
 1. Copy `.env` to `.env.production.example`
-2. Set all production environment variables in Vercel
+2. Set all production environment variables in your hosting platform
 3. Run database migrations in production Supabase
-4. Deploy to Vercel: `git push origin main`
+4. Deploy to your chosen host
 5. Verify all endpoints working
 
 ---
@@ -285,7 +287,7 @@ All implemented for fast queries:
 - [ ] Frontend components created
 - [ ] Doctor registration flow tested
 - [ ] Full workflow tested end-to-end
-- [ ] Vercel environment variables set
+- [ ] Production environment variables set on your chosen host
 - [ ] Production deployment successful
 - [ ] Monitoring/Sentry configured
 
@@ -311,7 +313,7 @@ All implemented for fast queries:
 1. `DOCTOR_ROLE_SCHEMA.sql` - Database setup
 2. `DOCTOR_ROLE_API_DOCUMENTATION.md` - Full API reference
 3. `DOCTOR_ROLE_QUICK_REFERENCE.md` - This file
-4. `VERCEL_DEPLOYMENT_GUIDE.md` - Production deployment
+4. `DEPLOYMENT_CHECKLIST.md` - Production deployment
 5. `.env.production.example` - Environment template
 
 ---

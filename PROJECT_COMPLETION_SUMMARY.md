@@ -1,5 +1,7 @@
 # 🎉 BABYLOG - IMPLEMENTATION COMPLETE SUMMARY
 
+> Historical note: this summary reflects the example hosting assumptions at the time it was written. The current app runtime and active deployment workflow are host-agnostic.
+
 **Project**: BabyLog - Baby Health & Development Tracking Platform  
 **Status**: ✅ **95% COMPLETE - READY FOR PRODUCTION**  
 **Date**: April 25, 2026  

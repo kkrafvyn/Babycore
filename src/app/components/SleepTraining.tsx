@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, Play, Square, Settings2, Moon, Clock, Search, ListChecks } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ensureSleepCoachingProgram,
+  logSleepCoachingSession,
+  type SleepTrainingMethod,
+} from '../../lib/sleep-coaching-api';
 
 const MotionDiv = motion.div as any;
 
@@ -30,10 +35,14 @@ const METHODS = {
 };
 
 export const SleepTraining: React.FC<SleepTrainingProps> = ({ onBack }) => {
+  const { currentBaby } = useAppContext();
   const [activeMethod, setActiveMethod] = useState<Method>('ferber');
   const [isRunning, setIsRunning] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [totalSeconds, setTotalSeconds] = useState(0);
+  const [programId, setProgramId] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [savingSession, setSavingSession] = useState(false);
   
   // Ferber specific
   const [currentIntervalIdx, setCurrentIntervalIdx] = useState(0);
@@ -65,17 +74,57 @@ export const SleepTraining: React.FC<SleepTrainingProps> = ({ onBack }) => {
     return () => clearInterval(timerRef.current);
   }, [isRunning, activeMethod, isCheckInTime]);
 
-  const handleStart = () => {
+  const handleStart = async () => {
     setIsRunning(true);
     setStartTime(new Date());
+    setSyncMessage(null);
     if (activeMethod === 'ferber') {
       setIntervalSecondsRemaining(METHODS.ferber.intervals[0] * 60);
       setCurrentIntervalIdx(0);
       setIsCheckInTime(false);
     }
+
+    if (!currentBaby?.id) return;
+
+    try {
+      const program = await ensureSleepCoachingProgram(
+        currentBaby.id,
+        activeMethod as SleepTrainingMethod,
+      );
+      setProgramId(program.id);
+    } catch (error) {
+      console.warn('Unable to prepare sleep coaching cloud program:', error);
+      setSyncMessage('Timer started. Cloud coaching history is unavailable right now.');
+    }
   };
 
-  const handleStop = () => {
+  const handleStop = async () => {
+    const elapsedSeconds = totalSeconds;
+    const method = activeMethod;
+    const startedAt = startTime;
+
+    if (currentBaby?.id && elapsedSeconds > 0) {
+      setSavingSession(true);
+      try {
+        const session = await logSleepCoachingSession({
+          babyId: currentBaby.id,
+          programId,
+          method: method as SleepTrainingMethod,
+          totalSleepMinutes: Math.max(1, Math.round(elapsedSeconds / 60)),
+          notes: startedAt
+            ? `${METHODS[method].name} timer started ${startedAt.toLocaleString()}`
+            : `${METHODS[method].name} timer session`,
+        });
+        setProgramId(session.program_id);
+        setSyncMessage('Sleep coaching session saved to your cloud history.');
+      } catch (error) {
+        console.warn('Unable to save sleep coaching session:', error);
+        setSyncMessage('Session ended, but cloud coaching history could not be saved.');
+      } finally {
+        setSavingSession(false);
+      }
+    }
+
     setIsRunning(false);
     setStartTime(null);
     setTotalSeconds(0);
@@ -114,6 +163,11 @@ export const SleepTraining: React.FC<SleepTrainingProps> = ({ onBack }) => {
           {!isRunning && (
              <div className="space-y-4">
                <h3 className="text-xs font-black uppercase tracking-widest text-text-light px-2">Choose Method</h3>
+               {syncMessage && (
+                 <div className="rounded-[1.5rem] border border-amber-300 bg-amber-50 p-4 text-xs font-bold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                   {syncMessage}
+                 </div>
+               )}
                <div className="space-y-3">
                  {(Object.keys(METHODS) as Method[]).map(method => (
                    <button
@@ -178,15 +232,19 @@ export const SleepTraining: React.FC<SleepTrainingProps> = ({ onBack }) => {
                       Done Checking In
                     </button>
                  ) : (
-                    <button onClick={handleStop} className="flex-1 py-5 rounded-[2rem] bg-rose-50 text-rose-500 dark:bg-rose-900/20 font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
-                      <Square size={16} fill="currentColor" /> Stop Training
+                    <button
+                      onClick={() => void handleStop()}
+                      disabled={savingSession}
+                      className="flex-1 py-5 rounded-[2rem] bg-rose-50 text-rose-500 dark:bg-rose-900/20 font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      <Square size={16} fill="currentColor" /> {savingSession ? 'Saving...' : 'Stop Training'}
                     </button>
                  )}
                </div>
             </MotionDiv>
           ) : (
             <button 
-              onClick={handleStart}
+              onClick={() => void handleStart()}
               className="w-full py-6 rounded-[2.5rem] bg-secondary text-white font-black text-sm uppercase tracking-widest shadow-xl shadow-secondary/20 active:scale-[0.98] transition-all flex justify-center items-center gap-2"
             >
               <Play size={20} fill="currentColor" /> Start {METHODS[activeMethod].name}

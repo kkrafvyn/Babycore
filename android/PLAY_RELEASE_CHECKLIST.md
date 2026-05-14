@@ -51,7 +51,7 @@ Expected outputs:
 
 ## Native App Config
 
-- Set `VITE_NATIVE_API_BASE_URL` in the production build env to your hosted API root, for example `https://babycore.vercel.app/api`.
+- Set `VITE_NATIVE_API_BASE_URL` in the production build env to your hosted API root, for example `https://app.example.com/api`.
 - Keep `VITE_API_BASE_URL` and `VITE_API_BASE_URL_PROD` for the web deployment if you still want same-origin `/api` there.
 
 ## Real Device Smoke Test

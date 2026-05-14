@@ -2,9 +2,9 @@
 
 ## 1) Required Environment Variables
 
-Set these in Vercel Project Settings before production deployment:
+Set these in your production deployment environment before launch:
 
-- `VITE_APP_URL` (`https://babycore.vercel.app`)
+- `VITE_APP_URL` (`https://app.example.com`)
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`)
 - `SUPABASE_URL`
@@ -14,8 +14,8 @@ Set these in Vercel Project Settings before production deployment:
 - `VITE_PAYSTACK_PUBLIC_KEY`
 - `PAYSTACK_SECRET_KEY`
 - `VITE_API_BASE_URL` (or keep relative `/api`)
-- `PAYSTACK_CALLBACK_URL` (`https://babycore.vercel.app`)
-- `PAYSTACK_WEBHOOK_URL` (`https://babycore.vercel.app/api/payments/webhook/paystack`)
+- `PAYSTACK_CALLBACK_URL` (`https://app.example.com`)
+- `PAYSTACK_WEBHOOK_URL` (`https://app.example.com/api/payments/webhook/paystack`)
 
 Optional but recommended:
 
@@ -81,7 +81,7 @@ Run these checks on production URL:
 npm run check:prod-config
 npm run check:schema
 npm run build:full
-npm run smoke:prod https://babycore.vercel.app
+npm run smoke:prod https://app.example.com
 ```
 
 If build passes, deploy and smoke test routes:

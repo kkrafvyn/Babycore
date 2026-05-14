@@ -18,11 +18,19 @@ import {
 
 import * as LocalStorage from "./storage";
 import {
+  toDiaperLogCloudRow,
+  toFeedLogCloudRow,
+  toGrowthMeasurementCloudRow,
   fromUserSettingsCloudRow,
   isMissingUserSettingsOptionalColumnsError,
   toHealthLogCloudRow,
+  toJournalEntryCloudRow,
   toLegacyUserSettingsCloudRow,
+  toMemoryLogCloudRow,
+  toMilestoneCloudRow,
+  toSleepLogCloudRow,
   toUserSettingsCloudRow,
+  toVaccinationRecordCloudRow,
 } from './cloud-sync-mappers';
 import { getApiBaseUrl } from './api-base-url';
 import { getCurrentUser, supabase } from "./supabase";
@@ -528,124 +536,100 @@ const repairMissingOwnedBabiesInCloud = async (
   await Promise.all(missingRemoteBabies.map((baby) => upsertBabyToCloud(baby)));
 };
 
-const upsertMemoryLogToCloud = async (log: MemoryLog): Promise<void> => {
+const upsertRecordToCloud = async (
+  table: string,
+  row: Record<string, unknown>,
+  label: string,
+): Promise<void> => {
   const user = await getCurrentUser();
   if (!user?.id) {
     return;
   }
 
   try {
-    const { error } = await supabase.from('memories').upsert(
-      {
-        id: log.id,
-        baby_id: log.babyId,
-        timestamp: log.timestamp,
-        text: log.text,
-        photo_url: log.photoUrl,
-        is_milestone: log.isMilestone,
-        created_at: log.createdAt,
-      },
-      { onConflict: 'id' },
-    );
-
+    const { error } = await supabase.from(table).upsert(row, { onConflict: 'id' });
     if (error) {
       throw error;
     }
   } catch (error) {
-    console.warn('Unable to sync memory log directly to cloud:', error);
+    console.warn(`Unable to sync ${label} directly to cloud:`, error);
   }
+};
+
+const deleteRecordFromCloud = async (table: string, id: string, label: string): Promise<void> => {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.warn(`Unable to delete ${label} from cloud:`, error);
+  }
+};
+
+const upsertSleepLogToCloud = (log: SleepLog): Promise<void> =>
+  upsertRecordToCloud('sleep_logs', toSleepLogCloudRow(log), 'sleep log');
+
+const deleteSleepLogFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('sleep_logs', id, 'sleep log');
+
+const upsertFeedLogToCloud = (log: FeedLog): Promise<void> =>
+  upsertRecordToCloud('feed_logs', toFeedLogCloudRow(log), 'feed log');
+
+const deleteFeedLogFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('feed_logs', id, 'feed log');
+
+const upsertDiaperLogToCloud = (log: DiaperLog): Promise<void> =>
+  upsertRecordToCloud('diaper_logs', toDiaperLogCloudRow(log), 'diaper log');
+
+const deleteDiaperLogFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('diaper_logs', id, 'diaper log');
+
+const upsertGrowthMeasurementToCloud = (measurement: GrowthMeasurement): Promise<void> =>
+  upsertRecordToCloud('growth_measurements', toGrowthMeasurementCloudRow(measurement), 'growth measurement');
+
+const deleteGrowthMeasurementFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('growth_measurements', id, 'growth measurement');
+
+const upsertVaccinationRecordToCloud = (record: VaccinationRecord): Promise<void> =>
+  upsertRecordToCloud('vaccination_records', toVaccinationRecordCloudRow(record), 'vaccination record');
+
+const deleteVaccinationRecordFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('vaccination_records', id, 'vaccination record');
+
+const upsertMilestoneToCloud = (milestone: Milestone): Promise<void> =>
+  upsertRecordToCloud('milestones', toMilestoneCloudRow(milestone), 'milestone');
+
+const deleteMilestoneFromCloud = (id: string): Promise<void> =>
+  deleteRecordFromCloud('milestones', id, 'milestone');
+
+const upsertMemoryLogToCloud = async (log: MemoryLog): Promise<void> => {
+  await upsertRecordToCloud('memories', toMemoryLogCloudRow(log), 'memory log');
 };
 
 const deleteMemoryLogFromCloud = async (id: string): Promise<void> => {
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase.from('memories').delete().eq('id', id);
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.warn('Unable to delete memory log from cloud:', error);
-  }
+  await deleteRecordFromCloud('memories', id, 'memory log');
 };
 
 const upsertJournalEntryToCloud = async (entry: JournalEntry): Promise<void> => {
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase.from('journal_entries').upsert(
-      {
-        id: entry.id,
-        baby_id: entry.babyId,
-        date: entry.date,
-        prompt: entry.prompt,
-        text: entry.text,
-        mood: entry.mood,
-        created_at: entry.createdAt,
-      },
-      { onConflict: 'id' },
-    );
-
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.warn('Unable to sync journal entry directly to cloud:', error);
-  }
+  await upsertRecordToCloud('journal_entries', toJournalEntryCloudRow(entry), 'journal entry');
 };
 
 const deleteJournalEntryFromCloud = async (id: string): Promise<void> => {
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase.from('journal_entries').delete().eq('id', id);
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.warn('Unable to delete journal entry from cloud:', error);
-  }
+  await deleteRecordFromCloud('journal_entries', id, 'journal entry');
 };
 
 const upsertHealthLogToCloud = async (log: HealthLog): Promise<void> => {
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase.from('health_logs').upsert(toHealthLogCloudRow(log), { onConflict: 'id' });
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.warn('Unable to sync health log directly to cloud:', error);
-  }
+  await upsertRecordToCloud('health_logs', toHealthLogCloudRow(log), 'health log');
 };
 
 const deleteHealthLogFromCloud = async (id: string): Promise<void> => {
-  const user = await getCurrentUser();
-  if (!user?.id) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase.from('health_logs').delete().eq('id', id);
-    if (error) {
-      throw error;
-    }
-  } catch (error) {
-    console.warn('Unable to delete health log from cloud:', error);
-  }
+  await deleteRecordFromCloud('health_logs', id, 'health log');
 };
 
 const upsertUserSettingsToCloud = async (userId: string, settings: UserSettings): Promise<void> => {
@@ -829,40 +813,142 @@ export const deleteBaby = async (id: string): Promise<void> => {
 };
 
 // Sleep log operations
-export const addSleepLog = async (log: SleepLog): Promise<void> => LocalStorage.addSleepLog(log);
+export const addSleepLog = async (log: SleepLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addSleepLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertSleepLogToCloud(log);
+  }
+};
 export const getSleepLogsByBaby = async (babyId: string): Promise<SleepLog[]> => LocalStorage.getSleepLogsByBaby(babyId);
-export const updateSleepLog = async (log: SleepLog): Promise<void> => LocalStorage.updateSleepLog(log);
-export const deleteSleepLog = async (id: string): Promise<void> => LocalStorage.deleteSleepLog(id);
+export const updateSleepLog = async (log: SleepLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateSleepLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertSleepLogToCloud(log);
+  }
+};
+export const deleteSleepLog = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteSleepLog(id);
+  if (!options?.skipCloudSync) {
+    await deleteSleepLogFromCloud(id);
+  }
+};
 
 // Feed log operations
-export const addFeedLog = async (log: FeedLog): Promise<void> => LocalStorage.addFeedLog(log);
+export const addFeedLog = async (log: FeedLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addFeedLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertFeedLogToCloud(log);
+  }
+};
 export const getFeedLogsByBaby = async (babyId: string): Promise<FeedLog[]> => LocalStorage.getFeedLogsByBaby(babyId);
-export const updateFeedLog = async (log: FeedLog): Promise<void> => LocalStorage.updateFeedLog(log);
-export const deleteFeedLog = async (id: string): Promise<void> => LocalStorage.deleteFeedLog(id);
+export const updateFeedLog = async (log: FeedLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateFeedLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertFeedLogToCloud(log);
+  }
+};
+export const deleteFeedLog = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteFeedLog(id);
+  if (!options?.skipCloudSync) {
+    await deleteFeedLogFromCloud(id);
+  }
+};
 
 // Diaper log operations
-export const addDiaperLog = async (log: DiaperLog): Promise<void> => LocalStorage.addDiaperLog(log);
+export const addDiaperLog = async (log: DiaperLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addDiaperLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertDiaperLogToCloud(log);
+  }
+};
 export const getDiaperLogsByBaby = async (babyId: string): Promise<DiaperLog[]> => LocalStorage.getDiaperLogsByBaby(babyId);
-export const updateDiaperLog = async (log: DiaperLog): Promise<void> => LocalStorage.updateDiaperLog(log);
-export const deleteDiaperLog = async (id: string): Promise<void> => LocalStorage.deleteDiaperLog(id);
+export const updateDiaperLog = async (log: DiaperLog, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateDiaperLog(log);
+  if (!options?.skipCloudSync) {
+    await upsertDiaperLogToCloud(log);
+  }
+};
+export const deleteDiaperLog = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteDiaperLog(id);
+  if (!options?.skipCloudSync) {
+    await deleteDiaperLogFromCloud(id);
+  }
+};
 
 // Growth measurement operations
-export const addGrowthMeasurement = async (measurement: GrowthMeasurement): Promise<void> => LocalStorage.addGrowthMeasurement(measurement);
+export const addGrowthMeasurement = async (
+  measurement: GrowthMeasurement,
+  options?: SyncWriteOptions,
+): Promise<void> => {
+  await LocalStorage.addGrowthMeasurement(measurement);
+  if (!options?.skipCloudSync) {
+    await upsertGrowthMeasurementToCloud(measurement);
+  }
+};
 export const getGrowthMeasurementsByBaby = async (babyId: string): Promise<GrowthMeasurement[]> => LocalStorage.getGrowthMeasurementsByBaby(babyId);
-export const updateGrowthMeasurement = async (measurement: GrowthMeasurement): Promise<void> => LocalStorage.updateGrowthMeasurement(measurement);
-export const deleteGrowthMeasurement = async (id: string): Promise<void> => LocalStorage.deleteGrowthMeasurement(id);
+export const updateGrowthMeasurement = async (
+  measurement: GrowthMeasurement,
+  options?: SyncWriteOptions,
+): Promise<void> => {
+  await LocalStorage.updateGrowthMeasurement(measurement);
+  if (!options?.skipCloudSync) {
+    await upsertGrowthMeasurementToCloud(measurement);
+  }
+};
+export const deleteGrowthMeasurement = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteGrowthMeasurement(id);
+  if (!options?.skipCloudSync) {
+    await deleteGrowthMeasurementFromCloud(id);
+  }
+};
 
 // Vaccination record operations
-export const addVaccinationRecord = async (record: VaccinationRecord): Promise<void> => LocalStorage.addVaccinationRecord(record);
+export const addVaccinationRecord = async (
+  record: VaccinationRecord,
+  options?: SyncWriteOptions,
+): Promise<void> => {
+  await LocalStorage.addVaccinationRecord(record);
+  if (!options?.skipCloudSync) {
+    await upsertVaccinationRecordToCloud(record);
+  }
+};
 export const getVaccinationRecordsByBaby = async (babyId: string): Promise<VaccinationRecord[]> => LocalStorage.getVaccinationRecordsByBaby(babyId);
-export const updateVaccinationRecord = async (record: VaccinationRecord): Promise<void> => LocalStorage.updateVaccinationRecord(record);
-export const deleteVaccinationRecord = async (id: string): Promise<void> => LocalStorage.deleteVaccinationRecord(id);
+export const updateVaccinationRecord = async (
+  record: VaccinationRecord,
+  options?: SyncWriteOptions,
+): Promise<void> => {
+  await LocalStorage.updateVaccinationRecord(record);
+  if (!options?.skipCloudSync) {
+    await upsertVaccinationRecordToCloud(record);
+  }
+};
+export const deleteVaccinationRecord = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteVaccinationRecord(id);
+  if (!options?.skipCloudSync) {
+    await deleteVaccinationRecordFromCloud(id);
+  }
+};
 
 // Milestone operations
-export const addMilestone = async (milestone: Milestone): Promise<void> => LocalStorage.addMilestone(milestone);
+export const addMilestone = async (milestone: Milestone, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.addMilestone(milestone);
+  if (!options?.skipCloudSync) {
+    await upsertMilestoneToCloud(milestone);
+  }
+};
 export const getMilestonesByBaby = async (babyId: string): Promise<Milestone[]> => LocalStorage.getMilestonesByBaby(babyId);
-export const updateMilestone = async (milestone: Milestone): Promise<void> => LocalStorage.updateMilestone(milestone);
-export const deleteMilestone = async (id: string): Promise<void> => LocalStorage.deleteMilestone(id);
+export const updateMilestone = async (milestone: Milestone, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.updateMilestone(milestone);
+  if (!options?.skipCloudSync) {
+    await upsertMilestoneToCloud(milestone);
+  }
+};
+export const deleteMilestone = async (id: string, options?: SyncWriteOptions): Promise<void> => {
+  await LocalStorage.deleteMilestone(id);
+  if (!options?.skipCloudSync) {
+    await deleteMilestoneFromCloud(id);
+  }
+};
 
 // Memory log operations
 export const addMemoryLog = async (log: MemoryLog, options?: SyncWriteOptions): Promise<void> => {

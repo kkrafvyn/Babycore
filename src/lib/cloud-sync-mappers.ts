@@ -1,4 +1,15 @@
-import type { HealthLog, UserSettings } from '../types';
+import type {
+  DiaperLog,
+  FeedLog,
+  GrowthMeasurement,
+  HealthLog,
+  JournalEntry,
+  MemoryLog,
+  Milestone,
+  SleepLog,
+  UserSettings,
+  VaccinationRecord,
+} from '../types';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -71,6 +82,222 @@ export function toUserSettingsCloudRow(userId: string, settings: UserSettings) {
     biometric_lock_enabled: settings.biometricLockEnabled ?? false,
     privacy_lock_delay: settings.privacyLockDelay ?? null,
     updated_at: settings.updatedAt,
+  };
+}
+
+const toCloudMilkType = (value?: FeedLog['bottleType'] | string | null): string | null => {
+  if (!value) return null;
+  return value === 'breast_milk' ? 'breast' : value;
+};
+
+const fromCloudMilkType = (value?: string | null): FeedLog['bottleType'] | undefined => {
+  if (!value) return undefined;
+  return value === 'breast' ? 'breast_milk' : (value as FeedLog['bottleType']);
+};
+
+export function toSleepLogCloudRow(log: SleepLog) {
+  return {
+    id: log.id,
+    baby_id: log.babyId,
+    start_time: log.startTime,
+    end_time: log.endTime,
+    duration: log.duration,
+    notes: log.notes ?? null,
+    created_at: log.createdAt,
+  };
+}
+
+export function fromSleepLogCloudRow(row: any): SleepLog {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    duration: row.duration,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toFeedLogCloudRow(log: FeedLog) {
+  return {
+    id: log.id,
+    baby_id: log.babyId,
+    timestamp: log.timestamp,
+    type: log.type,
+    amount: log.bottleAmount ?? null,
+    milk_type: toCloudMilkType(log.bottleType),
+    food_description: log.solidDescription ?? null,
+    notes: log.notes ?? null,
+    created_at: log.createdAt,
+    left_duration: log.breastLeft ? log.duration ?? 0 : 0,
+    right_duration: log.breastRight ? log.duration ?? 0 : 0,
+  };
+}
+
+export function fromFeedLogCloudRow(row: any): FeedLog {
+  const leftDuration = Number(row.left_duration || 0);
+  const rightDuration = Number(row.right_duration || 0);
+
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    timestamp: row.timestamp,
+    type: row.type,
+    duration: leftDuration || rightDuration || undefined,
+    breastLeft: leftDuration > 0,
+    breastRight: rightDuration > 0,
+    bottleAmount: row.amount ?? undefined,
+    bottleType: fromCloudMilkType(row.milk_type),
+    solidDescription: row.food_description ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toDiaperLogCloudRow(log: DiaperLog) {
+  return {
+    id: log.id,
+    baby_id: log.babyId,
+    timestamp: log.timestamp,
+    type: log.type,
+    notes: log.notes ?? null,
+    created_at: log.createdAt,
+  };
+}
+
+export function fromDiaperLogCloudRow(row: any): DiaperLog {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    timestamp: row.timestamp,
+    type: row.type,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toGrowthMeasurementCloudRow(measurement: GrowthMeasurement) {
+  return {
+    id: measurement.id,
+    baby_id: measurement.babyId,
+    date: measurement.date,
+    weight: measurement.weight ?? null,
+    height: measurement.height ?? null,
+    head_circumference: measurement.headCircumference ?? null,
+    created_at: measurement.createdAt,
+  };
+}
+
+export function fromGrowthMeasurementCloudRow(row: any): GrowthMeasurement {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    date: row.date,
+    weight: row.weight ?? undefined,
+    height: row.height ?? undefined,
+    headCircumference: row.head_circumference ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toVaccinationRecordCloudRow(record: VaccinationRecord) {
+  return {
+    id: record.id,
+    baby_id: record.babyId,
+    vaccine_name: record.name,
+    due_date: record.dueDate,
+    status: record.status,
+    given_date: record.givenDate ?? null,
+    notes: record.notes ?? null,
+    created_at: record.createdAt,
+  };
+}
+
+export function fromVaccinationRecordCloudRow(row: any): VaccinationRecord {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    name: row.vaccine_name || row.name,
+    dueDate: row.due_date,
+    status: row.status,
+    givenDate: row.given_date ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toMilestoneCloudRow(milestone: Milestone) {
+  return {
+    id: milestone.id,
+    baby_id: milestone.babyId,
+    date: milestone.date,
+    type: milestone.type,
+    description: milestone.description,
+    photo_url: milestone.photoUrl ?? null,
+    notes: milestone.notes ?? null,
+    created_at: milestone.createdAt,
+  };
+}
+
+export function fromMilestoneCloudRow(row: any): Milestone {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    date: row.date,
+    type: row.type,
+    description: row.description,
+    photoUrl: row.photo_url ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toMemoryLogCloudRow(log: MemoryLog) {
+  return {
+    id: log.id,
+    baby_id: log.babyId,
+    timestamp: log.timestamp,
+    text: log.text,
+    photo_url: log.photoUrl ?? null,
+    is_milestone: log.isMilestone ?? false,
+    created_at: log.createdAt,
+  };
+}
+
+export function fromMemoryLogCloudRow(row: any): MemoryLog {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    timestamp: row.timestamp,
+    text: row.text,
+    photoUrl: row.photo_url ?? undefined,
+    isMilestone: row.is_milestone ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+export function toJournalEntryCloudRow(entry: JournalEntry) {
+  return {
+    id: entry.id,
+    baby_id: entry.babyId,
+    date: entry.date,
+    prompt: entry.prompt,
+    text: entry.text,
+    mood: entry.mood ?? null,
+    created_at: entry.createdAt,
+  };
+}
+
+export function fromJournalEntryCloudRow(row: any): JournalEntry {
+  return {
+    id: row.id,
+    babyId: row.baby_id,
+    date: row.date,
+    prompt: row.prompt,
+    text: row.text,
+    mood: row.mood ?? undefined,
+    createdAt: row.created_at,
   };
 }
 

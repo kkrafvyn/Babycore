@@ -11,6 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
+const toCloudMilkType = (value?: string | null): string | null | undefined => {
+  if (value === undefined) return undefined;
+  if (!value) return null;
+  return value === 'breast_milk' ? 'breast' : value;
+};
+
 /**
  * POST /api/feeding/log
  * Log feeding session
@@ -35,7 +41,7 @@ router.post('/log', requireAuth, async (req: AuthRequest, res: Response) => {
         amount,
         left_duration: type === 'breast' && duration ? Number(duration) : 0,
         right_duration: 0,
-        milk_type: milkType,
+        milk_type: toCloudMilkType(milkType),
         food_description: foodDescription,
         notes,
       })
@@ -111,7 +117,7 @@ router.put('/:feedingId', requireAuth, async (req: AuthRequest, res: Response) =
             : undefined,
         right_duration: typeof rightDuration === 'number' ? rightDuration : undefined,
         amount,
-        milk_type: milkType,
+        milk_type: toCloudMilkType(milkType),
         food_description: foodDescription,
         notes,
       })

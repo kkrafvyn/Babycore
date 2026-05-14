@@ -1,5 +1,7 @@
 # 🎉 BabyLog - Complete Session Delivery
 
+> Historical note: this session summary references Vercel because it was the example deployment target at the time. The current project can be deployed on any platform.
+
 **Session Date**: April 25, 2026  
 **Status**: ✅ **COMPLETE** - ALL TASKS DELIVERED  
 **Project**: Doctor Role Implementation + Vercel Deployment Setup

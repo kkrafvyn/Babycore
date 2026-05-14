@@ -1,5 +1,7 @@
 # BabyLog - Implementation Status & Deployment Checklist
 
+> Historical note: this checklist originally assumed Vercel for deployment examples. The current runtime and active deployment docs are platform-neutral.
+
 **Project**: BabyLog - Baby Health & Development Tracking  
 **Last Updated**: April 25, 2026  
 **Status**: 95%+ Complete - Ready for Production Testing
@@ -45,7 +47,7 @@
 - [x] OpenAI AI (FREE trial + cheap gpt-4o-mini)
 - [x] Google Analytics (FREE - unlimited)
 - [x] Sentry Error Tracking (FREE - 5,000 events/month)
-- [x] Vercel Hosting (FREE - unlimited deployments)
+- [x] Hosting configuration documented (provider optional)
 - [x] Environment variables configured (.env)
 
 ### Documentation Created
@@ -88,7 +90,7 @@
 - [ ] Copy production environment variables
 - [ ] Configure Supabase production database
 - [ ] Set up live payment keys (Paystack/Flutterwave)
-- [ ] Deploy to Vercel
+- [ ] Deploy to your chosen host
 - [ ] Configure custom domain
 - [ ] Set up SSL certificate
 
@@ -157,8 +159,8 @@ Check if any conflicts with doctor schema:
 - [ ] Git repository clean and committed
 
 ### Deployment Steps
-- [ ] Connect Vercel to GitHub
-- [ ] Add environment variables to Vercel dashboard
+- [ ] Connect your hosting platform to GitHub
+- [ ] Add environment variables to your hosting dashboard
 - [ ] Deploy to staging branch first
 - [ ] Test staging deployment
 - [ ] Deploy to production (main branch)
@@ -187,7 +189,7 @@ Flutterwave:   $0 (test mode)
 OpenAI:        $0 ($5 free trial)
 Sentry:        $0 (5,000 events free)
 Analytics:     $0 (unlimited free)
-Vercel:        $0 (unlimited free)
+Hosting:       varies by provider and plan
 Gmail SMTP:    $0 (free)
 GitHub:        $0 (unlimited free)
 ───────────────────────────
@@ -202,7 +204,7 @@ Paystack:      0% commission (free forever!)
 Flutterwave:   0% commission (free forever!)
 OpenAI:        ~$10/month (estimated usage)
 Sentry Pro:    $29/month (when >5K errors)
-Vercel Pro:    $20/month (optional - more features)
+Paid hosting:  optional, depending on scale and provider
 ───────────────────────────
 TOTAL:         ~$100-150/year ($8-12/month avg)
 ```
@@ -220,7 +222,7 @@ TOTAL:         ~$100-150/year ($8-12/month avg)
 - [ ] .env in .gitignore
 - [ ] API keys rotated regularly
 - [ ] CORS configured correctly
-- [ ] HTTPS enabled (Vercel automatic)
+- [ ] HTTPS enabled on production host
 
 ---
 
@@ -229,7 +231,7 @@ TOTAL:         ~$100-150/year ($8-12/month avg)
 - [FREE_SERVICES_SETUP.md](FREE_SERVICES_SETUP.md) - Free tier services setup
 - [database/sql/README.md](database/sql/README.md) - Database migrations guide
 - [DOCTOR_ROLE_API_DOCUMENTATION.md](DOCTOR_ROLE_API_DOCUMENTATION.md) - Doctor API reference
-- [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md) - Deployment steps
+- [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) - Deployment steps
 - [.env.production.example](.env.production.example) - Production variables template
 - [src/api/routes/doctor.ts](src/api/routes/doctor.ts) - Doctor API implementation
 
@@ -253,7 +255,7 @@ npm run build           # Build for production
 npm run preview         # Preview production build
 
 # Deployment
-git push origin main    # Deploy to Vercel (automatic)
+git push origin main    # Trigger your connected production deploy
 ```
 
 ---
@@ -265,7 +267,7 @@ git push origin main    # Deploy to Vercel (automatic)
 2. All 15 doctor endpoints tested and working
 3. Doctor role fully integrated with existing roles
 4. Free tier services configured and tested
-5. Deployed to Vercel staging environment
+5. Deployed to a staging environment
 6. All endpoints tested in staging
 7. Production deployment successful
 8. Monitoring active (Sentry + Google Analytics)
@@ -277,7 +279,7 @@ git push origin main    # Deploy to Vercel (automatic)
 ### If something breaks:
 1. Check Sentry for errors: https://sentry.io
 2. Check Supabase logs: https://app.supabase.com
-3. Check Vercel deployment: https://vercel.com/dashboard
+3. Check your hosting platform deployment dashboard
 4. Review API response in browser console
 5. Read relevant documentation file
 

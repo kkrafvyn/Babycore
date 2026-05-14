@@ -238,19 +238,27 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         ...(remoteSnapshot?.babies || []).map((baby: Baby) =>
           updateBaby(baby, { skipCloudSync: true }),
         ),
-        ...(remoteSnapshot?.sleepLogs || []).map((log: SleepLog) => updateSleepLog(log)),
-        ...(remoteSnapshot?.feedLogs || []).map((log: FeedLog) => updateFeedLog(log)),
-        ...(remoteSnapshot?.diaperLogs || []).map((log: DiaperLog) => updateDiaperLog(log)),
+        ...(remoteSnapshot?.sleepLogs || []).map((log: SleepLog) =>
+          updateSleepLog(log, { skipCloudSync: true }),
+        ),
+        ...(remoteSnapshot?.feedLogs || []).map((log: FeedLog) =>
+          updateFeedLog(log, { skipCloudSync: true }),
+        ),
+        ...(remoteSnapshot?.diaperLogs || []).map((log: DiaperLog) =>
+          updateDiaperLog(log, { skipCloudSync: true }),
+        ),
         ...(remoteSnapshot?.healthLogs || []).map((log: HealthLog) =>
           updateHealthLog(log, { skipCloudSync: true }),
         ),
         ...(remoteSnapshot?.growthMeasurements || []).map((measurement: GrowthMeasurement) =>
-          updateGrowthMeasurement(measurement),
+          updateGrowthMeasurement(measurement, { skipCloudSync: true }),
         ),
         ...(remoteSnapshot?.vaccinationRecords || []).map((record: VaccinationRecord) =>
-          updateVaccinationRecord(record),
+          updateVaccinationRecord(record, { skipCloudSync: true }),
         ),
-        ...(remoteSnapshot?.milestones || []).map((milestone: Milestone) => updateMilestone(milestone)),
+        ...(remoteSnapshot?.milestones || []).map((milestone: Milestone) =>
+          updateMilestone(milestone, { skipCloudSync: true }),
+        ),
         ...(remoteSnapshot?.memories || []).map((memory: MemoryLog) =>
           updateMemoryLog(memory, { skipCloudSync: true }),
         ),

@@ -148,7 +148,7 @@ curl http://localhost:3000/api/doctor/babies
 
 ## 🚀 PHASE 3: PRODUCTION DEPLOYMENT (10-15 minutes)
 
-### Step 8: Prepare for Vercel Deployment
+### Step 8: Prepare for Production Deployment
 - [ ] Commit all changes to git:
 ```bash
 git add .
@@ -162,11 +162,11 @@ git push origin main
 ```
 - [ ] ✅ **CHECKPOINT 7**: Code committed and pushed
 
-### Step 9: Deploy to Vercel
+### Step 9: Deploy to Your Hosting Platform
 
 #### Option A: Automatic Deployment (Recommended)
-- [ ] Go to: https://vercel.com/dashboard
-- [ ] If project already connected: Automatic deploy triggered!
+- [ ] Trigger a production deployment in your hosting dashboard or CLI
+- [ ] If your repo is already connected: wait for the deploy to start automatically
 - [ ] If not connected:
   - [ ] Click: "Add New..." → "Project"
   - [ ] Select your BabyLog repository
@@ -180,7 +180,7 @@ git push origin main
   - [ ] Click: "Deploy"
 
 #### Option B: Manual Deployment
-- [ ] In Vercel dashboard, go to project
+- [ ] Open your hosting dashboard or CLI
 - [ ] Go to: Settings → Environment Variables
 - [ ] Add all variables from .env file
 - [ ] Go back to Deployments
@@ -188,13 +188,13 @@ git push origin main
 - [ ] Wait for deployment to complete
 
 ### Step 10: Verify Production Deployment
-- [ ] Go to: https://your-project.vercel.app (or your domain)
+- [ ] Go to: https://your-production-domain.example (or your real domain)
 - [ ] Wait for page to load (30-60 seconds)
 - [ ] Check that app loads without errors
 - [ ] Open Browser Console (F12) - look for errors
 - [ ] Test production endpoint:
 ```bash
-curl https://your-project.vercel.app/health
+curl https://your-production-domain.example/health
 ```
 - [ ] Should return: `{"status":"ok",...}`
 - [ ] ✅ **CHECKPOINT 8**: Production deployment successful
@@ -294,10 +294,10 @@ curl https://your-project.vercel.app/health
 ✅ Solution: All endpoints need: Authorization: Bearer {token}
 ```
 
-### Problem: Vercel deployment fails
+### Problem: Production deployment fails
 ```
 ❌ Cause: Missing environment variables
-✅ Solution: Add all .env variables to Vercel dashboard
+✅ Solution: Add all required `.env` variables to your hosting platform's production environment settings
 ```
 
 ---
@@ -309,7 +309,7 @@ curl https://your-project.vercel.app/health
 2. [ ] 50+ tables created in Supabase (verified)
 3. [ ] Doctor endpoints responding (200 or 401)
 4. [ ] Dev server running locally without critical errors
-5. [ ] Production deployment successful on Vercel
+5. [ ] Production deployment successful on your chosen host
 6. [ ] App loads on production URL
 7. [ ] All free services configured and tested
 
@@ -347,7 +347,7 @@ Phase 4 (Services):      ⏳ NOT YET STARTED
 
 - [QUICK_START_NEXT_STEPS.md](QUICK_START_NEXT_STEPS.md)
 - [database/sql/README.md](database/sql/README.md)
-- [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md)
+- [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
 - [FREE_SERVICES_SETUP.md](FREE_SERVICES_SETUP.md)
 - [FILES_AND_STRUCTURE.md](FILES_AND_STRUCTURE.md)
 - [DOCTOR_ROLE_API_DOCUMENTATION.md](DOCTOR_ROLE_API_DOCUMENTATION.md)

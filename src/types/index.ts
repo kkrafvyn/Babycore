@@ -234,4 +234,4 @@ export interface Achievement {
   createdAt: string;
 }
 
-export type View = 'onboarding' | 'dashboard' | 'sleep' | 'feeding' | 'diaper' | 'growth' | 'vaccination' | 'settings' | 'journal' | 'health' | 'memories' | 'timeline' | 'insights' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'achievements' | 'sleep-training' | 'white-noise' | 'parent-wellness';
+export type View = 'onboarding' | 'dashboard' | 'sleep' | 'feeding' | 'diaper' | 'growth' | 'vaccination' | 'settings' | 'journal' | 'health' | 'memories' | 'timeline' | 'insights' | 'tips' | 'photos' | 'report' | 'handoff' | 'baby-journal' | 'achievements' | 'sleep-training' | 'white-noise' | 'parent-wellness' | 'expenses' | 'nutrition';

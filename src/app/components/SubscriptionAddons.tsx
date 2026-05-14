@@ -18,20 +18,28 @@ export function SubscriptionAddons() {
   const [userSubscriptions, setUserSubscriptions] = useState<UserAddonSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
 
     const loadAddons = async () => {
       setLoading(true);
-      const [availableAddons, subscriptions] = await Promise.all([
-        getAvailableAddons(),
-        getUserAddonSubscriptions(user.id),
-      ]);
+      setErrorMessage(null);
+      try {
+        const [availableAddons, subscriptions] = await Promise.all([
+          getAvailableAddons(),
+          getUserAddonSubscriptions(user.id),
+        ]);
 
-      setAddons(availableAddons);
-      setUserSubscriptions(subscriptions);
-      setLoading(false);
+        setAddons(availableAddons);
+        setUserSubscriptions(subscriptions);
+      } catch (error) {
+        console.error('Failed to load add-ons:', error);
+        setErrorMessage('Unable to load add-ons right now.');
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadAddons();
@@ -41,13 +49,19 @@ export function SubscriptionAddons() {
     if (!user?.id) return;
 
     setSubscribing(addonId);
-    const subscription = await subscribeToAddon(user.id, addonId);
+    setErrorMessage(null);
+    try {
+      const subscription = await subscribeToAddon(user.id, addonId);
 
-    if (subscription) {
-      setUserSubscriptions([...userSubscriptions, subscription]);
+      if (subscription) {
+        setUserSubscriptions([...userSubscriptions, subscription]);
+      }
+    } catch (error) {
+      console.error('Failed to subscribe to add-on:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to subscribe to this add-on right now.');
+    } finally {
+      setSubscribing(null);
     }
-
-    setSubscribing(null);
   };
 
   const isSubscribed = (addonId: string) => {
@@ -87,6 +101,12 @@ export function SubscriptionAddons() {
           <CardDescription>Enhance your BabyLog experience with premium features</CardDescription>
         </CardHeader>
       </Card>
+
+      {errorMessage && (
+        <Card className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+          <CardContent className="pt-4 text-sm font-medium">{errorMessage}</CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {addons.map((addon) => {

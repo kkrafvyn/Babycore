@@ -1,12 +1,28 @@
 import { supabase } from './supabase';
 import { getApiBaseUrl } from './api-base-url';
 import {
+  fromDiaperLogCloudRow,
+  fromFeedLogCloudRow,
+  fromGrowthMeasurementCloudRow,
   fromHealthLogCloudRow,
+  fromJournalEntryCloudRow,
+  fromMemoryLogCloudRow,
+  fromMilestoneCloudRow,
+  fromSleepLogCloudRow,
   fromUserSettingsCloudRow,
+  fromVaccinationRecordCloudRow,
   isMissingUserSettingsOptionalColumnsError,
+  toDiaperLogCloudRow,
+  toFeedLogCloudRow,
+  toGrowthMeasurementCloudRow,
   toHealthLogCloudRow,
+  toJournalEntryCloudRow,
   toLegacyUserSettingsCloudRow,
+  toMemoryLogCloudRow,
+  toMilestoneCloudRow,
+  toSleepLogCloudRow,
   toUserSettingsCloudRow,
+  toVaccinationRecordCloudRow,
 } from './cloud-sync-mappers';
 
 interface SyncStatus {
@@ -373,85 +389,19 @@ export async function performFullSync(localData: {
 
     const dependentResults = babyResult.ok
       ? await Promise.all([
-          syncSleepLogs(localData.sleepLogs.map((l) => ({
-            id: l.id,
-            baby_id: l.babyId,
-            start_time: l.startTime,
-            end_time: l.endTime,
-            duration: l.duration,
-            notes: l.notes,
-            created_at: l.createdAt,
-          }))),
-          syncFeedLogs(localData.feedLogs.map((l) => ({
-            id: l.id,
-            baby_id: l.babyId,
-            timestamp: l.timestamp,
-            type: l.type,
-            amount: l.bottleAmount,
-            milk_type: l.bottleType,
-            food_description: l.solidDescription,
-            notes: l.notes,
-            created_at: l.createdAt,
-            // For breast feeds, we map duration based on which side was active.
-            left_duration: l.breastLeft ? l.duration : 0,
-            right_duration: l.breastRight ? l.duration : 0,
-          }))),
-          syncDiaperLogs(localData.diaperLogs.map((l) => ({
-            id: l.id,
-            baby_id: l.babyId,
-            timestamp: l.timestamp,
-            type: l.type,
-            notes: l.notes,
-            created_at: l.createdAt,
-          }))),
+          syncSleepLogs(localData.sleepLogs.map((log) => toSleepLogCloudRow(log))),
+          syncFeedLogs(localData.feedLogs.map((log) => toFeedLogCloudRow(log))),
+          syncDiaperLogs(localData.diaperLogs.map((log) => toDiaperLogCloudRow(log))),
           syncHealthLogs((localData.healthLogs || []).map((log) => toHealthLogCloudRow(log))),
-          syncGrowthMeasurements(localData.growthMeasurements.map((m) => ({
-            id: m.id,
-            baby_id: m.babyId,
-            date: m.date,
-            weight: m.weight,
-            height: m.height,
-            head_circumference: m.headCircumference,
-            created_at: m.createdAt,
-          }))),
-          syncVaccinationRecords(localData.vaccinationRecords.map((r) => ({
-            id: r.id,
-            baby_id: r.babyId,
-            vaccine_name: r.name,
-            due_date: r.dueDate,
-            status: r.status,
-            given_date: r.givenDate,
-            notes: r.notes,
-            created_at: r.createdAt,
-          }))),
-          syncMilestones(localData.milestones.map((m) => ({
-            id: m.id,
-            baby_id: m.babyId,
-            date: m.date,
-            type: m.type,
-            description: m.description,
-            photo_url: m.photoUrl,
-            notes: m.notes,
-            created_at: m.createdAt,
-          }))),
-          syncMemories(localData.memories.map((m) => ({
-            id: m.id,
-            baby_id: m.babyId,
-            timestamp: m.timestamp,
-            text: m.text,
-            photo_url: m.photoUrl,
-            is_milestone: m.isMilestone,
-            created_at: m.createdAt,
-          }))),
-          syncJournalEntries((localData.journalEntries || []).map((entry) => ({
-            id: entry.id,
-            baby_id: entry.babyId,
-            date: entry.date,
-            prompt: entry.prompt,
-            text: entry.text,
-            mood: entry.mood,
-            created_at: entry.createdAt,
-          }))),
+          syncGrowthMeasurements(localData.growthMeasurements.map((measurement) =>
+            toGrowthMeasurementCloudRow(measurement),
+          )),
+          syncVaccinationRecords(localData.vaccinationRecords.map((record) =>
+            toVaccinationRecordCloudRow(record),
+          )),
+          syncMilestones(localData.milestones.map((milestone) => toMilestoneCloudRow(milestone))),
+          syncMemories(localData.memories.map((memory) => toMemoryLogCloudRow(memory))),
+          syncJournalEntries((localData.journalEntries || []).map((entry) => toJournalEntryCloudRow(entry))),
         ])
       : [];
 
@@ -580,85 +530,17 @@ export async function pullFromCloud(): Promise<any> {
         country: b.country,
         createdAt: b.created_at
       })),
-      sleepLogs: (sleepLogs.data || []).map(l => ({
-        id: l.id,
-        babyId: l.baby_id,
-        startTime: l.start_time,
-        endTime: l.end_time,
-        duration: l.duration,
-        notes: l.notes,
-        createdAt: l.created_at
-      })),
-      feedLogs: (feedLogs.data || []).map(l => ({
-        id: l.id,
-        babyId: l.baby_id,
-        timestamp: l.timestamp,
-        type: l.type,
-        duration: l.left_duration || l.right_duration || 0,
-        breastLeft: !!l.left_duration,
-        breastRight: !!l.right_duration,
-        bottleAmount: l.amount,
-        bottleType: l.milk_type,
-        solidDescription: l.food_description,
-        notes: l.notes,
-        createdAt: l.created_at
-      })),
-      diaperLogs: (diaperLogs.data || []).map(l => ({
-        id: l.id,
-        babyId: l.baby_id,
-        timestamp: l.timestamp,
-        type: l.type,
-        notes: l.notes,
-        createdAt: l.created_at
-      })),
+      sleepLogs: (sleepLogs.data || []).map((log) => fromSleepLogCloudRow(log)),
+      feedLogs: (feedLogs.data || []).map((log) => fromFeedLogCloudRow(log)),
+      diaperLogs: (diaperLogs.data || []).map((log) => fromDiaperLogCloudRow(log)),
       healthLogs: (healthLogs.data || []).map((log) => fromHealthLogCloudRow(log)),
-      growthMeasurements: (growth.data || []).map(m => ({
-        id: m.id,
-        babyId: m.baby_id,
-        date: m.date,
-        weight: m.weight,
-        height: m.height,
-        headCircumference: m.head_circumference,
-        createdAt: m.created_at
-      })),
-      vaccinationRecords: (vaccine.data || []).map(r => ({
-        id: r.id,
-        babyId: r.baby_id,
-        name: r.vaccine_name || r.name,
-        dueDate: r.due_date,
-        status: r.status,
-        givenDate: r.given_date,
-        notes: r.notes,
-        createdAt: r.created_at
-      })),
-      milestones: (milestones.data || []).map(m => ({
-        id: m.id,
-        babyId: m.baby_id,
-        date: m.date,
-        type: m.type,
-        description: m.description,
-        photoUrl: m.photo_url,
-        notes: m.notes,
-        createdAt: m.created_at
-      })),
-      memories: (memories.data || []).map(m => ({
-        id: m.id,
-        babyId: m.baby_id,
-        timestamp: m.timestamp,
-        text: m.text,
-        photoUrl: m.photo_url,
-        isMilestone: m.is_milestone,
-        createdAt: m.created_at
-      })),
-      journalEntries: (journalEntries.data || []).map((entry) => ({
-        id: entry.id,
-        babyId: entry.baby_id,
-        date: entry.date,
-        prompt: entry.prompt,
-        text: entry.text,
-        mood: entry.mood,
-        createdAt: entry.created_at,
-      })),
+      growthMeasurements: (growth.data || []).map((measurement) =>
+        fromGrowthMeasurementCloudRow(measurement),
+      ),
+      vaccinationRecords: (vaccine.data || []).map((record) => fromVaccinationRecordCloudRow(record)),
+      milestones: (milestones.data || []).map((milestone) => fromMilestoneCloudRow(milestone)),
+      memories: (memories.data || []).map((memory) => fromMemoryLogCloudRow(memory)),
+      journalEntries: (journalEntries.data || []).map((entry) => fromJournalEntryCloudRow(entry)),
       careWorkspaceData: userSettingsRow?.care_workspace_data || null,
       userSettings: userSettingsRow ? fromUserSettingsCloudRow(userSettingsRow) : null,
     };

@@ -1,5 +1,7 @@
 # BabyLog App - Complete Session Summary
 
+> Historical note: this summary references Vercel as the example deployment target from that session. The current app and API are platform-neutral.
+
 **Date**: April 25, 2026  
 **Project Status**: ✅ PRODUCTION READY  
 **Version**: 1.0.0 - Doctor Role Edition

@@ -10,8 +10,10 @@ import authMiddleware, { rateLimit } from './middleware/auth.js';
 import babiesRoutes from './routes/babies.js';
 import feedingRoutes from './routes/feeding.js';
 import sleepRoutes from './routes/sleep.js';
+import sleepCoachingRoutes from './routes/sleep-coaching.js';
 import diaperRoutes from './routes/diaper.js';
 import healthRoutes from './routes/health.js';
+import nutritionRoutes from './routes/nutrition.js';
 import vaccinationsRoutes from './routes/vaccinations.js';
 import photosRoutes from './routes/photos.js';
 import analyticsRoutes from './routes/analytics.js';
@@ -137,12 +139,16 @@ apiRouter.use('/feeding', feedingRoutes);
 
 // Sleep Tracking
 apiRouter.use('/sleep', sleepRoutes);
+apiRouter.use('/sleep-coaching', sleepCoachingRoutes);
 
 // Diaper Tracking
 apiRouter.use('/diaper', diaperRoutes);
 
 // Health Records
 apiRouter.use('/health', healthRoutes);
+
+// Nutrition & meals
+apiRouter.use('/nutrition', nutritionRoutes);
 
 // Vaccinations
 apiRouter.use('/vaccinations', vaccinationsRoutes);

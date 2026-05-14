@@ -22,7 +22,7 @@ Get them from:
 Notes:
 
 - Use the publishable key in the browser.
-- Use the secret/service key only on the server or in Vercel env vars.
+- Use the secret/service key only on the server or in your deployment platform's protected server env vars.
 
 ### Paystack
 
@@ -39,8 +39,8 @@ Get them from:
 
 Also configure:
 
-- Callback URL: `https://babycore.vercel.app`
-- Webhook URL: `https://babycore.vercel.app/api/payments/webhook/paystack`
+- Callback URL: `https://app.example.com`
+- Webhook URL: `https://app.example.com/api/payments/webhook/paystack`
 
 ### Web Push
 

@@ -185,16 +185,73 @@ export const safeSendPaymentConfirmationEmail = async (
 };
 
 /**
+ * GET /api/payments/addons
+ * List active add-ons that can be shown in the app.
+ */
+export async function getAvailableAddons(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabase
+      .from('subscription_addons')
+      .select('*')
+      .eq('is_active', true)
+      .order('addon_name', { ascending: true });
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      data: (data || []).filter((addon: any) => !isPricingConfigAddon(addon)),
+    });
+  } catch (error: any) {
+    console.error('Get add-ons error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to load add-ons',
+    });
+  }
+}
+
+/**
+ * GET /api/payments/addon-subscriptions
+ * List active add-on subscriptions for the authenticated user.
+ */
+export async function getUserAddonSubscriptions(req: Request, res: Response) {
+  try {
+    const userId = getRequestUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { data, error } = await supabase
+      .from('user_addon_subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('subscribed_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    console.error('Get add-on subscriptions error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to load add-on subscriptions',
+    });
+  }
+}
+
+/**
  * POST /api/payments/process-addon
  * Process payment for premium add-on subscription
  */
 export async function processAddonPayment(req: Request, res: Response) {
   try {
-    const userId = req.user?.id;
-    const { addonId, paymentMethod, amount } = req.body;
+    const userId = getRequestUserId(req);
+    const { addonId } = req.body;
 
-    if (!userId || !addonId || !paymentMethod || !amount) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!userId || !addonId) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     // Get addon details
@@ -205,58 +262,26 @@ export async function processAddonPayment(req: Request, res: Response) {
       .single();
 
     if (addonError || !addon) {
-      return res.status(404).json({ error: 'Add-on not found' });
+      return res.status(404).json({ success: false, message: 'Add-on not found' });
     }
 
-    // Process payment based on method
-    let paymentResult;
-
-    if (paymentMethod === 'paystack') {
-      paymentResult = await processPaystackPayment(userId, addon, amount);
-    } else if (paymentMethod === 'flutterwave') {
-      paymentResult = await processFlutterwavePayment(userId, addon, amount);
-    } else if (paymentMethod === 'stripe') {
-      paymentResult = await processStripePayment(userId, addon, amount);
-    } else {
-      return res.status(400).json({ error: 'Unsupported payment method' });
+    const addonPrice = Number(addon.price || 0);
+    if (addonPrice <= 0) {
+      const subscription = await activateAddonSubscription({ userId, addonId, addon });
+      return res.json({
+        success: true,
+        subscription,
+        message: `Successfully subscribed to ${addon.addon_name || 'add-on'}`,
+      });
     }
 
-    if (!paymentResult.success) {
-      return res.status(400).json({ error: paymentResult.error });
-    }
-
-    // Record subscription in database
-    const billingCycle = addon.billing_cycle || 'monthly';
-    const renewalDate = calculateRenewalDate(billingCycle);
-
-    const { data: subscription, error: subError } = await supabase
-      .from('user_addon_subscriptions')
-      .insert({
-        user_id: userId,
-        addon_id: addonId,
-        status: 'active',
-        purchased_at: new Date().toISOString(),
-        renewal_date: renewalDate,
-        payment_method: paymentMethod,
-        transaction_id: paymentResult.transactionId,
-        amount_paid: amount,
-      })
-      .select()
-      .single();
-
-    if (subError) throw subError;
-
-    // Send confirmation email
-    await sendPaymentConfirmationEmail(userId, addon, subscription);
-
-    return res.json({
-      success: true,
-      subscription,
-      message: `Successfully subscribed to ${addon.name}`,
+    return res.status(402).json({
+      success: false,
+      message: 'Paid add-on checkout is not configured yet. Use the main Premium checkout for paid access.',
     });
   } catch (error: any) {
     console.error('Payment processing error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 }
 
@@ -266,19 +291,18 @@ export async function processAddonPayment(req: Request, res: Response) {
  */
 export async function cancelAddonSubscription(req: Request, res: Response) {
   try {
-    const userId = req.user?.id;
+    const userId = getRequestUserId(req);
     const { subscriptionId } = req.body;
 
     if (!userId || !subscriptionId) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     // Update subscription status
     const { data: subscription, error } = await supabase
       .from('user_addon_subscriptions')
       .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
+        is_active: false,
       })
       .eq('id', subscriptionId)
       .eq('user_id', userId)
@@ -293,7 +317,7 @@ export async function cancelAddonSubscription(req: Request, res: Response) {
       message: 'Subscription cancelled',
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 }
 
@@ -737,6 +761,60 @@ const getLatestSuccessfulPaymentSnapshot = async (paymentClient: any, userId: st
   return data || null;
 };
 
+const getRequestUserId = (req: Request): string | undefined => (req as any).user?.id;
+
+const isPricingConfigAddon = (addon: any): boolean =>
+  String(addon?.addon_name || '').startsWith('config:pricing:');
+
+const isPremiumAccessAddon = (addon: any): boolean => {
+  const addonName = String(addon?.addon_name || '').toLowerCase();
+  const description = String(addon?.description || '').toLowerCase();
+
+  if (isPricingConfigAddon(addon)) return false;
+
+  return (
+    description.includes('premium access subscription') ||
+    addonName === 'premium access' ||
+    addonName === 'premium monthly' ||
+    addonName === 'premium yearly'
+  );
+};
+
+const buildAddonSubscriptionExpiry = (addon: any): string | null => {
+  const price = Number(addon?.price || 0);
+  if (price <= 0) {
+    return null;
+  }
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30);
+  return expiresAt.toISOString();
+};
+
+const activateAddonSubscription = async (params: {
+  userId: string;
+  addonId: string;
+  addon: any;
+}) => {
+  const { data, error } = await supabase
+    .from('user_addon_subscriptions')
+    .upsert(
+      {
+        user_id: params.userId,
+        addon_id: params.addonId,
+        subscribed_at: new Date().toISOString(),
+        expires_at: buildAddonSubscriptionExpiry(params.addon),
+        is_active: true,
+      },
+      { onConflict: 'user_id,addon_id' },
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
 /**
  * GET /api/payments/subscription-status
  * Returns backend subscription status for the authenticated user.
@@ -749,22 +827,20 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
     }
 
     const now = Date.now();
-    if (!hasServiceConfig) {
-      const fallbackClient = createRequestSupabaseClient(req.headers?.authorization);
-      const { data: settings, error } = await fallbackClient
-        .from('user_settings')
-        .select(
-          'subscription_plan, subscription_status, subscription_start_date, subscription_end_date, subscription_currency',
-        )
-        .eq('user_id', userId)
-        .maybeSingle();
+    const subscriptionReadClient = hasServiceConfig
+      ? supabase
+      : createRequestSupabaseClient(req.headers?.authorization);
+    const { data: settings, error: settingsError } = await subscriptionReadClient
+      .from('user_settings')
+      .select(
+        'subscription_plan, subscription_status, subscription_start_date, subscription_end_date, subscription_currency',
+      )
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      if (error) throw error;
+    if (settingsError) throw settingsError;
 
-      if (!settings || settings.subscription_status !== 'active' || !settings.subscription_plan) {
-        return res.json({ success: true, subscription: null });
-      }
-
+    if (settings?.subscription_status === 'active' && settings.subscription_plan) {
       const startDate = settings.subscription_start_date || new Date().toISOString();
       const endDate =
         settings.subscription_end_date ||
@@ -772,57 +848,66 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
       const endMs = endDate ? new Date(endDate).getTime() : 0;
       const isExpired = endMs > 0 && endMs < now;
 
-      if (isExpired) {
-        return res.json({ success: true, subscription: null });
+      if (!isExpired) {
+        const latestPayment = await getLatestSuccessfulPaymentSnapshot(subscriptionReadClient, userId).catch(() => null);
+
+        return res.json({
+          success: true,
+          subscription: {
+            status: 'active',
+            period: inferBillingPeriod(startDate, endDate),
+            startDate,
+            endDate,
+            renewalDate: endDate,
+            planId: String(latestPayment?.plan_id || settings.subscription_plan || 'premium'),
+            planName: String(latestPayment?.plan_name || settings.subscription_plan || 'Premium'),
+            price: Number(latestPayment?.amount || 0),
+            currency: String(latestPayment?.currency || settings.subscription_currency || 'USD'),
+            autoRenewal: true,
+          },
+        });
       }
-
-      const latestPayment = await getLatestSuccessfulPaymentSnapshot(fallbackClient, userId).catch(() => null);
-
-      return res.json({
-        success: true,
-        subscription: {
-          status: 'active',
-          period: inferBillingPeriod(startDate, endDate),
-          startDate,
-          endDate,
-          renewalDate: endDate,
-          planId: String(latestPayment?.plan_id || settings.subscription_plan || 'premium'),
-          planName: String(latestPayment?.plan_name || settings.subscription_plan || 'Premium'),
-          price: Number(latestPayment?.amount || 0),
-          currency: String(latestPayment?.currency || settings.subscription_currency || 'USD'),
-          autoRenewal: true,
-        },
-      });
     }
 
-    const { data: activeSubscription, error } = await supabase
+    if (!hasServiceConfig) {
+      return res.json({ success: true, subscription: null });
+    }
+
+    const { data: activeSubscriptions, error } = await supabase
       .from('user_addon_subscriptions')
       .select('*')
       .eq('user_id', userId)
       .eq('is_active', true)
-      .order('expires_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('expires_at', { ascending: false });
 
     if (error) throw error;
+
+    if (!activeSubscriptions?.length) {
+      return res.json({ success: true, subscription: null });
+    }
+
+    const addonIds = activeSubscriptions
+      .map((subscription: any) => subscription.addon_id)
+      .filter(Boolean);
+    const { data: addons, error: addonsError } = await supabase
+      .from('subscription_addons')
+      .select('*')
+      .in('id', addonIds);
+
+    if (addonsError) throw addonsError;
+
+    const addonsById = new Map((addons || []).map((addon: any) => [addon.id, addon]));
+    const activeSubscription = activeSubscriptions.find((subscription: any) => {
+      const addon = addonsById.get(subscription.addon_id);
+      const endMs = subscription.expires_at ? new Date(subscription.expires_at).getTime() : 0;
+      return isPremiumAccessAddon(addon) && !(endMs > 0 && endMs < now);
+    });
 
     if (!activeSubscription) {
       return res.json({ success: true, subscription: null });
     }
 
-    const endMs = activeSubscription.expires_at ? new Date(activeSubscription.expires_at).getTime() : 0;
-    const isExpired = endMs > 0 && endMs < now;
-
-    if (isExpired) {
-      return res.json({ success: true, subscription: null });
-    }
-
-    const { data: addon } = await supabase
-      .from('subscription_addons')
-      .select('*')
-      .eq('id', activeSubscription.addon_id)
-      .maybeSingle();
-
+    const addon = addonsById.get(activeSubscription.addon_id);
     const startDate = activeSubscription.subscribed_at || activeSubscription.created_at || new Date().toISOString();
     const endDate = activeSubscription.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const period = inferBillingPeriod(startDate, endDate);
@@ -1439,113 +1524,6 @@ export async function recordPaymentEvent(payload: PaymentEventPayload): Promise<
   }
 }
 
-async function processPaystackPayment(
-  userId: string,
-  addon: any,
-  amount: number
-): Promise<{ success: boolean; transactionId?: string; error?: string }> {
-  try {
-    const paystackSecret = getPaystackSecretKey();
-    if (!paystackSecret) {
-      throw new Error('PAYSTACK_SECRET_KEY is not configured');
-    }
-
-    const authAdmin = (supabase.auth as any).admin;
-    const { data: authData } = await authAdmin.getUserById(userId);
-    const email = authData?.user?.email;
-    if (!email) throw new Error('User email not found for payment initialization');
-    // Create payment reference
-    const reference = `${Date.now()}-${userId}`;
-
-    // Initialize transaction
-    const response = await axios.post(
-      'https://api.paystack.co/transaction/initialize',
-      {
-        email,
-        amount: amount * 100, // Paystack uses kobo
-        reference,
-        metadata: {
-          userId,
-          addonId: addon.id,
-          addonName: addon.name,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${paystackSecret}`,
-        },
-      }
-    );
-
-    return {
-      success: true,
-      transactionId: reference,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.response?.data?.message || 'Payment failed',
-    };
-  }
-}
-
-async function processFlutterwavePayment(
-  userId: string,
-  addon: any,
-  amount: number
-): Promise<{ success: boolean; transactionId?: string; error?: string }> {
-  try {
-    const authAdmin = (supabase.auth as any).admin;
-    const { data: authData } = await authAdmin.getUserById(userId);
-    const email = authData?.user?.email;
-    if (!email) throw new Error('User email not found for payment initialization');
-    const reference = `${Date.now()}-${userId}`;
-
-    const response = await axios.post(
-      'https://api.flutterwave.com/v3/charges?type=card',
-      {
-        amount,
-        currency: 'NGN',
-        customer: {
-          email,
-        },
-        reference,
-        tx_ref: reference,
-        customizations: {
-          title: addon.name,
-          description: addon.description,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
-        },
-      }
-    );
-
-    return {
-      success: true,
-      transactionId: reference,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.response?.data?.message || 'Payment failed',
-    };
-  }
-}
-
-async function processStripePayment(
-  userId: string,
-  addon: any,
-  amount: number
-): Promise<{ success: boolean; transactionId?: string; error?: string }> {
-  return {
-    success: false,
-    error: 'Stripe gateway is not configured for this project. Use Paystack or Flutterwave.',
-  };
-}
-
 export async function verifyPaystackTransaction(reference: string): Promise<any> {
   const secret = getPaystackSecretKey();
   if (!secret) {
@@ -1637,18 +1615,6 @@ async function syncUserSettingsSubscription(params: {
   }
 }
 
-function calculateRenewalDate(billingCycle: string): string {
-  const date = new Date();
-  
-  if (billingCycle === 'monthly') {
-    date.setMonth(date.getMonth() + 1);
-  } else if (billingCycle === 'yearly') {
-    date.setFullYear(date.getFullYear() + 1);
-  }
-  
-  return date.toISOString();
-}
-
 async function sendPaymentConfirmationEmail(
   userId: string,
   addon: any,
@@ -1733,6 +1699,8 @@ router.post('/process-addon', processAddonPayment);
 router.post('/cancel-subscription', cancelAddonSubscription);
 router.post('/finalize', finalizePremiumPayment);
 router.get('/pricing', getSubscriptionPricing);
+router.get('/addons', getAvailableAddons);
+router.get('/addon-subscriptions', getUserAddonSubscriptions);
 router.get('/subscription-status', getSubscriptionStatus);
 router.get('/billing-history', getBillingHistory);
 router.post('/payment-event', savePaymentEvent);

@@ -71,6 +71,8 @@ const DoctorReportGenerator = lazyNamed(() => import('./DoctorReportGenerator'),
 const CarePriorityBoard = lazyNamed(() => import('./CarePriorityBoard'), 'CarePriorityBoard');
 const ParentWellness = lazyNamed(() => import('./ParentWellness'), 'ParentWellness');
 const ActivityCenter = lazyNamed(() => import('./ActivityCenter'), 'ActivityCenter');
+const ExpenseTracker = lazyNamed(() => import('./ExpenseTracker'), 'ExpenseTracker');
+const NutritionTracker = lazyNamed(() => import('./NutritionTracker'), 'NutritionTracker');
 const EmergencyShareCard = lazyNamed(() => import('./EmergencyShareCard'), 'EmergencyShareCard');
 const ClinicDoctorPanel = lazyNamed(() => import('./ClinicDoctorPanel'), 'ClinicDoctorPanel');
 const SyncCenter = lazyNamed(() => import('./SyncCenter'), 'SyncCenter');
@@ -199,6 +201,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'payment',
     'parent-wellness',
     'activity-center',
+    'expenses',
+    'nutrition',
     'sync-center',
     'admin',
   ]);
@@ -694,6 +698,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'care-priority', label: 'Priority Board', icon: <AlertTriangle size={20} />, bg: 'bg-red-50 dark:bg-red-900/20 text-red-500' },
               { id: 'parent-wellness', label: 'Wellness', icon: <Heart size={20} />, bg: 'bg-rose-50 dark:bg-rose-900/20 text-rose-500' },
               { id: 'activity-center', label: 'Activity Center', icon: <Activity size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' },
+              { id: 'expenses', label: 'Expenses', icon: <FileText size={20} />, bg: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' },
+              { id: 'nutrition', label: 'Nutrition', icon: <Utensils size={20} />, bg: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600' },
               { id: 'emergency-card', label: 'Emergency Card', icon: <Shield size={20} />, bg: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600' },
               ...(accountProfileType === 'doctor'
                 ? [{ id: 'clinic-panel', label: 'Clinic Panel', icon: <Stethoscope size={20} />, bg: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500' }]
@@ -930,6 +936,22 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       case 'activity-center':
         return currentBaby ? (
           <ActivityCenter
+            babyId={currentBaby.id}
+            babyName={currentBaby.name}
+            onBack={backToDashboard}
+          />
+        ) : null;
+      case 'expenses':
+        return currentBaby ? (
+          <ExpenseTracker
+            babyId={currentBaby.id}
+            babyName={currentBaby.name}
+            onBack={backToDashboard}
+          />
+        ) : null;
+      case 'nutrition':
+        return currentBaby ? (
+          <NutritionTracker
             babyId={currentBaby.id}
             babyName={currentBaby.name}
             onBack={backToDashboard}

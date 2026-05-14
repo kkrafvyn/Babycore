@@ -73,10 +73,10 @@ curl http://localhost:3000/api/doctor/babies
 
 ---
 
-### THING 3: Deploy to Vercel (⏱️ 5 minutes)
+### THING 3: Deploy to Your Hosting Platform (⏱️ 5 minutes)
 
 **What**: Push code to production  
-**Where**: GitHub + Vercel  
+**Where**: GitHub + your hosting platform  
 
 **Exact Steps:**
 ```bash
@@ -85,13 +85,12 @@ git add .
 git commit -m "feat: doctor role complete"
 git push origin main
 
-# Then go to: https://vercel.com/dashboard
-# Select your project
-# Auto-deploy starts!
-# Wait for: "Deployment Complete" ✅
+# Then deploy using your host's dashboard or CLI
+# Wait for the production deployment to finish
+# Confirm the app and /api/health respond successfully
 ```
 
-**Reference**: Open `VERCEL_DEPLOYMENT_GUIDE.md` for detailed steps
+**Reference**: Open `DEPLOYMENT_CHECKLIST.md` for detailed steps
 
 ---
 
@@ -112,7 +111,7 @@ git push origin main
 ```
 Database Migrations:  5-10 minutes
 Local Testing:        5 minutes
-Vercel Deployment:    5 minutes
+Production Deploy:    5 minutes
 ────────────────────────────────
 TOTAL TIME:           15-20 minutes
 ```
@@ -126,7 +125,7 @@ TOTAL TIME:           15-20 minutes
 When you're done:
 - [ ] 50+ database tables created ✅
 - [ ] All endpoints responding ✅
-- [ ] App deployed on Vercel ✅
+- [ ] App deployed on your chosen host ✅
 - [ ] Production URL working ✅
 - [ ] Zero cost ($0/month) ✅
 
