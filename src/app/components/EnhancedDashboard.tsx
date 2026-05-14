@@ -966,6 +966,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             babyId={currentBaby.id}
             babyName={currentBaby.name}
             onBack={backToDashboard}
+            onRecordsSaved={refreshAllLogs}
           />
         ) : null;
       case 'emergency-card': return currentBaby ? <EmergencyShareCard babyId={currentBaby.id} babyName={currentBaby.name} /> : null;

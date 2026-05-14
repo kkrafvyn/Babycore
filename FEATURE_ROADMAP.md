@@ -270,8 +270,9 @@ New priority features added from that analysis:
 - [x] P1: Parent recovery mode for medication reminders, hydration, meals, rest, and support handoffs.
 
 Follow-up depth still needed:
+- [x] Convert approved capture cards into real feeding, sleep, diaper, medication, and milk inventory records.
 - [ ] Persist care expansion records to Supabase and sync across caregivers.
-- [ ] Convert approved capture cards into real feeding, sleep, diaper, pumping, medication, nutrition, and expense rows.
+- [ ] Add dedicated nutrition and expense write APIs so approved captures can create those specialized rows too.
 - [ ] Build true Apple Watch, Wear OS, and iOS Live Activity native extensions.
 - [ ] Expand the developmental checklist with full CDC age bands and corrected-age logic.
 

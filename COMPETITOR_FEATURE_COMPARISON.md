@@ -16,7 +16,7 @@ The remaining high-value gaps are not basic tracker screens. They are faster cap
 
 | Feature | Why it matters | Babycore starting point | MVP scope |
 |---|---|---|---|
-| Universal caregiver capture | Huckleberry is pushing voice, text, and photo AI logging. This is the clearest speed advantage in the market. | Voice logging, caregiver handoff, daily timeline, sync, AI insights. | MVP added in `Care Expansion`: capture inbox accepts text, voice transcript, and image/daycare sheet text, then produces structured review cards with caregiver attribution. |
+| Universal caregiver capture | Huckleberry is pushing voice, text, and photo AI logging. This is the clearest speed advantage in the market. | Voice logging, caregiver handoff, daily timeline, sync, AI insights. | MVP added in `Care Expansion`: capture inbox accepts text, voice transcript, and image/daycare sheet text, then produces structured review cards with caregiver attribution and approval into real feed, sleep, diaper, medication, and milk inventory records. |
 | Watch and lock-screen quick logging | Parents need logging without unlocking a phone at 2 AM. Huckleberry, Nara, Baby Daybook, Sprout, and Baby Tracker all surface watch or widget workflows. | Android home-screen widget, app shortcuts, native shells, local notifications. | MVP added in `Care Expansion`: native quick-action planning workspace tracks Apple Watch, Wear OS, Live Activity, Android notification, and shortcut readiness. |
 | Pumping and milk inventory | Multiple competitors support pumping; Baby Tracker and Glow show demand for milk reserve and breast-pump workflows. Babycore has parent wellness pumping counts but not a true stash system. | Feeding tracker, parent wellness pumping counts, nutrition tracking, payments/premium gating. | MVP added in `Care Expansion`: milk lots, fridge/freezer/prepared status, expiration tracking, usage/discard status, and stash totals. |
 
@@ -45,7 +45,7 @@ The remaining high-value gaps are not basic tracker screens. They are faster cap
 
 | Gap | Competitors showing demand | Recommended Babycore response |
 |---|---|---|
-| AI structured logging from voice/text/image | Huckleberry Berry and AI Logging | Build universal caregiver capture with preview and audit trail. |
+| AI structured logging from voice/text/image | Huckleberry Berry and AI Logging | Capture inbox now has preview, audit trail, and approval into core Babycore logs; next depth is specialized nutrition and expense writes. |
 | Apple Watch, Wear OS, lock-screen logging | Huckleberry, Nara, Baby Daybook, Sprout, Baby Tracker | Extend native surfaces beyond Android widget and app shortcuts. |
 | Milk stash and bottle inventory | Baby Tracker, Glow, Sprout, Talli, Nara | Add pumping plus inventory, not only pumping counts. |
 | CDC-grade milestone experience | CDC Milestone Tracker, Sprout, Baby Daybook, Babylytics | Add evidence-based checklists, corrected age, media examples, and provider summaries. |
@@ -58,7 +58,7 @@ Legend: Strong = clear public feature or major positioning. Partial = present bu
 
 | Product | Core logs | Sleep prediction or schedules | AI logging or AI assistant | Watch, widgets, or voice shortcuts | Caregiver sharing | Pumping or milk features | Growth, health, milestones | Reports or doctor sharing | Babycore comparison |
 |---|---|---|---|---|---|---|---|---|---|
-| Babycore | Strong | Strong: routine predictor, smart insights, sleep training | Stronger after MVP: AI insights, voice logging, and structured capture review cards | Partial/Improving: Android widget, app shortcuts, and native quick-action planning for Apple Watch, Wear OS, Live Activities, and notifications | Strong | Stronger after MVP: parent pumping counts plus milk inventory workspace | Strong | Strong | Babycore is broader in medical, collaboration, emergency, admin, and payments. Next step is backend persistence and real native watch implementation. |
+| Babycore | Strong | Strong: routine predictor, smart insights, sleep training | Stronger after MVP: AI insights, voice logging, structured capture review cards, and approval into core logs | Partial/Improving: Android widget, app shortcuts, and native quick-action planning for Apple Watch, Wear OS, Live Activities, and notifications | Strong | Stronger after MVP: parent pumping counts, milk inventory workspace, and capture-to-milk-lot approval | Strong | Strong | Babycore is broader in medical, collaboration, emergency, admin, and payments. Next step is backend persistence, specialized nutrition/expense capture writes, and real native watch implementation. |
 | Huckleberry | Strong | Strong: SweetSpot, Schedule Creator, sleep plans | Strong: Berry, AI logging from voice/text/image | Strong: Apple Watch and Live Activities | Strong | Strong | Strong | Strong | Strongest direct competitor for sleep intelligence and AI capture. Babycore can beat it on medical/care-team depth. |
 | Nara Baby | Strong | Strong: wake windows and routine support | Gap in reviewed public materials | Strong: Apple Watch listed | Strong | Strong | Strong | Partial | Strong competitor for calm design, caregiver switching, and parent/postpartum tracking. Babycore already has broader operations. |
 | Cubtale | Strong | Partial: trends and routines | Gap in reviewed public materials | Strong: widgets and hardware ecosystem | Strong | Strong through hardware/products | Partial | Partial | Hardware-backed speed is its edge. Babycore can compete with AI capture and mobile-native quick actions before hardware. |
@@ -97,8 +97,8 @@ Babycore should position around "care coordination plus trusted records," not ju
 |---|---|
 | Capture inbox UI | New app view accessible from dashboard quick actions and caregiver/daycare mode. |
 | Text parser MVP | Parse common phrases into proposed entries; start deterministic before adding model calls. |
-| Review-before-save flow | Parent approves parsed entries before write. |
-| Event attribution | Save who submitted, source type, confidence, and original text/image reference. |
+| Review-before-save flow | Parent approves parsed entries before write; feed, sleep, diaper, medication, and milk lot approvals now create Babycore records. |
+| Event attribution | Save who submitted, source type, confidence, original text/image reference, linked status, and linked record count. |
 
 ### Sprint 2: Milk Inventory
 

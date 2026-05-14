@@ -18,11 +18,19 @@ import {
   Trash2,
   Watch,
 } from 'lucide-react';
+import {
+  addDiaperLog,
+  addFeedLog,
+  addHealthLog,
+  addSleepLog,
+} from '../../lib/supabase-storage';
+import type { DiaperLog, FeedLog, HealthLog, SleepLog } from '../../types';
 
 interface CareExpansionHubProps {
   babyId: string;
   babyName: string;
   onBack: () => void;
+  onRecordsSaved?: () => void;
 }
 
 type CaptureSource = 'voice' | 'text' | 'image';
@@ -53,8 +61,10 @@ interface CaptureEntry {
   rawText: string;
   createdBy: string;
   createdAt: string;
-  status: 'draft' | 'saved';
+  status: 'draft' | 'saved' | 'linked';
   suggestions: CaptureSuggestion[];
+  linkedRecordCount?: number;
+  linkedAt?: string;
 }
 
 interface MilkLot {
@@ -324,7 +334,7 @@ const parseCaptureSuggestions = (rawText: string): CaptureSuggestion[] => {
 };
 
 const getStatusClass = (status: string) => {
-  if (status === 'ready' || status === 'observed' || status === 'saved') {
+  if (status === 'ready' || status === 'observed' || status === 'saved' || status === 'linked') {
     return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300';
   }
   if (status === 'provider-question' || status === 'needs-native-work') {
@@ -349,9 +359,271 @@ const tabItems: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
   { id: 'recovery', label: 'Recovery', icon: <Heart size={16} /> },
 ];
 
-export function CareExpansionHub({ babyId, babyName, onBack }: CareExpansionHubProps) {
+const hasCaptureSuggestion = (entry: CaptureEntry, type: CaptureSuggestionType) =>
+  entry.suggestions.some((suggestion) => suggestion.type === type);
+
+const toCaptureNote = (entry: CaptureEntry) =>
+  `[Care Expansion] ${entry.source} capture from ${entry.createdBy}: ${entry.rawText}`;
+
+const extractNumber = (text: string, patterns: RegExp[]): number | undefined => {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = match?.[1] ? Number(match[1]) : NaN;
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const extractDurationMinutes = (text: string): number | undefined => {
+  const normalized = text.toLowerCase();
+  let minutes = 0;
+
+  for (const match of normalized.matchAll(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/g)) {
+    minutes += Number(match[1]) * 60;
+  }
+
+  for (const match of normalized.matchAll(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/g)) {
+    minutes += Number(match[1]);
+  }
+
+  return minutes > 0 ? Math.max(1, Math.round(minutes)) : undefined;
+};
+
+const parseTimeParts = (
+  hourValue: string,
+  minuteValue: string | undefined,
+  meridiemValue: string | undefined,
+  baseDate: Date,
+) => {
+  let hour = Number(hourValue);
+  const minute = Number(minuteValue || 0);
+  const meridiem = meridiemValue?.toLowerCase();
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || hour > 23 || minute > 59) {
+    return null;
+  }
+
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+
+  const date = new Date(baseDate);
+  date.setHours(hour, minute, 0, 0);
+  return date;
+};
+
+const resolveCaptureTimestamp = (entry: CaptureEntry) => {
+  const baseDate = new Date(entry.createdAt);
+  const timeMatch = entry.rawText.match(/\b([01]?\d|2[0-3]):([0-5]\d)\s*(am|pm)?\b/i);
+  const parsedTime = timeMatch
+    ? parseTimeParts(timeMatch[1], timeMatch[2], timeMatch[3], baseDate)
+    : null;
+  return (parsedTime || baseDate).toISOString();
+};
+
+const resolveSleepWindow = (entry: CaptureEntry) => {
+  const baseDate = new Date(entry.createdAt);
+  const timePattern = String.raw`([01]?\d|2[0-3])(?::([0-5]\d))?\s*(am|pm)?`;
+  const rangeMatch = entry.rawText.match(
+    new RegExp(`${timePattern}\\s*(?:to|-|until)\\s*${timePattern}`, 'i'),
+  );
+
+  if (rangeMatch) {
+    const start = parseTimeParts(rangeMatch[1], rangeMatch[2], rangeMatch[3], baseDate);
+    const end = parseTimeParts(rangeMatch[4], rangeMatch[5], rangeMatch[6], baseDate);
+
+    if (start && end) {
+      if (end.getTime() <= start.getTime()) {
+        end.setDate(end.getDate() + 1);
+      }
+      return {
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        duration: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
+      };
+    }
+  }
+
+  const duration = extractDurationMinutes(entry.rawText) || 30;
+  const end = new Date(resolveCaptureTimestamp(entry));
+  const start = new Date(end.getTime() - duration * 60000);
+
+  return {
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+    duration,
+  };
+};
+
+const extractBottleAmount = (text: string): number | undefined => {
+  const ml = extractNumber(text, [/(\d+(?:\.\d+)?)\s*ml\b/i, /(\d+(?:\.\d+)?)\s*milliliters?\b/i]);
+  if (ml) return Math.round(ml);
+
+  const ounces = extractNumber(text, [/(\d+(?:\.\d+)?)\s*oz\b/i, /(\d+(?:\.\d+)?)\s*ounces?\b/i]);
+  return ounces ? Math.round(ounces * 29.57) : undefined;
+};
+
+const extractMedicationName = (text: string) => {
+  const match = text.match(/\b(tylenol|acetaminophen|ibuprofen|motrin|advil|antibiotic|vitamin d|medicine|medication)\b/i);
+  if (!match) return 'Medication';
+  return match[1]
+    .split(' ')
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .join(' ');
+};
+
+const extractMedicationDose = (text: string) => {
+  const match = text.match(/(\d+(?:\.\d+)?\s*(?:ml|mg|mcg|g|tsp|tablet|tablets|drop|drops|dose))\b/i);
+  return match?.[1];
+};
+
+const hasExpenseIntent = (text: string) => /\$|cost|bought|receipt|paid|purchase|purchased|ordered|spent/i.test(text);
+const hasFeedingEventIntent = (text: string) =>
+  /\b(feed|fed|bottle|nurs|breastfed|ate|meal|solid|solids|puree|drank)\b/i.test(text);
+const hasDiaperEventIntent = (text: string) =>
+  /\b(wet|dirty|poop|stool|nappy|diaper\s+(change|changed|at|was|is)|changed\s+diaper)\b/i.test(text);
+const hasMedicationEventIntent = (text: string) =>
+  /\b(gave|give|dose|dosed|took|administered|tylenol|acetaminophen|ibuprofen|motrin|advil|antibiotic|vitamin d)\b/i.test(text);
+
+const shouldCreateFeedingLog = (entry: CaptureEntry) => {
+  if (!hasCaptureSuggestion(entry, 'feeding') && !hasCaptureSuggestion(entry, 'nutrition')) {
+    return false;
+  }
+
+  const amount = extractBottleAmount(entry.rawText);
+  return !hasExpenseIntent(entry.rawText) || hasFeedingEventIntent(entry.rawText) || Boolean(amount);
+};
+
+const shouldCreateDiaperLog = (entry: CaptureEntry) =>
+  hasCaptureSuggestion(entry, 'diaper') &&
+  hasDiaperEventIntent(entry.rawText) &&
+  (!hasExpenseIntent(entry.rawText) || /\b(wet|dirty|poop|stool|changed)\b/i.test(entry.rawText));
+
+const shouldCreateMedicationLog = (entry: CaptureEntry) =>
+  hasCaptureSuggestion(entry, 'medication') &&
+  (!hasExpenseIntent(entry.rawText) || hasMedicationEventIntent(entry.rawText));
+
+const createLogsFromCapture = async (entry: CaptureEntry, babyId: string) => {
+  const createdAt = new Date().toISOString();
+  const timestamp = resolveCaptureTimestamp(entry);
+  const rawText = entry.rawText.toLowerCase();
+  const note = toCaptureNote(entry);
+  let createdCount = 0;
+
+  if (shouldCreateFeedingLog(entry)) {
+    const feedLog: FeedLog = {
+      id: makeId(),
+      babyId,
+      timestamp,
+      type: /solid|solids|meal|ate|puree|allergen|food/.test(rawText)
+        ? 'solids'
+        : /nurs|breast/.test(rawText)
+          ? 'breast'
+          : 'bottle',
+      createdAt,
+      notes: note,
+    };
+
+    if (feedLog.type === 'breast') {
+      const mentionsLeft = /\bleft\b/i.test(entry.rawText);
+      const mentionsRight = /\bright\b/i.test(entry.rawText);
+      feedLog.duration = extractDurationMinutes(entry.rawText) || 10;
+      feedLog.breastLeft = mentionsLeft || !mentionsRight;
+      feedLog.breastRight = mentionsRight || !mentionsLeft;
+    } else if (feedLog.type === 'bottle') {
+      feedLog.bottleAmount = extractBottleAmount(entry.rawText);
+      feedLog.bottleType = /formula/.test(rawText)
+        ? 'formula'
+        : /breast\s*milk|expressed|pumped/.test(rawText)
+          ? 'breast_milk'
+          : 'other';
+    } else {
+      feedLog.solidDescription = entry.rawText.slice(0, 160);
+    }
+
+    await addFeedLog(feedLog);
+    createdCount += 1;
+  }
+
+  if (hasCaptureSuggestion(entry, 'sleep')) {
+    const sleepWindow = resolveSleepWindow(entry);
+    const sleepLog: SleepLog = {
+      id: makeId(),
+      babyId,
+      ...sleepWindow,
+      notes: note,
+      createdAt,
+    };
+
+    await addSleepLog(sleepLog);
+    createdCount += 1;
+  }
+
+  if (shouldCreateDiaperLog(entry)) {
+    const diaperLog: DiaperLog = {
+      id: makeId(),
+      babyId,
+      timestamp,
+      type: /both|mixed/.test(rawText) ? 'both' : /dirty|poop|stool/.test(rawText) ? 'dirty' : 'wet',
+      notes: note,
+      createdAt,
+    };
+
+    await addDiaperLog(diaperLog);
+    createdCount += 1;
+  }
+
+  if (shouldCreateMedicationLog(entry)) {
+    const healthLog: HealthLog = {
+      id: makeId(),
+      babyId,
+      timestamp,
+      type: 'medication',
+      name: extractMedicationName(entry.rawText),
+      dose: extractMedicationDose(entry.rawText),
+      notes: note,
+      createdAt,
+    };
+
+    await addHealthLog(healthLog);
+    createdCount += 1;
+  }
+
+  return createdCount;
+};
+
+const createMilkLotFromCapture = (entry: CaptureEntry, babyId: string): MilkLot | null => {
+  if (!hasCaptureSuggestion(entry, 'pumping')) {
+    return null;
+  }
+
+  const amountMl = extractBottleAmount(entry.rawText);
+  if (!amountMl) {
+    return null;
+  }
+
+  const expressedAt = resolveCaptureTimestamp(entry);
+  const expiresAt = new Date(expressedAt);
+  expiresAt.setDate(expiresAt.getDate() + 4);
+
+  return {
+    id: makeId(),
+    babyId,
+    label: 'Captured pump',
+    amountMl,
+    location: /freezer/.test(entry.rawText.toLowerCase()) ? 'freezer' : 'fridge',
+    expressedAt,
+    expiresAt: expiresAt.toISOString().split('T')[0],
+    notes: toCaptureNote(entry),
+    createdAt: new Date().toISOString(),
+  };
+};
+
+export function CareExpansionHub({ babyId, babyName, onBack, onRecordsSaved }: CareExpansionHubProps) {
   const [activeTab, setActiveTab] = useState<TabId>('capture');
   const [workspace, setWorkspace] = useState<WorkspaceState>(() => loadWorkspace(babyId));
+  const [savingCaptureId, setSavingCaptureId] = useState<string | null>(null);
   const [captureForm, setCaptureForm] = useState({
     source: 'text' as CaptureSource,
     createdBy: 'Caregiver',
@@ -431,13 +703,42 @@ export function CareExpansionHub({ babyId, babyName, onBack }: CareExpansionHubP
     setCaptureForm((current) => ({ ...current, rawText: '' }));
   };
 
-  const saveCaptureEntry = (id: string) => {
-    saveWorkspace({
-      ...workspace,
-      captureEntries: workspace.captureEntries.map((entry) =>
-        entry.id === id ? { ...entry, status: 'saved' } : entry,
-      ),
-    });
+  const saveCaptureEntry = async (id: string) => {
+    const entry = workspace.captureEntries.find((candidate) => candidate.id === id);
+    if (!entry || entry.status === 'linked' || savingCaptureId) {
+      return;
+    }
+
+    setSavingCaptureId(id);
+    try {
+      const createdLogCount = await createLogsFromCapture(entry, babyId);
+      const milkLot = createMilkLotFromCapture(entry, babyId);
+      const linkedRecordCount = createdLogCount + (milkLot ? 1 : 0);
+
+      saveWorkspace({
+        ...workspace,
+        captureEntries: workspace.captureEntries.map((candidate) =>
+          candidate.id === id
+            ? {
+                ...candidate,
+                status: linkedRecordCount > 0 ? 'linked' : 'saved',
+                linkedRecordCount,
+                linkedAt: new Date().toISOString(),
+              }
+            : candidate,
+        ),
+        milkLots: milkLot ? [milkLot, ...workspace.milkLots] : workspace.milkLots,
+      });
+
+      if (linkedRecordCount > 0) {
+        await onRecordsSaved?.();
+      }
+    } catch (error) {
+      console.error('Unable to save capture card records:', error);
+      alert('We could not create records from this capture yet. Please try again.');
+    } finally {
+      setSavingCaptureId(null);
+    }
   };
 
   const deleteCaptureEntry = (id: string) => {
@@ -679,6 +980,11 @@ export function CareExpansionHub({ babyId, babyName, onBack }: CareExpansionHubP
               <p className="mt-4 rounded-2xl bg-background p-4 text-sm font-semibold leading-relaxed text-text-dim dark:bg-zinc-950">
                 {entry.rawText}
               </p>
+              {entry.linkedRecordCount ? (
+                <p className="mt-3 rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-black uppercase tracking-widest text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                  {entry.linkedRecordCount} record{entry.linkedRecordCount === 1 ? '' : 's'} linked to {babyName}
+                </p>
+              ) : null}
               <div className="mt-4 grid gap-2">
                 {entry.suggestions.map((suggestion) => (
                   <div key={`${entry.id}-${suggestion.type}`} className="flex items-center justify-between gap-3 rounded-2xl border border-border-gray px-4 py-3 dark:border-zinc-800">
@@ -693,10 +999,11 @@ export function CareExpansionHub({ babyId, babyName, onBack }: CareExpansionHubP
               <div className="mt-4 flex gap-2">
                 <button
                   onClick={() => saveCaptureEntry(entry.id)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-xs font-black uppercase tracking-widest text-white"
+                  disabled={entry.status === 'linked' || savingCaptureId === entry.id}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition-all disabled:cursor-not-allowed disabled:bg-emerald-300 disabled:text-white/80"
                 >
                   <CheckCircle size={15} />
-                  Save
+                  {entry.status === 'linked' ? 'Linked' : savingCaptureId === entry.id ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   onClick={() => deleteCaptureEntry(entry.id)}

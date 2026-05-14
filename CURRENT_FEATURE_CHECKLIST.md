@@ -83,6 +83,7 @@ This is the current feature inventory from the live codebase. It includes newer 
 - [x] Android Health Connect integration path
 - [x] Voice logging
 - [x] Universal capture MVP for text, voice transcript, and image/daycare note review cards
+- [x] Approved capture cards create real feeding, sleep, diaper, medication, and milk inventory records
 - [x] Watch, lock-screen, and notification quick-action planning workspace
 - [x] Camera-based baby/profile photo capture
 - [x] Photo library upload support
