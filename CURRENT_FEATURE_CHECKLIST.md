@@ -69,6 +69,7 @@ This is the current feature inventory from the live codebase. It includes newer 
 - [x] Care team chat
 - [x] Care priority board
 - [x] Patient assignments
+- [x] Care expansion hub for caregiver capture, daycare sheets, native quick-action planning, grounded assistant summaries, and recovery support
 
 ## Community and Content
 
@@ -81,10 +82,20 @@ This is the current feature inventory from the live codebase. It includes newer 
 - [x] Apple Health integration path
 - [x] Android Health Connect integration path
 - [x] Voice logging
+- [x] Universal capture MVP for text, voice transcript, and image/daycare note review cards
+- [x] Watch, lock-screen, and notification quick-action planning workspace
 - [x] Camera-based baby/profile photo capture
 - [x] Photo library upload support
 - [x] Local notifications
 - [x] Home screen quick actions / app shortcuts
+
+## Pumping, Daycare, and Developmental Roadmap MVPs
+
+- [x] Pumping and milk inventory MVP
+- [x] Daycare and return-to-work daily sheet MVP
+- [x] CDC-aligned developmental monitoring starter checklist
+- [x] Data-grounded care assistant MVP
+- [x] Parent recovery plan MVP
 
 ## Payments, Subscription, and Premium
 

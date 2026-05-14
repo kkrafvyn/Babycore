@@ -254,3 +254,24 @@ Gamification
 - Offline support for all new features
 - Progressive enhancement (graceful degradation)
 
+---
+
+## 2026 Competitive Additions
+
+The current market comparison and recommended next roadmap are tracked in [COMPETITOR_FEATURE_COMPARISON.md](COMPETITOR_FEATURE_COMPARISON.md).
+
+New priority features added from that analysis:
+- [x] P0: Universal caregiver capture for text, voice transcript, and image/daycare note review cards.
+- [x] P0: Watch, lock-screen, and notification quick-action planning workspace.
+- [x] P0: Pumping plus milk inventory, bottle prep status, and stash alerts.
+- [x] P1: CDC-aligned developmental monitoring starter checklist with provider-question states.
+- [x] P1: Daycare and return-to-work mode with daily sheet capture and away-parent digests.
+- [x] P1: Data-grounded care assistant that answers from Babycore workspace records.
+- [x] P1: Parent recovery mode for medication reminders, hydration, meals, rest, and support handoffs.
+
+Follow-up depth still needed:
+- [ ] Persist care expansion records to Supabase and sync across caregivers.
+- [ ] Convert approved capture cards into real feeding, sleep, diaper, pumping, medication, nutrition, and expense rows.
+- [ ] Build true Apple Watch, Wear OS, and iOS Live Activity native extensions.
+- [ ] Expand the developmental checklist with full CDC age bands and corrected-age logic.
+

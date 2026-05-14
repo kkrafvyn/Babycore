@@ -28,9 +28,10 @@
 ### 📊 Other Documentation
 1. **[APP_SUMMARY.md](APP_SUMMARY.md)** - Application features overview
 2. **[FEATURE_ROADMAP.md](FEATURE_ROADMAP.md)** - Planned features
-3. **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)** - Testing procedures
-4. **[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)** - Design guidelines
-5. **[README.md](README.md)** - Project overview
+3. **[COMPETITOR_FEATURE_COMPARISON.md](COMPETITOR_FEATURE_COMPARISON.md)** - Competitor matrix and next feature roadmap
+4. **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)** - Testing procedures
+5. **[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)** - Design guidelines
+6. **[README.md](README.md)** - Project overview
 
 ---
 

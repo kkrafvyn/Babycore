@@ -53,6 +53,7 @@ export const APP_VIEWS = [
   'activity-center',
   'expenses',
   'nutrition',
+  'care-expansion',
   'emergency-card',
   'clinic-panel',
   'sync-center',

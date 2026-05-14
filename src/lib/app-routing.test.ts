@@ -13,6 +13,7 @@ describe('app-routing', () => {
     expect(resolveAppViewIntent('/app/sync-center')).toBe('sync-center');
     expect(resolveAppViewIntent('/app/expenses')).toBe('expenses');
     expect(resolveAppViewIntent('/nutrition')).toBe('nutrition');
+    expect(resolveAppViewIntent('/app/care-expansion')).toBe('care-expansion');
   });
 
   it('does not confuse public emergency share URLs with app views', () => {
