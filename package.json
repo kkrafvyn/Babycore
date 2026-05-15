@@ -136,5 +136,8 @@
     "supabase"
   ],
   "author": "BabyLog Team",
-  "license": "MIT"
+  "license": "MIT",
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.60.2"
+  }
 }
