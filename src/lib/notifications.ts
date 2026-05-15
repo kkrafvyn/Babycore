@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
 import { supabase } from './supabase';
 import { getApiBaseUrl } from './api-base-url';
+import { readJsonResponse } from './http-json';
 import { buildNativeAppUrl } from './native-app-links';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -1437,8 +1438,8 @@ export class NotificationsManager {
         fetch(`${API_BASE_URL}/care/medications/${babyId}/logs?limit=40`, { headers }),
       ]);
 
-      const schedulesPayload = scheduleResponse.ok ? await scheduleResponse.json() : null;
-      const logsPayload = logsResponse.ok ? await logsResponse.json() : null;
+      const schedulesPayload = scheduleResponse.ok ? await readJsonResponse(scheduleResponse) : null;
+      const logsPayload = logsResponse.ok ? await readJsonResponse(logsResponse) : null;
       const schedules = Array.isArray(schedulesPayload?.data) ? schedulesPayload.data : [];
       const doseLogs = Array.isArray(logsPayload?.data) ? logsPayload.data : [];
 

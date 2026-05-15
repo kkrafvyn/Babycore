@@ -4,6 +4,7 @@
  */
 
 import { getApiBaseUrl } from './api-base-url';
+import { readJsonResponse } from './http-json';
 import {
   resolveSubscriptionPlanAmount,
   SUBSCRIPTION_PLANS,
@@ -370,7 +371,10 @@ class SubscriptionManager {
         return null;
       }
 
-      const payload = await response.json();
+      const payload = await readJsonResponse<{
+        success?: boolean;
+        subscription?: Record<string, any> | null;
+      }>(response);
       if (!payload?.success || !payload?.subscription) {
         return {
           userId,

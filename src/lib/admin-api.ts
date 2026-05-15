@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './api-base-url';
+import { getResponseErrorMessage, readJsonResponse } from './http-json';
 import type { BillingEventRecord } from './payment-api';
 import type { PaymentCollectionConfig } from './payment-config';
 import { supabase } from './supabase';
@@ -176,13 +177,20 @@ const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { 
       },
     });
 
-    const data = (await response.json()) as T & { success: boolean; error?: string };
+    const data = await readJsonResponse<T & { success: boolean; error?: string }>(response);
     if (!response.ok) {
       return {
-        ...data,
+        ...(data || {}),
         success: false,
-        error: data.error || `Admin request failed (${response.status})`,
-      };
+        error: getResponseErrorMessage(data, `Admin request failed (${response.status})`),
+      } as T & { success: boolean; error?: string };
+    }
+
+    if (!data) {
+      return {
+        success: false,
+        error: 'Admin request returned an unexpected response.',
+      } as T & { success: boolean; error?: string };
     }
 
     return data;
@@ -195,6 +203,8 @@ const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { 
 };
 
 export const getCurrentUserRole = async (): Promise<string> => {
+  let fallbackRole = 'user';
+
   try {
     const auth = supabase.auth as any;
     const {
@@ -203,7 +213,7 @@ export const getCurrentUserRole = async (): Promise<string> => {
 
     if (!user?.id) return 'user';
 
-    const fallbackRole = getFallbackUserRole(user);
+    fallbackRole = getFallbackUserRole(user);
     const accessToken = await getAdminAuthToken();
     if (!accessToken) {
       return fallbackRole;
@@ -220,11 +230,11 @@ export const getCurrentUserRole = async (): Promise<string> => {
       return fallbackRole;
     }
 
-    const payload = (await response.json()) as { success?: boolean; role?: string };
-    return payload.success && payload.role ? payload.role : fallbackRole;
+    const payload = await readJsonResponse<{ success?: boolean; role?: string }>(response);
+    return payload?.success && payload.role ? payload.role : fallbackRole;
   } catch (error) {
-    console.error('Failed to get user role:', error);
-    return 'user';
+    console.warn('Using fallback user role after role lookup failed:', error);
+    return fallbackRole;
   }
 };
 

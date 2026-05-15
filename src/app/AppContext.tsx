@@ -35,6 +35,7 @@ import {
 } from '../lib/onboarding-storage';
 import { BabyLogNotification, NotificationsManager } from '../lib/notifications';
 import { getApiBaseUrl } from '../lib/api-base-url';
+import { readJsonResponse } from '../lib/http-json';
 import { supabase } from '../lib/supabase';
 import { subscriptionManager } from '../lib/premium';
 import { i18nInstance, type SupportedLanguage, type Unit } from '../lib/i18n';
@@ -560,7 +561,13 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       });
 
       if (!response.ok) return;
-      const payload = await response.json();
+      const payload = await readJsonResponse<{
+        success?: boolean;
+        subscription?: {
+          planId?: string;
+          startDate?: string;
+        } | null;
+      }>(response);
 
       if (!payload?.success) return;
 

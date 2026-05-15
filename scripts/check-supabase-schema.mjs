@@ -69,7 +69,7 @@ if (!hasValue(supabaseUrl) || !hasValue(supabaseKey) || isPlaceholder(supabaseUr
   process.exit(1);
 }
 
-const requiredTables = ['health_logs', 'user_settings'];
+const requiredTables = ['health_logs', 'user_settings', 'shared_care_workspaces'];
 
 const probeTable = async (table) => {
   let response;
@@ -157,7 +157,7 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(`- ${failure}`);
   }
-  console.error('\nRun database/sql/33-health-logs-and-user-settings.sql against the target Supabase project, then rerun this check.');
+  console.error('\nRun database/sql/33-health-logs-and-user-settings.sql and database/sql/38-shared-care-workspaces.sql against the target Supabase project, then rerun this check.');
   process.exit(1);
 }
 
