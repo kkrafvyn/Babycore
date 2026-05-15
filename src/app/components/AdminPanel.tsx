@@ -1,5 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Power, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  BarChart3,
+  ChevronLeft,
+  CreditCard,
+  Database,
+  Power,
+  Receipt,
+  RefreshCw,
+  ScrollText,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -24,16 +35,73 @@ import {
   type AdminUserRecord,
 } from '../../lib/admin-api';
 import type { BillingEventRecord } from '../../lib/payment-api';
-import {
-  DEFAULT_PAYMENT_COLLECTION_REASON,
-  type PaymentCollectionConfig,
-} from '../../lib/payment-config';
+import { DEFAULT_PAYMENT_COLLECTION_REASON, type PaymentCollectionConfig } from '../../lib/payment-config';
 
 interface AdminPanelProps {
   onBack: () => void;
 }
 
 const MotionDiv = motion.div as any;
+
+type AdminSectionId = 'overview' | 'payments' | 'users' | 'activity' | 'billing' | 'data';
+
+const ADMIN_SECTIONS: Array<{
+  id: AdminSectionId;
+  label: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  Icon: typeof ShieldCheck;
+}> = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    eyebrow: 'System Visibility',
+    title: 'Full Platform Overview',
+    description: 'Review platform totals, profile mix, and high-level health in one place.',
+    Icon: BarChart3,
+  },
+  {
+    id: 'payments',
+    label: 'Payments',
+    eyebrow: 'Revenue Control',
+    title: 'Payment Settings',
+    description: 'Pause or enable live checkout and tune premium plan pricing before launch.',
+    Icon: CreditCard,
+  },
+  {
+    id: 'users',
+    label: 'Users',
+    eyebrow: 'Access Control',
+    title: 'Admin Team & User Roles',
+    description: 'Create limited admins, search accounts, and apply role changes safely.',
+    Icon: Users,
+  },
+  {
+    id: 'activity',
+    label: 'Activity',
+    eyebrow: 'Audit Trail',
+    title: 'Admin Activity Logs',
+    description: 'Trace admin actions and role changes so sensitive work stays accountable.',
+    Icon: ScrollText,
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    eyebrow: 'Billing Ops',
+    title: 'Failed Payment Recovery',
+    description: 'Filter billing events, export CSVs, retry payments, and reconcile issues.',
+    Icon: Receipt,
+  },
+  {
+    id: 'data',
+    label: 'Data',
+    eyebrow: 'Recent Records',
+    title: 'Platform Data Snapshot',
+    description: 'Inspect recent database rows returned by the admin overview endpoint.',
+    Icon: Database,
+  },
+];
 
 const formatDateTime = (value?: string): string => {
   if (!value) return '-';
@@ -67,10 +135,7 @@ const getRecoveryClass = (status?: string | null): string => {
 const ROLE_OPTIONS = ['admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'] as const;
 const LIMITED_ADMIN_ROLE_OPTIONS = ['manager', 'admin'] as const;
 const PROFILE_TYPE_OPTIONS = ['baby', 'doctor', 'caregiver'] as const;
-const LIMITED_ADMIN_ROLE_LABELS: Record<
-  (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
-  string
-> = {
+const LIMITED_ADMIN_ROLE_LABELS: Record<(typeof LIMITED_ADMIN_ROLE_OPTIONS)[number], string> = {
   manager: 'Limited admin',
   admin: 'Full admin',
 };
@@ -125,6 +190,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   });
   const [billingTotal, setBillingTotal] = useState(0);
   const [billingActingReference, setBillingActingReference] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<AdminSectionId>('overview');
 
   const loadOverview = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -411,9 +477,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const handleDeleteUser = async (user: AdminUserRecord) => {
-    const confirmed = window.confirm(
-      `Delete ${user.email || user.name}? This permanently removes their account.`,
-    );
+    const confirmed = window.confirm(`Delete ${user.email || user.name}? This permanently removes their account.`);
     if (!confirmed) return;
 
     setActingUserId(user.id);
@@ -443,10 +507,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
   };
 
-  const handleResolveBilling = async (
-    reference: string,
-    status: 'reconciled' | 'cancelled',
-  ) => {
+  const handleResolveBilling = async (reference: string, status: 'reconciled' | 'cancelled') => {
     const notes = window.prompt(
       status === 'reconciled'
         ? 'Optional notes for marking this payment reconciled:'
@@ -496,15 +557,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     return () => window.clearTimeout(timeoutId);
   }, [billingSearch, billingStatusFilter, billingRecoveryFilter]);
 
-  const countEntries = useMemo(
-    () =>
-      Object.entries(counts).sort((a, b) => b[1] - a[1]),
-    [counts],
-  );
+  const countEntries = useMemo(() => Object.entries(counts).sort((a, b) => b[1] - a[1]), [counts]);
 
   const recentSections = useMemo(
-    () =>
-      Object.entries(recent).filter(([, values]) => Array.isArray(values) && values.length > 0),
+    () => Object.entries(recent).filter(([, values]) => Array.isArray(values) && values.length > 0),
     [recent],
   );
 
@@ -518,11 +574,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   }, [users, search]);
 
   const paymentCollectionEnabled = Boolean(paymentCollection?.enabled);
-  const paymentCollectionStatusLabel = paymentCollectionLoading
-    ? 'Checking'
-    : paymentCollectionEnabled
-      ? 'On'
-      : 'Off';
+  const paymentCollectionStatusLabel = paymentCollectionLoading ? 'Checking' : paymentCollectionEnabled ? 'On' : 'Off';
+  const activeSectionMeta = useMemo(
+    () => ADMIN_SECTIONS.find((section) => section.id === activeSection) || ADMIN_SECTIONS[0],
+    [activeSection],
+  );
+  const ActiveSectionIcon = activeSectionMeta.Icon;
 
   return (
     <div className="fit-screen bg-background">
@@ -549,17 +606,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       </header>
 
       <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-14">
+        <nav className="sticky top-20 z-30 -mx-6 mb-5 bg-background/95 px-6 pb-4 pt-1 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-md">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar rounded-[1.5rem] border border-border-gray bg-surface/90 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+              {ADMIN_SECTIONS.map((section) => {
+                const isActive = section.id === activeSection;
+                const SectionIcon = section.Icon;
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => {
+                      setActiveSection(section.id);
+                      window.requestAnimationFrame(() => {
+                        document.getElementById(`admin-${section.id}`)?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start',
+                        });
+                      });
+                    }}
+                    className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
+                      isActive
+                        ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                        : 'bg-background text-text-light hover:bg-surface-gray hover:text-foreground dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <SectionIcon size={14} />
+                    <span>{section.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
+
         <div className="max-w-md mx-auto w-full space-y-8">
           <div className="bg-surface rounded-[3rem] p-8 border border-border-gray dark:border-zinc-800 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">System Visibility</p>
+                <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                  {activeSectionMeta.eyebrow}
+                </p>
                 <h2 className="text-2xl font-headline font-black text-foreground tracking-tight mt-2">
-                  Full Platform Overview
+                  {activeSectionMeta.title}
                 </h2>
+                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-text-dim">
+                  {activeSectionMeta.description}
+                </p>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-                <ShieldCheck size={20} />
+                <ActiveSectionIcon size={20} />
               </div>
             </div>
             <p className="text-[11px] font-bold text-text-dim mt-4">
@@ -583,7 +681,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </div>
           ) : (
             <>
-              <div className="space-y-4">
+              <div id="admin-overview" className="space-y-4 scroll-mt-36">
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">Totals</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {countEntries.map(([label, value]) => (
@@ -611,16 +709,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       key={item.role}
                       className="bg-surface-gray dark:bg-zinc-900 rounded-xl px-4 py-3 flex items-center justify-between"
                     >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                        {item.role}
-                      </p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">{item.role}</p>
                       <p className="text-lg font-headline font-black text-foreground">{item.count}</p>
                     </div>
                   ))}
                 </div>
               </div>
-
-              <div className="space-y-4">
+              <div id="admin-payments" className="space-y-4 scroll-mt-36">
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                     Payment Collection
@@ -657,9 +752,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     </div>
                   </div>
 
-                  {paymentCollectionError && (
-                    <p className="text-sm font-bold text-red-500">{paymentCollectionError}</p>
-                  )}
+                  {paymentCollectionError && <p className="text-sm font-bold text-red-500">{paymentCollectionError}</p>}
 
                   <label className="block space-y-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
@@ -699,9 +792,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Premium Pricing
-                  </h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Premium Pricing</h3>
                   <button
                     onClick={() => void handleSavePricing()}
                     disabled={pricingSaving || pricingLoading || pricingPlans.length === 0}
@@ -712,13 +803,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  {pricingLoading && (
-                    <p className="text-sm font-bold text-text-light">Loading pricing...</p>
-                  )}
+                  {pricingLoading && <p className="text-sm font-bold text-text-light">Loading pricing...</p>}
 
-                  {!pricingLoading && pricingError && (
-                    <p className="text-sm font-bold text-red-500">{pricingError}</p>
-                  )}
+                  {!pricingLoading && pricingError && <p className="text-sm font-bold text-red-500">{pricingError}</p>}
 
                   {!pricingLoading && !pricingError && pricingPlans.length === 0 && (
                     <p className="text-sm font-bold text-text-light">No pricing plans found.</p>
@@ -734,9 +821,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-sm font-black text-foreground">{plan.name}</p>
-                              <p className="text-[10px] font-semibold text-text-light mt-1">
-                                {plan.description}
-                              </p>
+                              <p className="text-[10px] font-semibold text-text-light mt-1">{plan.description}</p>
                             </div>
                             <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
                               {plan.billingPeriod}
@@ -782,11 +867,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div id="admin-users" className="space-y-4 scroll-mt-36">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Admin Team
-                  </h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Admin Team</h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     manager = limited admin
                   </span>
@@ -794,14 +877,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
                   <p className="text-[10px] font-semibold text-text-light leading-relaxed">
-                    Create full admins or limited admins. Use <span className="font-black text-secondary">manager</span> when
-                    you want a restricted admin account.
+                    Create full admins or limited admins. Use <span className="font-black text-secondary">manager</span>{' '}
+                    when you want a restricted admin account.
                   </p>
                   <div className="grid grid-cols-1 gap-3">
                     <input
                       value={teamMemberDraft.name}
                       onChange={(event) =>
-                        setTeamMemberDraft((current) => ({ ...current, name: event.target.value }))
+                        setTeamMemberDraft((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
                       }
                       placeholder="Admin name"
                       className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
@@ -809,7 +895,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <input
                       value={teamMemberDraft.email}
                       onChange={(event) =>
-                        setTeamMemberDraft((current) => ({ ...current, email: event.target.value }))
+                        setTeamMemberDraft((current) => ({
+                          ...current,
+                          email: event.target.value,
+                        }))
                       }
                       placeholder="Admin email"
                       className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
@@ -817,7 +906,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <input
                       value={teamMemberDraft.password}
                       onChange={(event) =>
-                        setTeamMemberDraft((current) => ({ ...current, password: event.target.value }))
+                        setTeamMemberDraft((current) => ({
+                          ...current,
+                          password: event.target.value,
+                        }))
                       }
                       placeholder="Temporary password (optional)"
                       className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
@@ -880,9 +972,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    User Directory
-                  </h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">User Directory</h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {filteredUsers.length}/{usersTotal}
                   </span>
@@ -896,13 +986,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                   />
 
-                  {usersLoading && (
-                    <p className="text-sm font-bold text-text-light">Loading users...</p>
-                  )}
+                  {usersLoading && <p className="text-sm font-bold text-text-light">Loading users...</p>}
 
-                  {!usersLoading && usersError && (
-                    <p className="text-sm font-bold text-red-500">{usersError}</p>
-                  )}
+                  {!usersLoading && usersError && <p className="text-sm font-bold text-red-500">{usersError}</p>}
 
                   {!usersLoading && !usersError && filteredUsers.length === 0 && (
                     <p className="text-sm font-bold text-text-light">No users found.</p>
@@ -939,7 +1025,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                               <select
                                 value={selectedRole}
                                 onChange={(event) =>
-                                  setRoleDrafts((prev) => ({ ...prev, [user.id]: event.target.value }))
+                                  setRoleDrafts((prev) => ({
+                                    ...prev,
+                                    [user.id]: event.target.value,
+                                  }))
                                 }
                                 className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
                                 disabled={isActing}
@@ -1000,7 +1089,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div id="admin-activity" className="space-y-4 scroll-mt-36">
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Admin Activity
                 </h3>
@@ -1060,11 +1149,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div id="admin-billing" className="space-y-4 scroll-mt-36">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Billing Ops
-                  </h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Billing Ops</h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {billingEvents.length}/{billingTotal}
                   </span>
@@ -1083,9 +1170,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         key={item.label}
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
-                          {item.label}
-                        </p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">{item.label}</p>
                         <p className="mt-1 text-lg font-headline font-black text-foreground">{item.value}</p>
                       </div>
                     ))}
@@ -1135,9 +1220,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <p className="text-sm font-bold text-text-light">Loading billing operations data...</p>
                   )}
 
-                  {!billingLoading && billingError && (
-                    <p className="text-sm font-bold text-red-500">{billingError}</p>
-                  )}
+                  {!billingLoading && billingError && <p className="text-sm font-bold text-red-500">{billingError}</p>}
 
                   {!billingLoading && !billingError && billingEvents.length === 0 && (
                     <p className="text-sm font-bold text-text-light">No billing events match these filters.</p>
@@ -1158,9 +1241,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                 <p className="text-sm font-black text-foreground truncate">
                                   {entry.plan_name || 'Premium Access'}
                                 </p>
-                                <p className="text-[10px] font-semibold text-text-light break-all">
-                                  {entry.reference}
-                                </p>
+                                <p className="text-[10px] font-semibold text-text-light break-all">{entry.reference}</p>
                                 <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
                                   {entry.status} | {entry.currency || 'USD'} {Number(entry.amount || 0).toFixed(2)}
                                 </p>
@@ -1237,10 +1318,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Recent Data
-                </h3>
+              <div id="admin-data" className="space-y-4 scroll-mt-36">
+                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">Recent Data</h3>
                 <div className="space-y-4">
                   {recentSections.length === 0 && (
                     <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-6">
@@ -1254,9 +1333,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4"
                     >
                       <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-                        <span className="text-sm font-headline font-black text-foreground tracking-tight">
-                          {table}
-                        </span>
+                        <span className="text-sm font-headline font-black text-foreground tracking-tight">{table}</span>
                         <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                           {rows.length} rows
                         </span>
