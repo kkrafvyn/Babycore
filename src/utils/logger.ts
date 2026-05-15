@@ -21,15 +21,23 @@ class Logger {
   private logDir: string;
   private isDevelopment: boolean;
   private logLevel: LogLevel;
+  private fileLoggingEnabled: boolean;
 
   constructor() {
-    this.logDir = path.join(process.cwd(), 'logs');
+    this.logDir =
+      process.env.LOG_DIR ||
+      (process.env.VERCEL ? path.join('/tmp', 'babycore-logs') : path.join(process.cwd(), 'logs'));
     this.isDevelopment = process.env.NODE_ENV !== 'production';
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL || 'INFO');
+    this.fileLoggingEnabled = String(process.env.DISABLE_FILE_LOGGING || '').toLowerCase() !== 'true';
 
-    // Create logs directory if it doesn't exist
-    if (!fs.existsSync(this.logDir)) {
-      fs.mkdirSync(this.logDir, { recursive: true });
+    if (this.fileLoggingEnabled && !fs.existsSync(this.logDir)) {
+      try {
+        fs.mkdirSync(this.logDir, { recursive: true });
+      } catch (error) {
+        this.fileLoggingEnabled = false;
+        console.warn('File logging disabled because the log directory is not writable:', error);
+      }
     }
   }
 
@@ -54,6 +62,8 @@ class Logger {
   }
 
   private writeToFile(entry: LogEntry): void {
+    if (!this.fileLoggingEnabled) return;
+
     try {
       const dateString = new Date().toISOString().split('T')[0];
       const logFile = path.join(this.logDir, `${dateString}.log`);
@@ -85,10 +95,8 @@ class Logger {
   private output(entry: LogEntry): void {
     if (!this.shouldLog(entry.level)) return;
 
-    // Always write to file
     this.writeToFile(entry);
 
-    // Console output in development
     if (this.isDevelopment) {
       const colorCode = this.getColorCode(entry.level);
       const timestamp = new Date(entry.timestamp).toLocaleTimeString();
@@ -104,6 +112,16 @@ class Logger {
           entry.data || ''
         );
       }
+      return;
+    }
+
+    const line = this.formatEntry(entry);
+    if (entry.level === LogLevel.ERROR) {
+      console.error(line);
+    } else if (entry.level === LogLevel.WARN) {
+      console.warn(line);
+    } else {
+      console.log(line);
     }
   }
 

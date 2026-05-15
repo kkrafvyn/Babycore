@@ -37,7 +37,52 @@ const resolveRequestUrl = (request: ApiAdapterRequest) => {
   }
 };
 
-const getRelativeRouterUrl = (requestUrl: URL, mountPath: string): string => {
+const getQueryStringValue = (
+  request: ApiAdapterRequest,
+  requestUrl: URL,
+  key: string,
+): string | undefined => {
+  const requestQueryValue = request.query?.[key];
+  if (Array.isArray(requestQueryValue)) {
+    return requestQueryValue.filter(Boolean).join('/');
+  }
+
+  if (typeof requestQueryValue === 'string' && requestQueryValue.trim()) {
+    return requestQueryValue;
+  }
+
+  return requestUrl.searchParams.get(key) || undefined;
+};
+
+const getRewrittenCatchAllUrl = (
+  request: ApiAdapterRequest,
+  requestUrl: URL,
+  mountPath: string,
+): string | null => {
+  const normalizedMountPath = normalizeMountPath(mountPath);
+  if (requestUrl.pathname !== `${normalizedMountPath}/[...path]`) {
+    return null;
+  }
+
+  const catchAllPath = getQueryStringValue(request, requestUrl, 'path');
+  const relativePath = catchAllPath ? `/${catchAllPath.replace(/^\/+/, '')}` : '/';
+  const searchParams = new URLSearchParams(requestUrl.search);
+  searchParams.delete('path');
+  const search = searchParams.toString();
+
+  return `${relativePath}${search ? `?${search}` : ''}`;
+};
+
+const getRelativeRouterUrl = (
+  request: ApiAdapterRequest,
+  requestUrl: URL,
+  mountPath: string,
+): string => {
+  const rewrittenCatchAllUrl = getRewrittenCatchAllUrl(request, requestUrl, mountPath);
+  if (rewrittenCatchAllUrl) {
+    return rewrittenCatchAllUrl;
+  }
+
   const pathname = requestUrl.pathname || '/';
   const normalizedMountPath = normalizeMountPath(mountPath);
 
@@ -84,7 +129,7 @@ export const runExpressRouter = async ({
   reqAny.path = resolvedUrl.pathname;
   reqAny.originalUrl = `${resolvedUrl.pathname}${resolvedUrl.search}`;
   reqAny.baseUrl = normalizeMountPath(mountPath);
-  reqAny.url = getRelativeRouterUrl(resolvedUrl, mountPath);
+  reqAny.url = getRelativeRouterUrl(request, resolvedUrl, mountPath);
 
   if (requireAuth) {
     const user = await getAuthenticatedUser(request);
