@@ -69,12 +69,20 @@ if (!hasValue(supabaseUrl) || !hasValue(supabaseKey) || isPlaceholder(supabaseUr
   process.exit(1);
 }
 
-const requiredTables = ['health_logs', 'user_settings', 'shared_care_workspaces'];
+const requiredSchemaChecks = [
+  { label: 'health_logs', table: 'health_logs', select: '*' },
+  {
+    label: 'user_settings care workspace columns',
+    table: 'user_settings',
+    select: 'user_id,care_workspace_data,care_profile_preferences',
+  },
+  { label: 'shared_care_workspaces', table: 'shared_care_workspaces', select: 'baby_id' },
+];
 
-const probeTable = async (table) => {
+const probeTable = async ({ label, table, select }) => {
   let response;
   try {
-    response = await fetch(`${supabaseUrl}/rest/v1/${table}?select=*&limit=1`, {
+    response = await fetch(`${supabaseUrl}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=1`, {
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -89,6 +97,7 @@ const probeTable = async (table) => {
         : String(error);
 
     return {
+      label,
       table,
       status: 0,
       ok: false,
@@ -106,6 +115,7 @@ const probeTable = async (table) => {
   }
 
   return {
+    label,
     table,
     status: response.status,
     ok: response.ok,
@@ -134,21 +144,21 @@ console.log(
     : `\nChecking Supabase schema with ${envFiles.filter((file) => fs.existsSync(resolveEnvPath(file))).join(', ')}\n`,
 );
 
-const results = await Promise.all(requiredTables.map((table) => probeTable(table)));
+const results = await Promise.all(requiredSchemaChecks.map((check) => probeTable(check)));
 const failures = [];
 
 for (const result of results) {
   const exists = tableExistsWithProtectedAccess(result);
   const label = exists ? 'PASS' : 'FAIL';
   const suffix = exists && !result.ok ? ' (protected by RLS)' : '';
-  console.log(`${label.padEnd(5)} ${result.table} -> HTTP ${result.status}${suffix}`);
+  console.log(`${label.padEnd(5)} ${result.label} -> HTTP ${result.status}${suffix}`);
 
   if (!exists) {
     const details =
       typeof result.body === 'string'
         ? result.body.slice(0, 220)
         : JSON.stringify(result.body).slice(0, 220);
-    failures.push(`${result.table}: ${details}`);
+    failures.push(`${result.label}: ${details}`);
   }
 }
 
@@ -157,7 +167,7 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(`- ${failure}`);
   }
-  console.error('\nRun database/sql/33-health-logs-and-user-settings.sql and database/sql/38-shared-care-workspaces.sql against the target Supabase project, then rerun this check.');
+  console.error('\nRun database/sql/36-user-settings-care-workspace-data.sql, database/sql/37-user-settings-care-profile-preferences.sql, and database/sql/38-shared-care-workspaces.sql against the target Supabase project, then rerun this check.');
   process.exit(1);
 }
 
