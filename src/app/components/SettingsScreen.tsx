@@ -33,6 +33,12 @@ import {
 import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 import { CareProfileEditorModal } from './CareProfileEditorModal';
 import { updateCurrentUserMetadata } from '../../lib/supabase';
+import {
+  getAdminAccountMode,
+  isPrimaryAdminEmail,
+  PRIMARY_ADMIN_EMAIL,
+  type AdminAccountMode,
+} from '../../lib/admin-account-mode';
 
 const MotionDiv = motion.div as any;
 
@@ -97,12 +103,6 @@ interface SettingsScreenProps {
   onOpenAdminPanel?: () => void;
 }
 
-type AdminAccountMode = 'admin' | 'child_profile';
-
-const PRIMARY_ADMIN_EMAIL = 'ponk3020@gmail.com';
-
-const normalizeAdminEmail = (email?: string | null) => (email || '').trim().toLowerCase();
-
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
     return value;
@@ -154,10 +154,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const profilePhotoInputRef = React.useRef<HTMLInputElement | null>(null);
   const accountProfileType: CareProfileRole =
     (user?.user_metadata?.onboarding_profile_type as CareProfileRole | undefined) || 'baby';
-  const isPrimaryAdminAccount = normalizeAdminEmail(user?.email) === PRIMARY_ADMIN_EMAIL;
+  const isPrimaryAdminAccount = isPrimaryAdminEmail(user?.email);
   const canManageAdminAccountMode = isPrimaryAdminAccount;
-  const adminAccountMode: AdminAccountMode =
-    user?.user_metadata?.admin_account_mode === 'child_profile' ? 'child_profile' : 'admin';
+  const adminAccountMode = getAdminAccountMode(user?.user_metadata);
   const adminModeActive = canManageAdminAccountMode && adminAccountMode === 'admin';
   const profileDisplayName =
     user?.user_metadata?.name ||

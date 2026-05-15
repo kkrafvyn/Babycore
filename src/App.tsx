@@ -16,6 +16,7 @@ import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
 import { getCurrentUserRole } from './lib/admin-api';
+import { getAdminAccountMode, isPrimaryAdminEmail } from './lib/admin-account-mode';
 import {
   type AppView,
   type PublicRoute,
@@ -195,6 +196,7 @@ function AppShell() {
   const hasSession = Boolean(user) || guestSession;
   const publicRoute = locationRoute.kind === 'public' ? locationRoute.publicRoute : 'welcome';
   const appRouteView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
+  const currentAppRouteView = locationRoute.kind === 'app' ? locationRoute.appView : null;
   const effectivePublicRoute = !hasSession && locationRoute.kind === 'app' ? 'login' : publicRoute;
 
   const cachedOnboardingProfileType = React.useMemo(
@@ -205,6 +207,10 @@ function AppShell() {
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     cachedOnboardingProfileType;
   const isAdminAccount = accountRole === 'admin';
+  const isPrimaryAdminAccount = isPrimaryAdminEmail(user?.email);
+  const adminAccountMode = getAdminAccountMode(user?.user_metadata);
+  const shouldUseAdminHome =
+    Boolean(user) && isAdminAccount && isPrimaryAdminAccount && adminAccountMode === 'admin';
 
   React.useEffect(() => {
     let mounted = true;
@@ -270,6 +276,14 @@ function AppShell() {
     },
     [navigateToAppView],
   );
+
+  React.useEffect(() => {
+    if (!shouldUseAdminHome || currentAppRouteView !== 'dashboard') {
+      return;
+    }
+
+    navigateToAppView('admin', { replace: true, preserveSearch: true });
+  }, [currentAppRouteView, navigateToAppView, shouldUseAdminHome]);
 
   React.useEffect(() => {
     const handlePopState = () => setLocationRoute(getLocationRoute());
@@ -609,6 +623,10 @@ function AppShell() {
   }
 
   if (hasSession) {
+    if (Boolean(user) && isPrimaryAdminAccount && adminAccountMode === 'admin' && isAccountRoleLoading) {
+      return <FullScreenLoader label="Opening admin panel..." />;
+    }
+
     if (
       Boolean(user) &&
       babies.length === 0 &&

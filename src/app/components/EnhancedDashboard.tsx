@@ -14,6 +14,7 @@ import { syncNotifications } from '../../lib/notifications';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isPremiumSubscriptionActive, type PremiumFeatures } from '../../lib/premium';
 import { getCurrentUserRole } from '../../lib/admin-api';
+import { getAdminAccountMode, isPrimaryAdminEmail } from '../../lib/admin-account-mode';
 import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 
@@ -134,6 +135,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     'baby';
   const isCareTeamProfile = accountProfileType === 'doctor' || accountProfileType === 'caregiver';
+  const primaryAdminModeActive =
+    isPrimaryAdminEmail(user?.email) && getAdminAccountMode(user?.user_metadata) === 'admin';
 
   const sorted = (arr: any[], key: string) => [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
   
@@ -385,7 +388,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   if (activeView === 'admin') {
     return (
       <React.Suspense fallback={<ViewLoader label="Loading admin panel..." />}>
-        <AdminPanel onBack={backToDashboard} />
+        <AdminPanel onBack={primaryAdminModeActive ? () => changeView('settings') : backToDashboard} />
       </React.Suspense>
     );
   }
