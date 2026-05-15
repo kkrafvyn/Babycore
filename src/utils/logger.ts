@@ -27,7 +27,7 @@ class Logger {
     this.logDir =
       process.env.LOG_DIR ||
       (process.env.VERCEL ? path.join('/tmp', 'babycore-logs') : path.join(process.cwd(), 'logs'));
-    this.isDevelopment = process.env.NODE_ENV !== 'production';
+    this.isDevelopment = !process.env.VERCEL && process.env.NODE_ENV !== 'production';
     this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL || 'INFO');
     this.fileLoggingEnabled = String(process.env.DISABLE_FILE_LOGGING || '').toLowerCase() !== 'true';
 

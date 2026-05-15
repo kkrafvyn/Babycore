@@ -41,6 +41,12 @@ const isLocalUrl = (value: string | undefined): boolean => {
 const isTrueEnvFlag = (value: string | undefined): boolean =>
   TRUE_VALUES.has(String(value || '').trim().toLowerCase());
 
+const getRuntimeEnvironment = (): string =>
+  process.env.VERCEL_ENV || process.env.NODE_ENV || 'production';
+
+const isProductionRuntime = (): boolean =>
+  process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+
 const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, '&amp;')
@@ -338,7 +344,7 @@ export function healthCheckHandler(_req: Request, res: Response): void {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'production',
+    environment: getRuntimeEnvironment(),
   });
 }
 
@@ -387,7 +393,7 @@ export function healthConfigHandler(_req: Request, res: Response): void {
   const missingRecommended = recommendedCheckKeys.filter((key) => !checks[key]);
 
   const shouldExposeDetails =
-    (process.env.NODE_ENV || 'development') !== 'production' ||
+    !isProductionRuntime() ||
     isTrueEnvFlag(process.env.EXPOSE_HEALTH_CONFIG_DETAILS);
 
   if (!shouldExposeDetails) {
