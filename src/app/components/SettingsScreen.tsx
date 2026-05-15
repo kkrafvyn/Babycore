@@ -97,6 +97,12 @@ interface SettingsScreenProps {
   onOpenAdminPanel?: () => void;
 }
 
+type AdminAccountMode = 'admin' | 'child_profile';
+
+const PRIMARY_ADMIN_EMAIL = 'ponk3020@gmail.com';
+
+const normalizeAdminEmail = (email?: string | null) => (email || '').trim().toLowerCase();
+
 const decodeLegacyUtf8 = (value: string): string => {
   if (!/[\u00C3\u00E2]/.test(value)) {
     return value;
@@ -144,9 +150,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [remotePushStatus, setRemotePushStatus] = useState<RemotePushStatus | null>(null);
   const [togglingRemotePush, setTogglingRemotePush] = useState(false);
   const [uploadingProfilePhoto, setUploadingProfilePhoto] = useState(false);
+  const [savingAdminAccountMode, setSavingAdminAccountMode] = useState(false);
   const profilePhotoInputRef = React.useRef<HTMLInputElement | null>(null);
   const accountProfileType: CareProfileRole =
     (user?.user_metadata?.onboarding_profile_type as CareProfileRole | undefined) || 'baby';
+  const isPrimaryAdminAccount = normalizeAdminEmail(user?.email) === PRIMARY_ADMIN_EMAIL;
+  const canManageAdminAccountMode = isPrimaryAdminAccount;
+  const adminAccountMode: AdminAccountMode =
+    user?.user_metadata?.admin_account_mode === 'child_profile' ? 'child_profile' : 'admin';
   const profileDisplayName =
     user?.user_metadata?.name ||
     user?.user_metadata?.full_name ||
@@ -362,6 +373,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setEditBabyGender('other');
     setEditBabyCountry(babies[0]?.country || 'US');
     setShowEditBaby(true);
+  };
+
+  const handleAdminAccountModeChange = async (mode: AdminAccountMode) => {
+    if (!canManageAdminAccountMode) {
+      toast.error('Only the primary admin account can change this mode.');
+      return;
+    }
+
+    if (mode === adminAccountMode) {
+      if (mode === 'child_profile' && babies.length === 0) {
+        openAddBaby();
+      }
+      return;
+    }
+
+    setSavingAdminAccountMode(true);
+    try {
+      await updateCurrentUserMetadata({
+        admin_account_mode: mode,
+        ...(mode === 'child_profile' ? { onboarding_profile_type: 'baby' } : {}),
+      });
+      await refreshUser();
+
+      if (mode === 'child_profile' && babies.length === 0) {
+        openAddBaby();
+      }
+
+      toast.success(
+        mode === 'child_profile'
+          ? 'Child profile mode is ready. Add a child profile to test the app.'
+          : 'Admin mode is active.'
+      );
+    } catch (error) {
+      console.error('Failed to update admin account mode:', error);
+      toast.error('Could not update admin account mode.');
+    } finally {
+      setSavingAdminAccountMode(false);
+    }
   };
 
   const handleSaveBaby = async () => {
@@ -594,6 +643,92 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {uploadingProfilePhoto ? 'Uploading...' : 'Change Photo'}
               </button>
            </div>
+
+           {canManageAdminAccountMode && (
+             <div className="rounded-[2rem] border border-secondary/20 bg-secondary/5 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20 sm:p-6">
+               <div className="mb-4 flex items-start justify-between gap-4">
+                 <div className="flex items-center gap-3">
+                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-white shadow-lg shadow-secondary/20">
+                     <Shield size={20} />
+                   </div>
+                   <div>
+                     <p className="text-[9px] font-black uppercase tracking-[0.22em] text-secondary">
+                       Primary Admin
+                     </p>
+                     <h3 className="font-headline text-lg font-black text-foreground">
+                       Account Mode
+                     </h3>
+                   </div>
+                 </div>
+                 <span className="rounded-full bg-white px-3 py-1 text-[8px] font-black uppercase tracking-widest text-secondary shadow-sm dark:bg-zinc-900">
+                   Admin Locked
+                 </span>
+               </div>
+
+               <p className="mb-4 text-xs font-bold leading-relaxed text-text-light">
+                 {PRIMARY_ADMIN_EMAIL} stays a trusted admin. This switch only changes whether this account is testing the admin console or setting up a child profile.
+               </p>
+
+               <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-inner dark:bg-zinc-900">
+                 <button
+                   type="button"
+                   onClick={() => handleAdminAccountModeChange('admin')}
+                   disabled={savingAdminAccountMode}
+                   className={`rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${
+                     adminAccountMode === 'admin'
+                       ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                       : 'text-text-light hover:bg-surface-gray dark:hover:bg-zinc-800'
+                   } disabled:cursor-not-allowed disabled:opacity-60`}
+                 >
+                   Admin
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => handleAdminAccountModeChange('child_profile')}
+                   disabled={savingAdminAccountMode}
+                   className={`rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${
+                     adminAccountMode === 'child_profile'
+                       ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                       : 'text-text-light hover:bg-surface-gray dark:hover:bg-zinc-800'
+                   } disabled:cursor-not-allowed disabled:opacity-60`}
+                 >
+                   Child Profile
+                 </button>
+               </div>
+
+               <div className="mt-4 rounded-2xl border border-border-gray bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                 <p className="text-xs font-bold leading-relaxed text-text-light">
+                   {adminAccountMode === 'child_profile'
+                     ? babies.length > 0
+                       ? `${babies.length} child profile${babies.length === 1 ? '' : 's'} available for full app testing.`
+                       : 'Child profile mode is on. Add a child profile so this admin can test the family experience.'
+                     : 'Admin mode is on. Use the dashboard to manage platform controls, payments, and safety checks.'}
+                 </p>
+                 <div className="mt-3 flex flex-wrap gap-2">
+                   {adminAccountMode === 'admin' && isAdmin && onOpenAdminPanel && (
+                     <button
+                       type="button"
+                       onClick={onOpenAdminPanel}
+                       className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white transition-all hover:scale-[1.02] active:scale-95"
+                     >
+                       <Shield size={13} />
+                       Open Admin
+                     </button>
+                   )}
+                   {adminAccountMode === 'child_profile' && (
+                     <button
+                       type="button"
+                       onClick={openAddBaby}
+                       className="inline-flex items-center gap-2 rounded-xl bg-surface-gray px-4 py-2 text-[9px] font-black uppercase tracking-widest text-secondary transition-all hover:bg-secondary hover:text-white dark:bg-zinc-800"
+                     >
+                       <Plus size={13} />
+                       Add Child Profile
+                     </button>
+                   )}
+                 </div>
+               </div>
+             </div>
+           )}
 
            <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-4 px-2">
