@@ -137,6 +137,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const isCareTeamProfile = accountProfileType === 'doctor' || accountProfileType === 'caregiver';
   const primaryAdminModeActive =
     isPrimaryAdminEmail(user?.email) && getAdminAccountMode(user?.user_metadata) === 'admin';
+  const effectiveUserRole = primaryAdminModeActive ? 'admin' : userRole;
 
   const sorted = (arr: any[], key: string) => [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
   
@@ -550,7 +551,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         </div>
       )}
 
-      {userRole === 'admin' && (
+      {effectiveUserRole === 'admin' && (
         <div className="overflow-hidden rounded-[2rem] border border-cyan-400/25 bg-gradient-to-br from-cyan-500/15 via-surface to-blue-500/10 p-5 shadow-sm dark:border-cyan-300/20 sm:rounded-[2.75rem] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
@@ -718,7 +719,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'community', label: 'Community', icon: <Users size={20} />, bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-500' },
               { id: 'content-library', label: 'Content', icon: <BookOpen size={20} />, bg: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600' },
               { id: 'payment', label: 'Premium', icon: <Zap size={20} />, bg: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600' },
-              ...(userRole === 'admin'
+              ...(effectiveUserRole === 'admin'
                 ? [{ id: 'admin', label: 'Admin', icon: <Shield size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' }]
                 : []),
             ].map((tool) => {
@@ -885,7 +886,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             onBack={backToDashboard}
             showBackButton={false}
             onLogout={onSignOut || (() => window.location.reload())}
-            isAdmin={userRole === 'admin'}
+            isAdmin={effectiveUserRole === 'admin'}
             onOpenAdminPanel={() => changeView('admin')}
           />
         );

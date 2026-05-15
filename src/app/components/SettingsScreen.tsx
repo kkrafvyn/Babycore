@@ -382,6 +382,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
 
     if (mode === adminAccountMode) {
+      if (mode === 'admin' && onOpenAdminPanel) {
+        onOpenAdminPanel();
+      }
+
       if (mode === 'child_profile' && babies.length === 0) {
         openAddBaby();
       }
@@ -406,7 +410,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           : 'Admin mode is active.'
       );
 
-      if (mode === 'admin' && isAdmin && onOpenAdminPanel) {
+      if (mode === 'admin' && onOpenAdminPanel) {
         onOpenAdminPanel();
       }
     } catch (error) {

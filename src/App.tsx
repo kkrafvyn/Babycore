@@ -206,11 +206,12 @@ function AppShell() {
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     cachedOnboardingProfileType;
-  const isAdminAccount = accountRole === 'admin';
   const isPrimaryAdminAccount = isPrimaryAdminEmail(user?.email);
   const adminAccountMode = getAdminAccountMode(user?.user_metadata);
+  const primaryAdminModeActive = isPrimaryAdminAccount && adminAccountMode === 'admin';
+  const isAdminAccount = accountRole === 'admin' || primaryAdminModeActive;
   const shouldUseAdminHome =
-    Boolean(user) && isAdminAccount && isPrimaryAdminAccount && adminAccountMode === 'admin';
+    Boolean(user) && primaryAdminModeActive;
 
   React.useEffect(() => {
     let mounted = true;
@@ -623,7 +624,7 @@ function AppShell() {
   }
 
   if (hasSession) {
-    if (Boolean(user) && isPrimaryAdminAccount && adminAccountMode === 'admin' && isAccountRoleLoading) {
+    if (Boolean(user) && primaryAdminModeActive && appRouteView === 'dashboard') {
       return <FullScreenLoader label="Opening admin panel..." />;
     }
 
