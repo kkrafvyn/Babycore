@@ -88,6 +88,8 @@ function isPublicEndpoint(path: string): boolean {
     '/health/config',
     '/api/health',
     '/api/health/config',
+    '/payments/config',
+    '/api/payments/config',
     '/payments/pricing',
     '/api/payments/pricing',
     '/payments/webhook/paystack',

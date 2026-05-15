@@ -134,6 +134,7 @@ describe('cloud-sync-service', () => {
 
   it('skips dependent record sync when baby sync fails', async () => {
     const callOrder: string[] = [];
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     fromMock.mockImplementation((table: string) => {
       if (table === 'babies') {
@@ -203,9 +204,13 @@ describe('cloud-sync-service', () => {
     expect(synced).toBe(false);
     expect(callOrder).toEqual(['babies']);
     expect(getSyncStatus().syncError).toContain('babies: row-level security policy failure');
+    expect(errorSpy).toHaveBeenCalledWith('Error syncing babies:', expect.any(Error));
+    errorSpy.mockRestore();
   });
 
   it('formats Supabase object errors into readable sync messages', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     fromMock.mockImplementation((table: string) => {
       if (table === 'babies') {
         return {
@@ -272,6 +277,8 @@ describe('cloud-sync-service', () => {
     expect(getSyncStatus().syncError).toContain('user_id must match auth.uid()');
     expect(getSyncStatus().syncError).toContain('Hint: Check the authenticated session on this device.');
     expect(getSyncStatus().syncError).toContain('Code: 42501');
+    expect(errorSpy).toHaveBeenCalledWith('Error syncing babies:', expect.objectContaining({ code: '42501' }));
+    errorSpy.mockRestore();
   });
 
   it('does not fail full sync when user_settings permissions are not ready', async () => {

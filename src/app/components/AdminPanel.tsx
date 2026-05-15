@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Power, RefreshCw, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -7,6 +7,7 @@ import {
   deleteAdminUser,
   exportAdminBillingEvents,
   fetchAdminBilling,
+  fetchAdminPaymentConfig,
   fetchAdminPricing,
   demoteAdminUser,
   fetchAdminAuditLogs,
@@ -16,12 +17,17 @@ import {
   promoteAdminUser,
   resolveAdminBillingEvent,
   retryAdminBillingEvent,
+  saveAdminPaymentConfig,
   saveAdminPricing,
   updateAdminUserRole,
   type AdminPricingPlan,
   type AdminUserRecord,
 } from '../../lib/admin-api';
 import type { BillingEventRecord } from '../../lib/payment-api';
+import {
+  DEFAULT_PAYMENT_COLLECTION_REASON,
+  type PaymentCollectionConfig,
+} from '../../lib/payment-config';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -85,6 +91,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [pricingSaving, setPricingSaving] = useState(false);
+  const [paymentCollection, setPaymentCollection] = useState<PaymentCollectionConfig | null>(null);
+  const [paymentCollectionReason, setPaymentCollectionReason] = useState(DEFAULT_PAYMENT_COLLECTION_REASON);
+  const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(false);
+  const [paymentCollectionSaving, setPaymentCollectionSaving] = useState(false);
+  const [paymentCollectionError, setPaymentCollectionError] = useState<string | null>(null);
   const [creatingTeamMember, setCreatingTeamMember] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [teamMemberDraft, setTeamMemberDraft] = useState({
@@ -175,6 +186,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPricingLoading(false);
   };
 
+  const loadPaymentCollection = async () => {
+    setPaymentCollectionLoading(true);
+    const response = await fetchAdminPaymentConfig();
+    if (!response.success || !response.data?.paymentCollection) {
+      setPaymentCollectionError(response.error || 'Unable to load payment collection control.');
+      setPaymentCollection(null);
+      setPaymentCollectionReason(DEFAULT_PAYMENT_COLLECTION_REASON);
+      setPaymentCollectionLoading(false);
+      return;
+    }
+
+    setPaymentCollectionError(null);
+    setPaymentCollection(response.data.paymentCollection);
+    setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    setPaymentCollectionLoading(false);
+  };
+
   const loadAdminLogs = async () => {
     const [actions, audit] = await Promise.all([
       fetchAdminLogs({ limit: 20, offset: 0 }),
@@ -218,7 +246,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const refreshAll = async (isRefresh = false) => {
-    await Promise.all([loadOverview(isRefresh), loadUsers(), loadAdminLogs(), loadBilling(), loadPricing()]);
+    await Promise.all([
+      loadOverview(isRefresh),
+      loadUsers(),
+      loadAdminLogs(),
+      loadBilling(),
+      loadPricing(),
+      loadPaymentCollection(),
+    ]);
   };
 
   const handlePricingDraftChange = (
@@ -257,6 +292,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setPricingPlans(response.data.plans || []);
     toast.success(response.message || 'Pricing updated.');
+    await Promise.all([loadOverview(true), loadAdminLogs()]);
+  };
+
+  const handleSavePaymentCollection = async (enabled: boolean) => {
+    if (enabled && !paymentCollectionEnabled) {
+      const confirmed = window.confirm(
+        'Turn on live payment collection? Users will be able to complete Paystack checkout immediately.',
+      );
+      if (!confirmed) return;
+    }
+
+    setPaymentCollectionSaving(true);
+    const response = await saveAdminPaymentConfig({
+      enabled,
+      reason: paymentCollectionReason.trim() || DEFAULT_PAYMENT_COLLECTION_REASON,
+    });
+    setPaymentCollectionSaving(false);
+
+    if (!response.success || !response.data?.paymentCollection) {
+      toast.error(response.error || 'Failed to update payment collection control.');
+      return;
+    }
+
+    setPaymentCollection(response.data.paymentCollection);
+    setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    toast.success(response.message || 'Payment collection control updated.');
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
@@ -456,6 +517,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     });
   }, [users, search]);
 
+  const paymentCollectionEnabled = Boolean(paymentCollection?.enabled);
+  const paymentCollectionStatusLabel = paymentCollectionLoading
+    ? 'Checking'
+    : paymentCollectionEnabled
+      ? 'On'
+      : 'Off';
+
   return (
     <div className="fit-screen bg-background">
       <header className="fixed top-0 w-full z-40 bg-background/80 backdrop-blur-xl h-20 px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
@@ -549,6 +617,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       <p className="text-lg font-headline font-black text-foreground">{item.count}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1 gap-3">
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Payment Collection
+                  </h3>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                      paymentCollectionEnabled
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                    }`}
+                  >
+                    {paymentCollectionStatusLabel}
+                  </span>
+                </div>
+
+                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                        paymentCollectionEnabled
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                      }`}
+                    >
+                      <Power size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-foreground">
+                        {paymentCollectionEnabled ? 'Live checkout is enabled' : 'Live checkout is paused'}
+                      </p>
+                      <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
+                        Keep this off while we finish full-app QA. Turning it on lets users complete real checkout.
+                      </p>
+                    </div>
+                  </div>
+
+                  {paymentCollectionError && (
+                    <p className="text-sm font-bold text-red-500">{paymentCollectionError}</p>
+                  )}
+
+                  <label className="block space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                      Customer-facing pause note
+                    </span>
+                    <textarea
+                      value={paymentCollectionReason}
+                      onChange={(event) => setPaymentCollectionReason(event.target.value)}
+                      className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => void handleSavePaymentCollection(!paymentCollectionEnabled)}
+                      disabled={paymentCollectionSaving || paymentCollectionLoading}
+                      className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
+                        paymentCollectionEnabled ? 'bg-red-500' : 'bg-secondary'
+                      }`}
+                    >
+                      {paymentCollectionSaving
+                        ? 'Saving...'
+                        : paymentCollectionEnabled
+                          ? 'Turn Payments Off'
+                          : 'Turn Payments On'}
+                    </button>
+                    <button
+                      onClick={() => void handleSavePaymentCollection(paymentCollectionEnabled)}
+                      disabled={paymentCollectionSaving || paymentCollectionLoading}
+                      className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
+                    >
+                      Save Note
+                    </button>
+                  </div>
                 </div>
               </div>
 

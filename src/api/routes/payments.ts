@@ -12,6 +12,11 @@ import {
   MAX_AUTOMATED_PAYMENT_RETRIES,
   planNextPaymentRetry,
 } from '../../lib/billing-retry.js';
+import {
+  DEFAULT_PAYMENT_COLLECTION_REASON,
+  getPaymentCollectionSettings,
+  isConfigAddonName,
+} from '../utils/payment-collection-control.js';
 import { getManagedSubscriptionPricing } from '../utils/payment-pricing.js';
 
 const router = Router();
@@ -86,6 +91,21 @@ export type PaymentEventRecord = {
   status?: PaymentEventStatus | null;
   recovery_status?: PaymentRecoveryStatus | null;
 };
+
+const sendPaymentCollectionDisabled = (
+  res: Response,
+  settings: Awaited<ReturnType<typeof getPaymentCollectionSettings>>,
+  extras: Record<string, unknown> = {},
+) =>
+  res.status(403).json({
+    ...extras,
+    success: false,
+    code: 'PAYMENTS_DISABLED',
+    message: settings.reason || DEFAULT_PAYMENT_COLLECTION_REASON,
+    data: {
+      paymentCollection: settings,
+    },
+  });
 
 const getPaystackSecretKey = (): string =>
   process.env.PAYSTACK_SECRET_KEY ||
@@ -200,7 +220,7 @@ export async function getAvailableAddons(req: Request, res: Response) {
 
     return res.json({
       success: true,
-      data: (data || []).filter((addon: any) => !isPricingConfigAddon(addon)),
+      data: (data || []).filter((addon: any) => !isConfigAddonName(addon?.addon_name)),
     });
   } catch (error: any) {
     console.error('Get add-ons error:', error);
@@ -273,6 +293,11 @@ export async function processAddonPayment(req: Request, res: Response) {
         subscription,
         message: `Successfully subscribed to ${addon.addon_name || 'add-on'}`,
       });
+    }
+
+    const paymentCollection = await getPaymentCollectionSettings();
+    if (!paymentCollection.enabled) {
+      return sendPaymentCollectionDisabled(res, paymentCollection);
     }
 
     return res.status(402).json({
@@ -526,6 +551,11 @@ export async function finalizePremiumPayment(req: Request, res: Response) {
       return res.status(401).json({ success: false, verified: false, message: 'Not authenticated' });
     }
 
+    const paymentCollection = await getPaymentCollectionSettings();
+    if (!paymentCollection.enabled) {
+      return sendPaymentCollectionDisabled(res, paymentCollection, { verified: false });
+    }
+
     if (!payload.reference || !payload.email || !payload.planId || !payload.amount) {
       return res.status(400).json({
         success: false,
@@ -743,6 +773,28 @@ export async function getSubscriptionPricing(req: Request, res: Response) {
   }
 }
 
+/**
+ * GET /api/payments/config
+ * Returns whether live payment collection is currently enabled.
+ */
+export async function getPaymentCollectionConfig(req: Request, res: Response) {
+  try {
+    const paymentCollection = await getPaymentCollectionSettings();
+    return res.json({
+      success: true,
+      data: {
+        paymentCollection,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get payment config error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to load payment configuration',
+    });
+  }
+}
+
 const getLatestSuccessfulPaymentSnapshot = async (paymentClient: any, userId: string) => {
   const { data, error } = await paymentClient
     .from('payment_events')
@@ -763,14 +815,11 @@ const getLatestSuccessfulPaymentSnapshot = async (paymentClient: any, userId: st
 
 const getRequestUserId = (req: Request): string | undefined => (req as any).user?.id;
 
-const isPricingConfigAddon = (addon: any): boolean =>
-  String(addon?.addon_name || '').startsWith('config:pricing:');
-
 const isPremiumAccessAddon = (addon: any): boolean => {
   const addonName = String(addon?.addon_name || '').toLowerCase();
   const description = String(addon?.description || '').toLowerCase();
 
-  if (isPricingConfigAddon(addon)) return false;
+  if (isConfigAddonName(addon?.addon_name)) return false;
 
   return (
     description.includes('premium access subscription') ||
@@ -1090,6 +1139,11 @@ export async function recoverFailedPayment(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
 
+    const paymentCollection = await getPaymentCollectionSettings();
+    if (!paymentCollection.enabled) {
+      return sendPaymentCollectionDisabled(res, paymentCollection, { recovered: false });
+    }
+
     const reference = String(req.body?.reference || '').trim();
     if (!reference) {
       return res.status(400).json({ success: false, message: 'reference is required' });
@@ -1251,6 +1305,12 @@ export async function processScheduledPaymentRetries(limit = 25): Promise<{
     skipped: 0,
     failures: [] as Array<{ reference: string; error: string }>,
   };
+
+  const paymentCollection = await getPaymentCollectionSettings();
+  if (!paymentCollection.enabled) {
+    console.info('Skipping scheduled payment retries because payment collection is disabled.');
+    return summary;
+  }
 
   const { data: paymentEvents, error } = await supabase
     .from('payment_events')
@@ -1698,6 +1758,7 @@ function verifyFlutterwaveSignature(req: Request, signature: string): boolean {
 router.post('/process-addon', processAddonPayment);
 router.post('/cancel-subscription', cancelAddonSubscription);
 router.post('/finalize', finalizePremiumPayment);
+router.get('/config', getPaymentCollectionConfig);
 router.get('/pricing', getSubscriptionPricing);
 router.get('/addons', getAvailableAddons);
 router.get('/addon-subscriptions', getUserAddonSubscriptions);

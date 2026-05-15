@@ -153,8 +153,8 @@ Optional - Can do later:
 | [database/sql/README.md](database/sql/README.md) | Database migrations guide |
 | [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Full deployment checklist |
 | [.env](.env) | Environment variables |
-| [src/api/routes/doctor.ts](src/api/routes/doctor.ts) | Doctor API code |
-| [src/api/server.ts](src/api/server.ts) | Main API server |
+| [src/api/routes/doctor.ts](../src/api/routes/doctor.ts) | Doctor API code |
+| [src/api/server.ts](../src/api/server.ts) | Main API server |
 
 ---
 

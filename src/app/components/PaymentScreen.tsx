@@ -19,6 +19,12 @@ import {
   savePaymentEvent,
   type BillingEventRecord,
 } from '../../lib/payment-api';
+import {
+  DEFAULT_PAYMENT_COLLECTION_CONFIG,
+  DEFAULT_PAYMENT_COLLECTION_REASON,
+  fetchPaymentCollectionConfig,
+  type PaymentCollectionConfig,
+} from '../../lib/payment-config';
 
 const MotionDiv = motion.div as any;
 const MotionButton = motion.button as any;
@@ -69,6 +75,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   const { user, currentBaby, updateSettings } = useAppContext();
   const paymentManager = usePaymentManager();
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(SUBSCRIPTION_PLANS);
+  const [paymentCollection, setPaymentCollection] = useState<PaymentCollectionConfig>(
+    DEFAULT_PAYMENT_COLLECTION_CONFIG,
+  );
+  const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(true);
 
   const paystackPlans = useMemo(
     () => subscriptionPlans.filter((plan) => plan.provider === 'paystack'),
@@ -131,6 +141,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
   React.useEffect(() => {
     try {
+      if (paymentCollectionLoading || !paymentCollection.enabled) {
+        return;
+      }
+
       if (!paystackPublicKey) {
         setError(
           'Paystack public key is missing. Set VITE_PAYSTACK_PUBLIC_KEY in your frontend deployment environment and redeploy.',
@@ -144,7 +158,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     } catch (err) {
       console.error('Failed to initialize Paystack:', err);
     }
-  }, [paystackPublicKey]);
+  }, [paymentCollection.enabled, paymentCollectionLoading, paystackPublicKey]);
 
   const loadBillingHistoryData = React.useCallback(async () => {
     setLoadingHistory(true);
@@ -156,6 +170,25 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     } finally {
       setLoadingHistory(false);
     }
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadPaymentCollection = async () => {
+      setPaymentCollectionLoading(true);
+      const config = await fetchPaymentCollectionConfig();
+      if (!cancelled) {
+        setPaymentCollection(config);
+        setPaymentCollectionLoading(false);
+      }
+    };
+
+    void loadPaymentCollection();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   React.useEffect(() => {
@@ -187,6 +220,16 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   }, [paystackPlans, selectedPlan]);
 
   const handlePayment = async () => {
+    if (paymentCollectionLoading) {
+      setError('Checking payment availability. Please try again in a moment.');
+      return;
+    }
+
+    if (!paymentCollection.enabled) {
+      setError(paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+      return;
+    }
+
     if (!user?.email || !selectedPlanData || !firstName.trim() || !lastName.trim()) {
       setError(i18nT('payment.fillRequired', 'Please fill in all required fields'));
       return;
@@ -343,6 +386,24 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             >
               <AlertCircle className="shrink-0 text-error" size={20} />
               <p className="text-xs font-bold leading-relaxed text-error">{error}</p>
+            </MotionDiv>
+          )}
+
+          {!paymentCollectionLoading && !paymentCollection.enabled && (
+            <MotionDiv
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-4 rounded-[2rem] border border-amber-200 bg-amber-50 p-6 dark:border-amber-900/50 dark:bg-amber-950/20"
+            >
+              <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
+              <div>
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">
+                  Payments are paused for testing
+                </p>
+                <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
+                  {paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON}
+                </p>
+              </div>
             </MotionDiv>
           )}
 
@@ -606,10 +667,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 {entry.status === 'failed' && entry.recovery_status !== 'abandoned' && (
                   <button
                     onClick={() => handleRecoverPayment(entry.reference)}
-                    disabled={recoveringRef === entry.reference}
+                    disabled={recoveringRef === entry.reference || !paymentCollection.enabled}
                     className="mt-2 h-8 rounded-lg bg-secondary px-3 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
                   >
-                    {recoveringRef === entry.reference ? 'Recovering...' : 'Recover Payment'}
+                    {recoveringRef === entry.reference
+                      ? 'Recovering...'
+                      : paymentCollection.enabled
+                        ? 'Recover Payment'
+                        : 'Recovery Paused'}
                   </button>
                 )}
               </div>
@@ -628,7 +693,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handlePayment}
-            disabled={loading || !selectedPlanData}
+            disabled={loading || paymentCollectionLoading || !paymentCollection.enabled || !selectedPlanData}
             className="flex h-20 w-full items-center justify-center gap-4 rounded-full bg-secondary py-6 font-headline text-xs font-black uppercase tracking-[0.3em] text-white shadow-2xl shadow-secondary/30 transition-all disabled:opacity-50"
           >
             {loading ? (
@@ -636,6 +701,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 <Loader size={18} className="animate-spin text-white/50" />
                 <span>{i18nT('payment.processing')}</span>
               </>
+            ) : paymentCollectionLoading ? (
+              <span>Checking Payments...</span>
+            ) : !paymentCollection.enabled ? (
+              <span>Payments Paused</span>
             ) : (
               <>
                 <span>{i18nT('payment.payNow')}</span>

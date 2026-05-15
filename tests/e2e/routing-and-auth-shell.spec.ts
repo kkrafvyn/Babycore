@@ -3,9 +3,8 @@ import { expect, test } from '@playwright/test';
 test.describe('Routing and auth shell', () => {
   test('welcome and login routes render', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(
-      page.getByText(/BabyLog|BabyCore|Get Started|Need to register/i).first(),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'BabyLog' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Begin the Journey/i })).toBeVisible();
 
     await page.goto('/login');
     await expect(page.getByRole('button', { name: /Continue as Guest/i }).first()).toBeVisible();

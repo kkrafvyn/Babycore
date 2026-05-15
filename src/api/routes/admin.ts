@@ -32,6 +32,11 @@ import {
   getManagedSubscriptionPricing,
   updateManagedSubscriptionPricing,
 } from '../utils/payment-pricing.js';
+import {
+  DEFAULT_PAYMENT_COLLECTION_REASON,
+  getPaymentCollectionSettings,
+  setPaymentCollectionEnabled,
+} from '../utils/payment-collection-control.js';
 
 const router = Router();
 
@@ -516,6 +521,82 @@ router.post('/pricing', requireRole('admin'), async (req: AuthRequest, res: Resp
     return res.status(500).json({
       success: false,
       error: error?.message || 'Failed to update pricing',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/payment-config
+ * Review whether live payment collection is enabled.
+ */
+router.get('/payment-config', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const paymentCollection = await getPaymentCollectionSettings(supabase);
+    return res.json({
+      success: true,
+      data: {
+        paymentCollection,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Failed to fetch payment collection config', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to load payment collection config',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/payment-config
+ * Enable or disable live checkout collection.
+ */
+router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (typeof req.body?.enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: 'enabled must be a boolean',
+      });
+    }
+
+    const reason =
+      typeof req.body?.reason === 'string' && req.body.reason.trim()
+        ? req.body.reason.trim()
+        : DEFAULT_PAYMENT_COLLECTION_REASON;
+    const paymentCollection = await setPaymentCollectionEnabled(
+      {
+        enabled: req.body.enabled,
+        reason,
+      },
+      supabase,
+    );
+
+    await supabase.from('admin_actions_log').insert({
+      admin_id: req.user.id,
+      action: paymentCollection.enabled ? 'payment_collection_enabled' : 'payment_collection_disabled',
+      target_user_id: null,
+      details: {
+        enabled: paymentCollection.enabled,
+        reason: paymentCollection.reason,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      message: paymentCollection.enabled
+        ? 'Payment collection is now enabled.'
+        : 'Payment collection is now disabled.',
+      data: {
+        paymentCollection,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Failed to update payment collection config', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to update payment collection config',
     });
   }
 });

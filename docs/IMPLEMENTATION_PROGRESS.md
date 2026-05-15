@@ -233,7 +233,7 @@ TOTAL:         ~$100-150/year ($8-12/month avg)
 - [DOCTOR_ROLE_API_DOCUMENTATION.md](DOCTOR_ROLE_API_DOCUMENTATION.md) - Doctor API reference
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) - Deployment steps
 - [.env.production.example](.env.production.example) - Production variables template
-- [src/api/routes/doctor.ts](src/api/routes/doctor.ts) - Doctor API implementation
+- [src/api/routes/doctor.ts](../src/api/routes/doctor.ts) - Doctor API implementation
 
 ---
 

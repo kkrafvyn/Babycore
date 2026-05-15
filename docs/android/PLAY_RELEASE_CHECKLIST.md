@@ -64,7 +64,7 @@ Run this on a physical Android device before upload:
 - Camera: take a photo from add-baby, monthly photos, and gallery flows.
 - Health Connect: if shipping wearable sync, complete a permission grant and verify imported readings appear in Wearables.
 
-See [HEALTH_CONNECT_PLAY_DECLARATION.md](/f:/3D%20Splash%20Screen%20Design/android/HEALTH_CONNECT_PLAY_DECLARATION.md:1) for the release disclosure and Play Console copy.
+See [HEALTH_CONNECT_PLAY_DECLARATION.md](./HEALTH_CONNECT_PLAY_DECLARATION.md) for the release disclosure and Play Console copy.
 
 ## Remaining Production Gaps
 

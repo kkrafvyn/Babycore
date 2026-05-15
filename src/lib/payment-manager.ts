@@ -5,6 +5,7 @@
 
 import { getApiBaseUrl } from './api-base-url';
 import { getFlutterwaveClient, FlutterwavePaymentOptions } from './flutterwave';
+import { assertPaymentCollectionEnabled } from './payment-config';
 import {
   getPaystackClient,
   PaystackPaymentChannel,
@@ -337,6 +338,8 @@ export class UnifiedPaymentManager {
     userId?: string,
     amountOverride?: number,
   ): Promise<ProcessedSubscription> {
+    await assertPaymentCollectionEnabled();
+
     const computedAmount = resolveSubscriptionPlanAmount(plan, countryCode);
     const amount =
       typeof amountOverride === 'number' && Number.isFinite(amountOverride) && amountOverride > 0

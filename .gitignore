@@ -33,6 +33,7 @@ Thumbs.db
 artifacts/
 scratch/
 .tools/
+supabase/.temp/
 *.zip
 *.timestamp-*.mjs
 package-lock.broken-*.json

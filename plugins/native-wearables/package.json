@@ -5,8 +5,7 @@
   "license": "MIT",
   "files": [
     "android",
-    "ios",
-    "README.md"
+    "ios"
   ],
   "capacitor": {
     "ios": {

@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from './api-base-url';
 import type { BillingEventRecord } from './payment-api';
+import type { PaymentCollectionConfig } from './payment-config';
 import { supabase } from './supabase';
 
 export interface AdminOverviewResponse {
@@ -96,6 +97,15 @@ export interface AdminPricingResponse {
   data?: {
     plans: AdminPricingPlan[];
   };
+  error?: string;
+}
+
+export interface AdminPaymentConfigResponse {
+  success: boolean;
+  data?: {
+    paymentCollection: PaymentCollectionConfig;
+  };
+  message?: string;
   error?: string;
 }
 
@@ -385,6 +395,23 @@ export const saveAdminPricing = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ plans }),
+  });
+
+export const fetchAdminPaymentConfig = async (): Promise<AdminPaymentConfigResponse> =>
+  adminRequest<AdminPaymentConfigResponse>('/admin/payment-config', {
+    method: 'GET',
+  });
+
+export const saveAdminPaymentConfig = async (input: {
+  enabled: boolean;
+  reason?: string;
+}): Promise<AdminPaymentConfigResponse> =>
+  adminRequest<AdminPaymentConfigResponse>('/admin/payment-config', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
   });
 
 export const retryAdminBillingEvent = async (

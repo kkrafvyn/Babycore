@@ -29,7 +29,7 @@ Current status:
 
 ## Supporting Docs
 
-- [Android release checklist](./android/PLAY_RELEASE_CHECKLIST.md)
-- [Android Health Connect declaration](./android/HEALTH_CONNECT_PLAY_DECLARATION.md)
-- [iOS release checklist](./ios/IOS_RELEASE_CHECKLIST.md)
-- [iOS HealthKit declaration](./ios/HEALTHKIT_APP_STORE_DECLARATION.md)
+- [Android release checklist](android/PLAY_RELEASE_CHECKLIST.md)
+- [Android Health Connect declaration](android/HEALTH_CONNECT_PLAY_DECLARATION.md)
+- [iOS release checklist](ios/IOS_RELEASE_CHECKLIST.md)
+- [iOS HealthKit declaration](ios/HEALTHKIT_APP_STORE_DECLARATION.md)

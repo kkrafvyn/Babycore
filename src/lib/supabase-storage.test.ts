@@ -67,6 +67,12 @@ const createBabySelectQuery = (rows: any[]) => ({
   }),
 });
 
+const createDoctorAssignmentsQuery = (rows: any[] = []) => ({
+  eq: vi.fn().mockReturnValue({
+    eq: vi.fn().mockResolvedValue({ data: rows, error: null }),
+  }),
+});
+
 describe('supabase-storage guest migration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -92,6 +98,12 @@ describe('supabase-storage guest migration', () => {
         return {
           upsert: upsertMock,
           select: vi.fn().mockReturnValue(createBabySelectQuery([])),
+        };
+      }
+
+      if (table === 'doctor_baby_assignments') {
+        return {
+          select: vi.fn().mockReturnValue(createDoctorAssignmentsQuery()),
         };
       }
 
@@ -261,6 +273,12 @@ describe('supabase-storage guest migration', () => {
         };
       }
 
+      if (table === 'doctor_baby_assignments') {
+        return {
+          select: vi.fn().mockReturnValue(createDoctorAssignmentsQuery()),
+        };
+      }
+
       return {
         select: vi.fn().mockReturnValue(createInviteQuery()),
       };
@@ -302,6 +320,12 @@ describe('supabase-storage guest migration', () => {
         return {
           select: vi.fn().mockReturnValue(createBabySelectQuery([])),
           upsert: upsertMock,
+        };
+      }
+
+      if (table === 'doctor_baby_assignments') {
+        return {
+          select: vi.fn().mockReturnValue(createDoctorAssignmentsQuery()),
         };
       }
 
