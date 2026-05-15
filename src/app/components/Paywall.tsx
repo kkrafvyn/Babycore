@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Zap } from 'lucide-react';
+import { AlertCircle, X, Zap } from 'lucide-react';
 import { subscriptionManager, pricing, type SubscriptionPeriod } from '../../lib/premium';
 import { motion } from 'framer-motion';
 import { useAppContext } from '../AppContext';
@@ -10,6 +10,12 @@ import {
   SUBSCRIPTION_PLANS,
   type SubscriptionPlan,
 } from '../../lib/payment-manager';
+import {
+  DEFAULT_PREMIUM_ACCESS_CONFIG,
+  DEFAULT_PREMIUM_ACCESS_REASON,
+  fetchPaymentFeatureConfig,
+  type PaymentCollectionConfig,
+} from '../../lib/payment-config';
 
 interface PaywallProps {
   feature?: string;
@@ -28,6 +34,8 @@ export const Paywall: React.FC<PaywallProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPeriod>('annual');
   const [isLoading, setIsLoading] = useState(false);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(SUBSCRIPTION_PLANS);
+  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig>(DEFAULT_PREMIUM_ACCESS_CONFIG);
+  const [premiumAccessLoading, setPremiumAccessLoading] = useState(true);
   const subscription = subscriptionManager.getSubscription();
   const isTrialActive = subscription?.status === 'trial';
   const locationConfig = getPaystackLocationConfig(currentBaby?.country);
@@ -50,6 +58,25 @@ export const Paywall: React.FC<PaywallProps> = ({
     };
 
     void loadManagedPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadPremiumAccess = async () => {
+      setPremiumAccessLoading(true);
+      const config = await fetchPaymentFeatureConfig();
+      if (!cancelled) {
+        setPremiumAccess(config.premiumAccess);
+        setPremiumAccessLoading(false);
+      }
+    };
+
+    void loadPremiumAccess();
 
     return () => {
       cancelled = true;
@@ -91,6 +118,7 @@ export const Paywall: React.FC<PaywallProps> = ({
 
   const handleUpgrade = async () => {
     if (!onUpgrade) return;
+    if (!premiumAccess.enabled) return;
     setIsLoading(true);
     try {
       await onUpgrade();
@@ -143,18 +171,33 @@ export const Paywall: React.FC<PaywallProps> = ({
             </div>
           )}
 
+          {!premiumAccessLoading && !premiumAccess.enabled && (
+            <div className="flex items-start gap-4 rounded-[2rem] border border-amber-200 bg-amber-50 p-6 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
+              <div>
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">
+                  Premium packages are paused
+                </p>
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-amber-700 dark:text-amber-300">
+                  {premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-6">
             <p className="text-[10px] font-black text-text-light uppercase tracking-widest px-2">
               Subscription Architectures
             </p>
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => setSelectedPlan('monthly')}
+                onClick={() => premiumAccess.enabled && setSelectedPlan('monthly')}
+                disabled={!premiumAccess.enabled}
                 className={`p-8 rounded-[2.5rem] border text-left transition-all ${
                   selectedPlan === 'monthly'
                     ? 'bg-surface border-secondary shadow-xl'
                     : 'bg-surface-gray dark:bg-zinc-900 border-border-gray dark:border-zinc-800'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 <p
                   className={`text-[9px] font-black uppercase tracking-widest ${
@@ -173,12 +216,13 @@ export const Paywall: React.FC<PaywallProps> = ({
                 <p className="text-[10px] font-bold text-text-dim mt-2 italic">Rolling Access</p>
               </button>
               <button
-                onClick={() => setSelectedPlan('annual')}
+                onClick={() => premiumAccess.enabled && setSelectedPlan('annual')}
+                disabled={!premiumAccess.enabled}
                 className={`relative p-8 rounded-[2.5rem] border text-left transition-all ${
                   selectedPlan === 'annual'
                     ? 'bg-surface border-secondary shadow-xl'
                     : 'bg-surface-gray dark:bg-zinc-900 border-border-gray dark:border-zinc-800'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 <div className="absolute -top-3 -right-3 bg-secondary text-white text-[8px] font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-lg">
                   Best Value
@@ -232,10 +276,18 @@ export const Paywall: React.FC<PaywallProps> = ({
 
           <button
             onClick={handleUpgrade}
-            disabled={isLoading}
-            className="w-full bg-secondary text-white py-6 rounded-full font-headline font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-secondary/30 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-4"
+            disabled={isLoading || premiumAccessLoading || !premiumAccess.enabled}
+            className="w-full bg-secondary text-white py-6 rounded-full font-headline font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-secondary/30 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLoading ? <span className="animate-pulse">Initializing...</span> : <>Initialize {selectedPlan} Sanctuary</>}
+            {isLoading ? (
+              <span className="animate-pulse">Initializing...</span>
+            ) : premiumAccessLoading ? (
+              <>Checking Premium...</>
+            ) : !premiumAccess.enabled ? (
+              <>Premium Paused</>
+            ) : (
+              <>Initialize {selectedPlan} Sanctuary</>
+            )}
           </button>
 
           <div className="flex flex-col items-center gap-4 py-4 text-[9px] font-black text-text-dim uppercase tracking-[0.3em] opacity-40 italic">

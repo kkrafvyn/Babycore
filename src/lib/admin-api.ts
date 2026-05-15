@@ -105,6 +105,7 @@ export interface AdminPaymentConfigResponse {
   success: boolean;
   data?: {
     paymentCollection: PaymentCollectionConfig;
+    premiumAccess: PaymentCollectionConfig;
   };
   message?: string;
   error?: string;
@@ -413,8 +414,10 @@ export const fetchAdminPaymentConfig = async (): Promise<AdminPaymentConfigRespo
   });
 
 export const saveAdminPaymentConfig = async (input: {
-  enabled: boolean;
+  enabled?: boolean;
   reason?: string;
+  premiumAccessEnabled?: boolean;
+  premiumAccessReason?: string;
 }): Promise<AdminPaymentConfigResponse> =>
   adminRequest<AdminPaymentConfigResponse>('/admin/payment-config', {
     method: 'POST',

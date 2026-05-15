@@ -22,7 +22,9 @@ import {
 import {
   DEFAULT_PAYMENT_COLLECTION_CONFIG,
   DEFAULT_PAYMENT_COLLECTION_REASON,
-  fetchPaymentCollectionConfig,
+  DEFAULT_PREMIUM_ACCESS_CONFIG,
+  DEFAULT_PREMIUM_ACCESS_REASON,
+  fetchPaymentFeatureConfig,
   type PaymentCollectionConfig,
 } from '../../lib/payment-config';
 
@@ -77,6 +79,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(SUBSCRIPTION_PLANS);
   const [paymentCollection, setPaymentCollection] = useState<PaymentCollectionConfig>(
     DEFAULT_PAYMENT_COLLECTION_CONFIG,
+  );
+  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig>(
+    DEFAULT_PREMIUM_ACCESS_CONFIG,
   );
   const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(true);
 
@@ -141,7 +146,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
   React.useEffect(() => {
     try {
-      if (paymentCollectionLoading || !paymentCollection.enabled) {
+      if (paymentCollectionLoading || !paymentCollection.enabled || !premiumAccess.enabled) {
         return;
       }
 
@@ -158,7 +163,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     } catch (err) {
       console.error('Failed to initialize Paystack:', err);
     }
-  }, [paymentCollection.enabled, paymentCollectionLoading, paystackPublicKey]);
+  }, [paymentCollection.enabled, paymentCollectionLoading, paystackPublicKey, premiumAccess.enabled]);
 
   const loadBillingHistoryData = React.useCallback(async () => {
     setLoadingHistory(true);
@@ -177,9 +182,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
     const loadPaymentCollection = async () => {
       setPaymentCollectionLoading(true);
-      const config = await fetchPaymentCollectionConfig();
+      const config = await fetchPaymentFeatureConfig();
       if (!cancelled) {
-        setPaymentCollection(config);
+        setPaymentCollection(config.paymentCollection);
+        setPremiumAccess(config.premiumAccess);
         setPaymentCollectionLoading(false);
       }
     };
@@ -227,6 +233,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
     if (!paymentCollection.enabled) {
       setError(paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+      return;
+    }
+
+    if (!premiumAccess.enabled) {
+      setError(premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
       return;
     }
 
@@ -407,6 +418,24 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             </MotionDiv>
           )}
 
+          {!paymentCollectionLoading && !premiumAccess.enabled && (
+            <MotionDiv
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-4 rounded-[2rem] border border-amber-200 bg-amber-50 p-6 dark:border-amber-900/50 dark:bg-amber-950/20"
+            >
+              <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
+              <div>
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">
+                  Premium packages are paused
+                </p>
+                <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
+                  {premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON}
+                </p>
+              </div>
+            </MotionDiv>
+          )}
+
           <div className="space-y-6">
             <h3 className="px-2 text-[10px] font-black uppercase tracking-[0.3em] text-text-light">
               Access Architecture
@@ -415,12 +444,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               {paystackPlans.map((plan) => (
                 <MotionButton
                   key={plan.id}
-                  onClick={() => setSelectedPlan(plan.id)}
+                  onClick={() => premiumAccess.enabled && setSelectedPlan(plan.id)}
+                  disabled={!premiumAccess.enabled}
                   className={`group relative w-full overflow-hidden rounded-[3rem] border p-8 text-left transition-all ${
                     selectedPlan === plan.id
                       ? 'border-secondary bg-surface shadow-xl'
                       : 'border-border-gray bg-surface hover:border-text-light/30 dark:border-zinc-800'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   <div className="relative z-10 flex items-start justify-between">
                     <div className="space-y-1">
@@ -667,12 +697,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 {entry.status === 'failed' && entry.recovery_status !== 'abandoned' && (
                   <button
                     onClick={() => handleRecoverPayment(entry.reference)}
-                    disabled={recoveringRef === entry.reference || !paymentCollection.enabled}
+                    disabled={recoveringRef === entry.reference || !paymentCollection.enabled || !premiumAccess.enabled}
                     className="mt-2 h-8 rounded-lg bg-secondary px-3 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60"
                   >
                     {recoveringRef === entry.reference
                       ? 'Recovering...'
-                      : paymentCollection.enabled
+                      : paymentCollection.enabled && premiumAccess.enabled
                         ? 'Recover Payment'
                         : 'Recovery Paused'}
                   </button>
@@ -693,7 +723,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handlePayment}
-            disabled={loading || paymentCollectionLoading || !paymentCollection.enabled || !selectedPlanData}
+            disabled={
+              loading ||
+              paymentCollectionLoading ||
+              !paymentCollection.enabled ||
+              !premiumAccess.enabled ||
+              !selectedPlanData
+            }
             className="flex h-20 w-full items-center justify-center gap-4 rounded-full bg-secondary py-6 font-headline text-xs font-black uppercase tracking-[0.3em] text-white shadow-2xl shadow-secondary/30 transition-all disabled:opacity-50"
           >
             {loading ? (
@@ -705,6 +741,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               <span>Checking Payments...</span>
             ) : !paymentCollection.enabled ? (
               <span>Payments Paused</span>
+            ) : !premiumAccess.enabled ? (
+              <span>Premium Paused</span>
             ) : (
               <>
                 <span>{i18nT('payment.payNow')}</span>

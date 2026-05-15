@@ -34,8 +34,11 @@ import {
 } from '../utils/payment-pricing.js';
 import {
   DEFAULT_PAYMENT_COLLECTION_REASON,
+  DEFAULT_PREMIUM_ACCESS_REASON,
   getPaymentCollectionSettings,
+  getPremiumAccessSettings,
   setPaymentCollectionEnabled,
+  setPremiumAccessEnabled,
 } from '../utils/payment-collection-control.js';
 
 const router = Router();
@@ -531,11 +534,15 @@ router.post('/pricing', requireRole('admin'), async (req: AuthRequest, res: Resp
  */
 router.get('/payment-config', requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
-    const paymentCollection = await getPaymentCollectionSettings(supabase);
+    const [paymentCollection, premiumAccess] = await Promise.all([
+      getPaymentCollectionSettings(supabase),
+      getPremiumAccessSettings(supabase),
+    ]);
     return res.json({
       success: true,
       data: {
         paymentCollection,
+        premiumAccess,
       },
     });
   } catch (error: any) {
@@ -553,43 +560,75 @@ router.get('/payment-config', requireRole('admin'), async (req: AuthRequest, res
  */
 router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
-    if (typeof req.body?.enabled !== 'boolean') {
+    const hasPaymentCollectionInput = typeof req.body?.enabled === 'boolean';
+    const hasPremiumAccessInput = typeof req.body?.premiumAccessEnabled === 'boolean';
+
+    if (!hasPaymentCollectionInput && !hasPremiumAccessInput) {
       return res.status(400).json({
         success: false,
-        error: 'enabled must be a boolean',
+        error: 'enabled or premiumAccessEnabled must be a boolean',
       });
     }
 
-    const reason =
+    const paymentReason =
       typeof req.body?.reason === 'string' && req.body.reason.trim()
         ? req.body.reason.trim()
         : DEFAULT_PAYMENT_COLLECTION_REASON;
-    const paymentCollection = await setPaymentCollectionEnabled(
-      {
-        enabled: req.body.enabled,
-        reason,
-      },
-      supabase,
-    );
+    const premiumReason =
+      typeof req.body?.premiumAccessReason === 'string' && req.body.premiumAccessReason.trim()
+        ? req.body.premiumAccessReason.trim()
+        : DEFAULT_PREMIUM_ACCESS_REASON;
+    const paymentCollection = hasPaymentCollectionInput
+      ? await setPaymentCollectionEnabled(
+          {
+            enabled: req.body.enabled,
+            reason: paymentReason,
+          },
+          supabase,
+        )
+      : await getPaymentCollectionSettings(supabase);
+    const premiumAccess = hasPremiumAccessInput
+      ? await setPremiumAccessEnabled(
+          {
+            enabled: req.body.premiumAccessEnabled,
+            reason: premiumReason,
+          },
+          supabase,
+        )
+      : await getPremiumAccessSettings(supabase);
 
     await supabase.from('admin_actions_log').insert({
       admin_id: req.user.id,
-      action: paymentCollection.enabled ? 'payment_collection_enabled' : 'payment_collection_disabled',
+      action:
+        hasPremiumAccessInput && !hasPaymentCollectionInput
+          ? premiumAccess.enabled
+            ? 'premium_access_enabled'
+            : 'premium_access_disabled'
+          : paymentCollection.enabled
+            ? 'payment_collection_enabled'
+            : 'payment_collection_disabled',
       target_user_id: null,
       details: {
-        enabled: paymentCollection.enabled,
-        reason: paymentCollection.reason,
+        paymentCollectionEnabled: paymentCollection.enabled,
+        paymentCollectionReason: paymentCollection.reason,
+        premiumAccessEnabled: premiumAccess.enabled,
+        premiumAccessReason: premiumAccess.reason,
       },
       created_at: new Date().toISOString(),
     });
 
     return res.json({
       success: true,
-      message: paymentCollection.enabled
-        ? 'Payment collection is now enabled.'
-        : 'Payment collection is now disabled.',
+      message: hasPremiumAccessInput
+        ? premiumAccess.enabled
+          ? 'Premium features are now enabled.'
+          : 'Premium features are now disabled.'
+        : paymentCollection.enabled
+          ? 'Payment collection is now enabled.'
+          : 'Payment collection is now disabled.',
       data: {
         paymentCollection,
+        premiumAccess,
       },
     });
   } catch (error: any) {

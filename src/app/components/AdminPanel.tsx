@@ -35,7 +35,11 @@ import {
   type AdminUserRecord,
 } from '../../lib/admin-api';
 import type { BillingEventRecord } from '../../lib/payment-api';
-import { DEFAULT_PAYMENT_COLLECTION_REASON, type PaymentCollectionConfig } from '../../lib/payment-config';
+import {
+  DEFAULT_PAYMENT_COLLECTION_REASON,
+  DEFAULT_PREMIUM_ACCESS_REASON,
+  type PaymentCollectionConfig,
+} from '../../lib/payment-config';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -66,7 +70,7 @@ const ADMIN_SECTIONS: Array<{
     label: 'Payments',
     eyebrow: 'Revenue Control',
     title: 'Payment Settings',
-    description: 'Pause or enable live checkout and tune premium plan pricing before launch.',
+    description: 'Pause checkout, disable premium access, and tune plan pricing before launch.',
     Icon: CreditCard,
   },
   {
@@ -161,6 +165,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(false);
   const [paymentCollectionSaving, setPaymentCollectionSaving] = useState(false);
   const [paymentCollectionError, setPaymentCollectionError] = useState<string | null>(null);
+  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig | null>(null);
+  const [premiumAccessReason, setPremiumAccessReason] = useState(DEFAULT_PREMIUM_ACCESS_REASON);
+  const [premiumAccessSaving, setPremiumAccessSaving] = useState(false);
   const [creatingTeamMember, setCreatingTeamMember] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [teamMemberDraft, setTeamMemberDraft] = useState({
@@ -255,10 +262,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const loadPaymentCollection = async () => {
     setPaymentCollectionLoading(true);
     const response = await fetchAdminPaymentConfig();
-    if (!response.success || !response.data?.paymentCollection) {
+    if (!response.success || !response.data?.paymentCollection || !response.data?.premiumAccess) {
       setPaymentCollectionError(response.error || 'Unable to load payment collection control.');
       setPaymentCollection(null);
       setPaymentCollectionReason(DEFAULT_PAYMENT_COLLECTION_REASON);
+      setPremiumAccess(null);
+      setPremiumAccessReason(DEFAULT_PREMIUM_ACCESS_REASON);
       setPaymentCollectionLoading(false);
       return;
     }
@@ -266,6 +275,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPaymentCollectionError(null);
     setPaymentCollection(response.data.paymentCollection);
     setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    setPremiumAccess(response.data.premiumAccess);
+    setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
     setPaymentCollectionLoading(false);
   };
 
@@ -383,7 +394,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setPaymentCollection(response.data.paymentCollection);
     setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    if (response.data.premiumAccess) {
+      setPremiumAccess(response.data.premiumAccess);
+      setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
+    }
     toast.success(response.message || 'Payment collection control updated.');
+    await Promise.all([loadOverview(true), loadAdminLogs()]);
+  };
+
+  const handleSavePremiumAccess = async (enabled: boolean) => {
+    if (enabled && !premiumAccessEnabled) {
+      const confirmed = window.confirm(
+        'Turn on premium feature access? Active and test subscriptions will immediately unlock premium tools.',
+      );
+      if (!confirmed) return;
+    }
+
+    setPremiumAccessSaving(true);
+    const response = await saveAdminPaymentConfig({
+      premiumAccessEnabled: enabled,
+      premiumAccessReason: premiumAccessReason.trim() || DEFAULT_PREMIUM_ACCESS_REASON,
+    });
+    setPremiumAccessSaving(false);
+
+    if (!response.success || !response.data?.premiumAccess) {
+      toast.error(response.error || 'Failed to update premium feature access.');
+      return;
+    }
+
+    if (response.data.paymentCollection) {
+      setPaymentCollection(response.data.paymentCollection);
+      setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    }
+    setPremiumAccess(response.data.premiumAccess);
+    setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
+    toast.success(response.message || 'Premium feature access updated.');
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
@@ -575,6 +620,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   const paymentCollectionEnabled = Boolean(paymentCollection?.enabled);
   const paymentCollectionStatusLabel = paymentCollectionLoading ? 'Checking' : paymentCollectionEnabled ? 'On' : 'Off';
+  const premiumAccessEnabled = Boolean(premiumAccess?.enabled);
+  const premiumAccessStatusLabel = paymentCollectionLoading ? 'Checking' : premiumAccessEnabled ? 'On' : 'Off';
   const activeSectionMeta = useMemo(
     () => ADMIN_SECTIONS.find((section) => section.id === activeSection) || ADMIN_SECTIONS[0],
     [activeSection],
@@ -605,40 +652,74 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         </button>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-14">
-        <nav className="sticky top-20 z-30 -mx-6 mb-5 bg-background/95 px-6 pb-4 pt-1 backdrop-blur-xl">
-          <div className="mx-auto w-full max-w-md">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar rounded-[1.5rem] border border-border-gray bg-surface/90 p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
-              {ADMIN_SECTIONS.map((section) => {
-                const isActive = section.id === activeSection;
-                const SectionIcon = section.Icon;
+      <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-28">
+        <nav className="fixed left-5 top-1/2 z-40 hidden -translate-y-1/2 lg:block" aria-label="Admin sections">
+          <div className="flex w-[5.75rem] flex-col gap-2 rounded-[2rem] border border-border-gray bg-surface/90 p-2 shadow-2xl shadow-black/10 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/90">
+            {ADMIN_SECTIONS.map((section) => {
+              const isActive = section.id === activeSection;
+              const SectionIcon = section.Icon;
 
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    aria-pressed={isActive}
-                    onClick={() => {
-                      setActiveSection(section.id);
-                      window.requestAnimationFrame(() => {
-                        document.getElementById(`admin-${section.id}`)?.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'start',
-                        });
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  title={section.label}
+                  onClick={() => {
+                    setActiveSection(section.id);
+                    window.requestAnimationFrame(() => {
+                      document.getElementById(`admin-${section.id}`)?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
                       });
-                    }}
-                    className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
-                      isActive
-                        ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
-                        : 'bg-background text-text-light hover:bg-surface-gray hover:text-foreground dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <SectionIcon size={14} />
-                    <span>{section.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+                    });
+                  }}
+                  className={`flex flex-col items-center gap-1 rounded-[1.45rem] px-2 py-3 text-[8px] font-black uppercase tracking-[0.14em] transition-all ${
+                    isActive
+                      ? 'bg-foreground text-background shadow-lg shadow-black/10'
+                      : 'text-text-light hover:bg-surface-gray hover:text-foreground dark:hover:bg-zinc-900'
+                  }`}
+                >
+                  <SectionIcon size={17} />
+                  <span>{section.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        <nav
+          className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 px-4 pb-5 lg:hidden"
+          aria-label="Admin sections"
+        >
+          <div className="pointer-events-auto mx-auto grid max-w-md grid-cols-6 gap-1 rounded-[2rem] border border-white/10 bg-[#1c1c1e]/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-2xl">
+            {ADMIN_SECTIONS.map((section) => {
+              const isActive = section.id === activeSection;
+              const SectionIcon = section.Icon;
+
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    setActiveSection(section.id);
+                    window.requestAnimationFrame(() => {
+                      document.getElementById(`admin-${section.id}`)?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      });
+                    });
+                  }}
+                  className={`flex h-14 flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
+                    isActive ? 'bg-white text-[#1c1c1e]' : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  <SectionIcon size={15} />
+                  <span>{section.label}</span>
+                </button>
+              );
+            })}
           </div>
         </nav>
 
@@ -782,6 +863,74 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <button
                       onClick={() => void handleSavePaymentCollection(paymentCollectionEnabled)}
                       disabled={paymentCollectionSaving || paymentCollectionLoading}
+                      className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
+                    >
+                      Save Note
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-2xl ${
+                          premiumAccessEnabled
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                        }`}
+                      >
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-foreground">
+                          {premiumAccessEnabled ? 'Premium features are enabled' : 'Premium features are paused'}
+                        </p>
+                        <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
+                          This switch controls whether premium packages unlock the app. Keep it off while testing
+                          packages, even if checkout is also paused.
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                        premiumAccessEnabled
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                      }`}
+                    >
+                      {premiumAccessStatusLabel}
+                    </span>
+                  </div>
+
+                  <label className="block space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                      Premium pause note
+                    </span>
+                    <textarea
+                      value={premiumAccessReason}
+                      onChange={(event) => setPremiumAccessReason(event.target.value)}
+                      className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => void handleSavePremiumAccess(!premiumAccessEnabled)}
+                      disabled={premiumAccessSaving || paymentCollectionLoading}
+                      className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
+                        premiumAccessEnabled ? 'bg-red-500' : 'bg-secondary'
+                      }`}
+                    >
+                      {premiumAccessSaving
+                        ? 'Saving...'
+                        : premiumAccessEnabled
+                          ? 'Turn Premium Off'
+                          : 'Turn Premium On'}
+                    </button>
+                    <button
+                      onClick={() => void handleSavePremiumAccess(premiumAccessEnabled)}
+                      disabled={premiumAccessSaving || paymentCollectionLoading}
                       className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
                     >
                       Save Note

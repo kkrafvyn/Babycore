@@ -80,6 +80,7 @@ const ClinicDoctorPanel = lazyNamed(() => import('./ClinicDoctorPanel'), 'Clinic
 const SyncCenter = lazyNamed(() => import('./SyncCenter'), 'SyncCenter');
 const PaymentScreen = lazyNamed(() => import('./PaymentScreen'), 'PaymentScreen');
 const AdminPanel = lazyNamed(() => import('./AdminPanel'), 'AdminPanel');
+const ManagerPanel = lazyNamed(() => import('./ManagerPanel'), 'ManagerPanel');
 
 const ViewLoader = ({ label = 'Loading view...' }: { label?: string }) => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -211,6 +212,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'care-expansion',
     'sync-center',
     'admin',
+    'manager',
   ]);
   const showShellHeader = !viewsWithEmbeddedHeader.has(activeView);
 
@@ -390,6 +392,14 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     return (
       <React.Suspense fallback={<ViewLoader label="Loading admin panel..." />}>
         <AdminPanel onBack={primaryAdminModeActive ? () => changeView('settings') : backToDashboard} />
+      </React.Suspense>
+    );
+  }
+
+  if (activeView === 'manager') {
+    return (
+      <React.Suspense fallback={<ViewLoader label="Loading manager workspace..." />}>
+        <ManagerPanel onBack={backToDashboard} />
       </React.Suspense>
     );
   }
@@ -580,6 +590,35 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         </div>
       )}
 
+      {effectiveUserRole === 'manager' && (
+        <div className="overflow-hidden rounded-[2rem] border border-slate-400/25 bg-gradient-to-br from-slate-500/15 via-surface to-sky-500/10 p-5 shadow-sm dark:border-slate-300/20 sm:rounded-[2.75rem] sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-slate-100 dark:text-slate-950">
+                <Shield size={22} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600 dark:text-slate-300">
+                  Manager
+                </p>
+                <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground sm:text-2xl">
+                  Limited Admin Workspace
+                </h3>
+                <p className="mt-1 text-sm font-semibold leading-relaxed text-text-dim">
+                  Review billing, reports, and activity without full user-management permissions.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => changeView('manager')}
+              className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
+            >
+              Open Manager
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="relative h-52 sm:h-64 w-full rounded-[2.2rem] sm:rounded-[3.5rem] overflow-hidden shadow-2xl group cursor-pointer bg-surface-gray dark:bg-zinc-900 border border-border-gray dark:border-zinc-800">
          <img
            src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
@@ -721,6 +760,9 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               { id: 'payment', label: 'Premium', icon: <Zap size={20} />, bg: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600' },
               ...(effectiveUserRole === 'admin'
                 ? [{ id: 'admin', label: 'Admin', icon: <Shield size={20} />, bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600' }]
+                : []),
+              ...(effectiveUserRole === 'manager'
+                ? [{ id: 'manager', label: 'Manager', icon: <Shield size={20} />, bg: 'bg-slate-50 dark:bg-slate-900/30 text-slate-600' }]
                 : []),
             ].map((tool) => {
               const view = tool.id as ViewMode;

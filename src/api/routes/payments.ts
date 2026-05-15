@@ -15,6 +15,7 @@ import {
 import {
   DEFAULT_PAYMENT_COLLECTION_REASON,
   getPaymentCollectionSettings,
+  getPremiumAccessSettings,
   isConfigAddonName,
 } from '../utils/payment-collection-control.js';
 import { getManagedSubscriptionPricing } from '../utils/payment-pricing.js';
@@ -779,11 +780,15 @@ export async function getSubscriptionPricing(req: Request, res: Response) {
  */
 export async function getPaymentCollectionConfig(req: Request, res: Response) {
   try {
-    const paymentCollection = await getPaymentCollectionSettings();
+    const [paymentCollection, premiumAccess] = await Promise.all([
+      getPaymentCollectionSettings(),
+      getPremiumAccessSettings(),
+    ]);
     return res.json({
       success: true,
       data: {
         paymentCollection,
+        premiumAccess,
       },
     });
   } catch (error: any) {
@@ -876,6 +881,17 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
     }
 
     const now = Date.now();
+    const premiumAccess = await getPremiumAccessSettings();
+    if (!premiumAccess.enabled) {
+      return res.json({
+        success: true,
+        subscription: null,
+        data: {
+          premiumAccess,
+        },
+      });
+    }
+
     const subscriptionReadClient = hasServiceConfig
       ? supabase
       : createRequestSupabaseClient(req.headers?.authorization);

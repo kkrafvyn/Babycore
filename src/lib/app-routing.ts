@@ -59,6 +59,7 @@ export const APP_VIEWS = [
   'sync-center',
   'payment',
   'admin',
+  'manager',
 ] as const;
 
 export type AppView = (typeof APP_VIEWS)[number];
