@@ -158,6 +158,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const canManageAdminAccountMode = isPrimaryAdminAccount;
   const adminAccountMode: AdminAccountMode =
     user?.user_metadata?.admin_account_mode === 'child_profile' ? 'child_profile' : 'admin';
+  const adminModeActive = canManageAdminAccountMode && adminAccountMode === 'admin';
   const profileDisplayName =
     user?.user_metadata?.name ||
     user?.user_metadata?.full_name ||
@@ -405,6 +406,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           ? 'Child profile mode is ready. Add a child profile to test the app.'
           : 'Admin mode is active.'
       );
+
+      if (mode === 'admin' && isAdmin && onOpenAdminPanel) {
+        onOpenAdminPanel();
+      }
     } catch (error) {
       console.error('Failed to update admin account mode:', error);
       toast.error('Could not update admin account mode.');
@@ -596,53 +601,100 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           ) : (
             <div className="w-2" />
           )}
-          <span className="text-xl font-headline font-black text-foreground tracking-tight">{i18nT('screens.settings')}</span>
+          <span className="text-xl font-headline font-black text-foreground tracking-tight">
+            {adminModeActive ? 'Admin Settings' : i18nT('screens.settings')}
+          </span>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto no-scrollbar pt-20 sm:pt-24 px-3 sm:px-6 pb-20">
         <div className="max-w-md mx-auto w-full space-y-8 sm:space-y-10">
            
-           <div className="card-onboarding text-center p-6 sm:p-12 bg-surface">
-              <div className="relative mx-auto mb-5 h-20 w-20 rounded-[2rem] border-4 border-white bg-surface-gray shadow-2xl dark:border-zinc-900 dark:bg-zinc-800 sm:mb-8 sm:h-28 sm:w-28 sm:rounded-[2.5rem]">
-                 <div className="h-full w-full overflow-hidden rounded-[1.55rem] sm:rounded-[2rem]">
-                   <img
-                     src={profilePhotoUrl || getUserAvatar(user?.email || profileDisplayName)}
-                     alt="User"
-                     onError={(event) => {
-                       event.currentTarget.src = getUserAvatar(user?.email || profileDisplayName);
-                     }}
-                     className="h-full w-full object-cover"
-                   />
+           {adminModeActive ? (
+             <div className="overflow-hidden rounded-[3rem] border border-secondary/25 bg-gradient-to-br from-secondary via-cyan-600 to-slate-950 p-6 text-white shadow-2xl shadow-secondary/20 sm:p-8">
+               <div className="flex items-start justify-between gap-4">
+                 <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-white/15 text-white shadow-xl backdrop-blur">
+                   <Shield size={28} />
                  </div>
+                 <span className="rounded-full bg-white/15 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur">
+                   Admin Mode
+                 </span>
+               </div>
+               <div className="mt-8 space-y-3">
+                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-cyan-100">
+                   Primary Admin Console
+                 </p>
+                 <h2 className="font-headline text-3xl font-black tracking-tight sm:text-4xl">
+                   Platform controls, not user profile.
+                 </h2>
+                 <p className="text-sm font-bold leading-relaxed text-cyan-50/85">
+                   {PRIMARY_ADMIN_EMAIL} is locked as the primary admin. Child, family, and care-team setup stays hidden until you switch to Child Profile mode.
+                 </p>
+               </div>
+               <div className="mt-6 flex flex-wrap gap-3">
+                 {isAdmin && onOpenAdminPanel && (
+                   <button
+                     type="button"
+                     onClick={onOpenAdminPanel}
+                     className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-[10px] font-black uppercase tracking-widest text-secondary shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+                   >
+                     <Shield size={14} />
+                     Open Dashboard
+                   </button>
+                 )}
                  <button
                    type="button"
-                   onClick={() => profilePhotoInputRef.current?.click()}
-                   disabled={uploadingProfilePhoto}
-                   className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-white shadow-lg transition-all hover:scale-105 disabled:opacity-60"
-                   title="Update profile photo"
+                   onClick={() => handleAdminAccountModeChange('child_profile')}
+                   disabled={savingAdminAccountMode}
+                   className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur transition-all hover:bg-white/20 disabled:opacity-60"
                  >
-                   <Edit2 size={14} />
+                   <Plus size={14} />
+                   Child Profile
                  </button>
-                 <input
-                   ref={profilePhotoInputRef}
-                   type="file"
-                   accept="image/*"
-                   className="hidden"
-                   onChange={handleProfilePhotoSelect}
-                 />
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter mb-2">{profileDisplayName}</h2>
-              <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-2 sm:mb-4 break-all">{user?.email}</p>
-              <button
-                type="button"
-                onClick={() => profilePhotoInputRef.current?.click()}
-                disabled={uploadingProfilePhoto}
-                className="rounded-full bg-surface-gray px-4 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-secondary transition-all hover:bg-secondary hover:text-white disabled:opacity-60 dark:bg-zinc-800"
-              >
-                {uploadingProfilePhoto ? 'Uploading...' : 'Change Photo'}
-              </button>
-           </div>
+               </div>
+             </div>
+           ) : (
+             <div className="card-onboarding text-center p-6 sm:p-12 bg-surface">
+                <div className="relative mx-auto mb-5 h-20 w-20 rounded-[2rem] border-4 border-white bg-surface-gray shadow-2xl dark:border-zinc-900 dark:bg-zinc-800 sm:mb-8 sm:h-28 sm:w-28 sm:rounded-[2.5rem]">
+                   <div className="h-full w-full overflow-hidden rounded-[1.55rem] sm:rounded-[2rem]">
+                     <img
+                       src={profilePhotoUrl || getUserAvatar(user?.email || profileDisplayName)}
+                       alt="User"
+                       onError={(event) => {
+                         event.currentTarget.src = getUserAvatar(user?.email || profileDisplayName);
+                       }}
+                       className="h-full w-full object-cover"
+                     />
+                   </div>
+                   <button
+                     type="button"
+                     onClick={() => profilePhotoInputRef.current?.click()}
+                     disabled={uploadingProfilePhoto}
+                     className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-white shadow-lg transition-all hover:scale-105 disabled:opacity-60"
+                     title="Update profile photo"
+                   >
+                     <Edit2 size={14} />
+                   </button>
+                   <input
+                     ref={profilePhotoInputRef}
+                     type="file"
+                     accept="image/*"
+                     className="hidden"
+                     onChange={handleProfilePhotoSelect}
+                   />
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter mb-2">{profileDisplayName}</h2>
+                <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-2 sm:mb-4 break-all">{user?.email}</p>
+                <button
+                  type="button"
+                  onClick={() => profilePhotoInputRef.current?.click()}
+                  disabled={uploadingProfilePhoto}
+                  className="rounded-full bg-surface-gray px-4 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-secondary transition-all hover:bg-secondary hover:text-white disabled:opacity-60 dark:bg-zinc-800"
+                >
+                  {uploadingProfilePhoto ? 'Uploading...' : 'Change Photo'}
+                </button>
+             </div>
+           )}
 
            {canManageAdminAccountMode && (
              <div className="rounded-[2rem] border border-secondary/20 bg-secondary/5 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20 sm:p-6">
@@ -730,7 +782,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
              </div>
            )}
 
-           <div className="space-y-4 sm:space-y-6">
+           <div className={adminModeActive ? 'hidden' : 'space-y-4 sm:space-y-6'}>
               <div className="flex items-center gap-4 px-2">
                  <span className="text-[10px] font-black text-text-light uppercase tracking-widest">{i18nT('settings.family')}</span>
                  <div className="h-px w-full bg-border-gray dark:bg-zinc-800 opacity-50" />
@@ -777,7 +829,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
            </div>
 
-           <div className="space-y-4 sm:space-y-6">
+           <div className={adminModeActive ? 'hidden' : 'space-y-4 sm:space-y-6'}>
               <div className="flex items-center gap-4 px-2">
                  <span className="text-[10px] font-black text-text-light uppercase tracking-widest">Care Team</span>
                  <div className="h-px w-full bg-border-gray dark:bg-zinc-800 opacity-50" />
@@ -852,7 +904,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        ))}
                     </div>
                  </div>
-                 {currentCountryDefaults && (
+                 {currentCountryDefaults && !adminModeActive && (
                    <div className="px-4 pb-4 sm:px-8 sm:pb-8">
                      <div className="rounded-[1.6rem] border border-border-gray bg-surface-gray/55 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:rounded-[2rem] sm:p-5">
                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -957,7 +1009,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                      </div>
                    </div>
                  )}
-                 {settings?.careProfilePreferences && (
+                 {settings?.careProfilePreferences && !adminModeActive && (
                    <div className="px-4 pb-4 sm:px-8 sm:pb-8">
                      <div className="rounded-[1.6rem] border border-border-gray bg-surface-gray/55 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 sm:rounded-[2rem] sm:p-5">
                        <div className="flex items-start justify-between gap-4">
