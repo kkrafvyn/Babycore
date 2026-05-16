@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   ChevronLeft,
@@ -10,9 +10,9 @@ import {
   ScrollText,
   ShieldCheck,
   Users,
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-import { toast } from 'sonner';
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   createAdminUser,
   deleteAdminUser,
@@ -33,13 +33,13 @@ import {
   updateAdminUserRole,
   type AdminPricingPlan,
   type AdminUserRecord,
-} from '../../lib/admin-api';
-import type { BillingEventRecord } from '../../lib/payment-api';
+} from "../../lib/admin-api";
+import type { BillingEventRecord } from "../../lib/payment-api";
 import {
   DEFAULT_PAYMENT_COLLECTION_REASON,
   DEFAULT_PREMIUM_ACCESS_REASON,
   type PaymentCollectionConfig,
-} from '../../lib/payment-config';
+} from "../../lib/payment-config";
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -47,7 +47,13 @@ interface AdminPanelProps {
 
 const MotionDiv = motion.div as any;
 
-type AdminSectionId = 'overview' | 'payments' | 'users' | 'activity' | 'billing' | 'data';
+type AdminSectionId =
+  | "overview"
+  | "payments"
+  | "users"
+  | "activity"
+  | "billing"
+  | "data";
 
 const ADMIN_SECTIONS: Array<{
   id: AdminSectionId;
@@ -58,90 +64,106 @@ const ADMIN_SECTIONS: Array<{
   Icon: typeof ShieldCheck;
 }> = [
   {
-    id: 'overview',
-    label: 'Overview',
-    eyebrow: 'System Visibility',
-    title: 'Full Platform Overview',
-    description: 'Review platform totals, profile mix, and high-level health in one place.',
+    id: "overview",
+    label: "Overview",
+    eyebrow: "System Visibility",
+    title: "Full Platform Overview",
+    description:
+      "Review platform totals, profile mix, and high-level health in one place.",
     Icon: BarChart3,
   },
   {
-    id: 'payments',
-    label: 'Payments',
-    eyebrow: 'Revenue Control',
-    title: 'Payment Settings',
-    description: 'Pause checkout, disable premium access, and tune plan pricing before launch.',
+    id: "payments",
+    label: "Payments",
+    eyebrow: "Revenue Control",
+    title: "Payment Settings",
+    description:
+      "Pause checkout, disable premium access, and tune plan pricing before launch.",
     Icon: CreditCard,
   },
   {
-    id: 'users',
-    label: 'Users',
-    eyebrow: 'Access Control',
-    title: 'Admin Team & User Roles',
-    description: 'Create limited admins, search accounts, and apply role changes safely.',
+    id: "users",
+    label: "Users",
+    eyebrow: "Access Control",
+    title: "Admin Team & User Roles",
+    description:
+      "Create limited admins, search accounts, and apply role changes safely.",
     Icon: Users,
   },
   {
-    id: 'activity',
-    label: 'Activity',
-    eyebrow: 'Audit Trail',
-    title: 'Admin Activity Logs',
-    description: 'Trace admin actions and role changes so sensitive work stays accountable.',
+    id: "activity",
+    label: "Activity",
+    eyebrow: "Audit Trail",
+    title: "Admin Activity Logs",
+    description:
+      "Trace admin actions and role changes so sensitive work stays accountable.",
     Icon: ScrollText,
   },
   {
-    id: 'billing',
-    label: 'Billing',
-    eyebrow: 'Billing Ops',
-    title: 'Failed Payment Recovery',
-    description: 'Filter billing events, export CSVs, retry payments, and reconcile issues.',
+    id: "billing",
+    label: "Billing",
+    eyebrow: "Billing Ops",
+    title: "Failed Payment Recovery",
+    description:
+      "Filter billing events, export CSVs, retry payments, and reconcile issues.",
     Icon: Receipt,
   },
   {
-    id: 'data',
-    label: 'Data',
-    eyebrow: 'Recent Records',
-    title: 'Platform Data Snapshot',
-    description: 'Inspect recent database rows returned by the admin overview endpoint.',
+    id: "data",
+    label: "Data",
+    eyebrow: "Recent Records",
+    title: "Platform Data Snapshot",
+    description:
+      "Inspect recent database rows returned by the admin overview endpoint.",
     Icon: Database,
   },
 ];
 
 const formatDateTime = (value?: string): string => {
-  if (!value) return '-';
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString();
 };
 
 const formatAny = (value: any): string => {
-  if (value === null || value === undefined) return '-';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
   return JSON.stringify(value);
 };
 
 const getRecoveryClass = (status?: string | null): string => {
   switch (status) {
-    case 'recovered':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300';
-    case 'retry_scheduled':
-    case 'retrying':
-      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300';
-    case 'abandoned':
-      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300';
+    case "recovered":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300";
+    case "retry_scheduled":
+    case "retrying":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300";
+    case "abandoned":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300";
     default:
-      return 'border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900';
+      return "border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900";
   }
 };
 
-const ROLE_OPTIONS = ['admin', 'manager', 'user', 'doctor', 'caregiver', 'viewer'] as const;
-const LIMITED_ADMIN_ROLE_OPTIONS = ['manager', 'admin'] as const;
-const PROFILE_TYPE_OPTIONS = ['baby', 'doctor', 'caregiver'] as const;
-const LIMITED_ADMIN_ROLE_LABELS: Record<(typeof LIMITED_ADMIN_ROLE_OPTIONS)[number], string> = {
-  manager: 'Limited admin',
-  admin: 'Full admin',
+const ROLE_OPTIONS = [
+  "admin",
+  "manager",
+  "user",
+  "doctor",
+  "caregiver",
+  "viewer",
+] as const;
+const LIMITED_ADMIN_ROLE_OPTIONS = ["manager", "admin"] as const;
+const PROFILE_TYPE_OPTIONS = ["baby", "doctor", "caregiver"] as const;
+const LIMITED_ADMIN_ROLE_LABELS: Record<
+  (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+  string
+> = {
+  manager: "Limited admin",
+  admin: "Full admin",
 };
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
@@ -149,9 +171,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [roleDistribution, setRoleDistribution] = useState<Array<{ role: string; count: number }>>([]);
+  const [roleDistribution, setRoleDistribution] = useState<
+    Array<{ role: string; count: number }>
+  >([]);
   const [recent, setRecent] = useState<Record<string, any[]>>({});
-  const [generatedAt, setGeneratedAt] = useState<string>('');
+  const [generatedAt, setGeneratedAt] = useState<string>("");
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -160,34 +184,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [pricingSaving, setPricingSaving] = useState(false);
-  const [paymentCollection, setPaymentCollection] = useState<PaymentCollectionConfig | null>(null);
-  const [paymentCollectionReason, setPaymentCollectionReason] = useState(DEFAULT_PAYMENT_COLLECTION_REASON);
-  const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(false);
+  const [paymentCollection, setPaymentCollection] =
+    useState<PaymentCollectionConfig | null>(null);
+  const [paymentCollectionReason, setPaymentCollectionReason] = useState(
+    DEFAULT_PAYMENT_COLLECTION_REASON,
+  );
+  const [paymentCollectionLoading, setPaymentCollectionLoading] =
+    useState(false);
   const [paymentCollectionSaving, setPaymentCollectionSaving] = useState(false);
-  const [paymentCollectionError, setPaymentCollectionError] = useState<string | null>(null);
-  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig | null>(null);
-  const [premiumAccessReason, setPremiumAccessReason] = useState(DEFAULT_PREMIUM_ACCESS_REASON);
+  const [paymentCollectionError, setPaymentCollectionError] = useState<
+    string | null
+  >(null);
+  const [premiumAccess, setPremiumAccess] =
+    useState<PaymentCollectionConfig | null>(null);
+  const [premiumAccessReason, setPremiumAccessReason] = useState(
+    DEFAULT_PREMIUM_ACCESS_REASON,
+  );
   const [premiumAccessSaving, setPremiumAccessSaving] = useState(false);
   const [creatingTeamMember, setCreatingTeamMember] = useState(false);
-  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
+    null,
+  );
   const [teamMemberDraft, setTeamMemberDraft] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'manager' as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
-    profileType: 'baby' as (typeof PROFILE_TYPE_OPTIONS)[number],
+    name: "",
+    email: "",
+    password: "",
+    role: "manager" as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+    profileType: "baby" as (typeof PROFILE_TYPE_OPTIONS)[number],
   });
   const [logs, setLogs] = useState<Array<Record<string, any>>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<Record<string, any>>>([]);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [actingUserId, setActingUserId] = useState<string | null>(null);
   const [billingEvents, setBillingEvents] = useState<BillingEventRecord[]>([]);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
-  const [billingSearch, setBillingSearch] = useState('');
-  const [billingStatusFilter, setBillingStatusFilter] = useState('failed');
-  const [billingRecoveryFilter, setBillingRecoveryFilter] = useState('');
+  const [billingSearch, setBillingSearch] = useState("");
+  const [billingStatusFilter, setBillingStatusFilter] = useState("failed");
+  const [billingRecoveryFilter, setBillingRecoveryFilter] = useState("");
   const [billingSummary, setBillingSummary] = useState({
     total: 0,
     failed: 0,
@@ -196,8 +231,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     abandoned: 0,
   });
   const [billingTotal, setBillingTotal] = useState(0);
-  const [billingActingReference, setBillingActingReference] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<AdminSectionId>('overview');
+  const [billingActingReference, setBillingActingReference] = useState<
+    string | null
+  >(null);
+  const [activeSection, setActiveSection] =
+    useState<AdminSectionId>("overview");
 
   const loadOverview = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -205,7 +243,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     const response = await fetchAdminOverview();
     if (!response.success || !response.data) {
-      setError(response.error || 'Unable to load admin overview.');
+      setError(response.error || "Unable to load admin overview.");
       setLoading(false);
       setRefreshing(false);
       return;
@@ -215,7 +253,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setCounts(response.data.counts || {});
     setRoleDistribution(response.data.roleDistribution || []);
     setRecent(response.data.recent || {});
-    setGeneratedAt(response.data.generatedAt || '');
+    setGeneratedAt(response.data.generatedAt || "");
     setLoading(false);
     setRefreshing(false);
   };
@@ -224,7 +262,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setUsersLoading(true);
     const response = await fetchAdminUsers({ limit: 100, offset: 0 });
     if (!response.success || !response.data) {
-      setUsersError(response.error || 'Unable to load admin users.');
+      setUsersError(response.error || "Unable to load admin users.");
       setUsers([]);
       setUsersTotal(0);
       setUsersLoading(false);
@@ -248,7 +286,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPricingLoading(true);
     const response = await fetchAdminPricing();
     if (!response.success || !response.data) {
-      setPricingError(response.error || 'Unable to load pricing.');
+      setPricingError(response.error || "Unable to load pricing.");
       setPricingPlans([]);
       setPricingLoading(false);
       return;
@@ -262,8 +300,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const loadPaymentCollection = async () => {
     setPaymentCollectionLoading(true);
     const response = await fetchAdminPaymentConfig();
-    if (!response.success || !response.data?.paymentCollection || !response.data?.premiumAccess) {
-      setPaymentCollectionError(response.error || 'Unable to load payment collection control.');
+    if (
+      !response.success ||
+      !response.data?.paymentCollection ||
+      !response.data?.premiumAccess
+    ) {
+      setPaymentCollectionError(
+        response.error || "Unable to load payment collection control.",
+      );
       setPaymentCollection(null);
       setPaymentCollectionReason(DEFAULT_PAYMENT_COLLECTION_REASON);
       setPremiumAccess(null);
@@ -274,9 +318,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setPaymentCollectionError(null);
     setPaymentCollection(response.data.paymentCollection);
-    setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    setPaymentCollectionReason(
+      response.data.paymentCollection.reason ||
+        DEFAULT_PAYMENT_COLLECTION_REASON,
+    );
     setPremiumAccess(response.data.premiumAccess);
-    setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
+    setPremiumAccessReason(
+      response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
+    );
     setPaymentCollectionLoading(false);
   };
 
@@ -301,7 +350,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     });
 
     if (!response.success || !response.data) {
-      setBillingError(response.error || 'Unable to load billing ops data.');
+      setBillingError(response.error || "Unable to load billing ops data.");
       setBillingEvents([]);
       setBillingSummary({
         total: 0,
@@ -334,8 +383,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const handlePricingDraftChange = (
-    planId: AdminPricingPlan['id'],
-    field: 'ghanaAmount' | 'internationalAmount',
+    planId: AdminPricingPlan["id"],
+    field: "ghanaAmount" | "internationalAmount",
     value: string,
   ) => {
     setPricingPlans((current) =>
@@ -343,7 +392,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         plan.id === planId
           ? {
               ...plan,
-              [field]: value === '' ? 0 : Number(value),
+              [field]: value === "" ? 0 : Number(value),
             }
           : plan,
       ),
@@ -363,19 +412,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPricingSaving(false);
 
     if (!response.success || !response.data) {
-      toast.error(response.error || 'Failed to save pricing.');
+      toast.error(response.error || "Failed to save pricing.");
       return;
     }
 
     setPricingPlans(response.data.plans || []);
-    toast.success(response.message || 'Pricing updated.');
+    toast.success(response.message || "Pricing updated.");
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
   const handleSavePaymentCollection = async (enabled: boolean) => {
     if (enabled && !paymentCollectionEnabled) {
       const confirmed = window.confirm(
-        'Turn on live payment collection? Users will be able to complete Paystack checkout immediately.',
+        "Turn on live payment collection? Users will be able to complete Paystack checkout immediately.",
       );
       if (!confirmed) return;
     }
@@ -383,29 +432,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPaymentCollectionSaving(true);
     const response = await saveAdminPaymentConfig({
       enabled,
-      reason: paymentCollectionReason.trim() || DEFAULT_PAYMENT_COLLECTION_REASON,
+      reason:
+        paymentCollectionReason.trim() || DEFAULT_PAYMENT_COLLECTION_REASON,
     });
     setPaymentCollectionSaving(false);
 
     if (!response.success || !response.data?.paymentCollection) {
-      toast.error(response.error || 'Failed to update payment collection control.');
+      toast.error(
+        response.error || "Failed to update payment collection control.",
+      );
       return;
     }
 
     setPaymentCollection(response.data.paymentCollection);
-    setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+    setPaymentCollectionReason(
+      response.data.paymentCollection.reason ||
+        DEFAULT_PAYMENT_COLLECTION_REASON,
+    );
     if (response.data.premiumAccess) {
       setPremiumAccess(response.data.premiumAccess);
-      setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
+      setPremiumAccessReason(
+        response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
+      );
     }
-    toast.success(response.message || 'Payment collection control updated.');
+    toast.success(response.message || "Payment collection control updated.");
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
   const handleSavePremiumAccess = async (enabled: boolean) => {
     if (enabled && !premiumAccessEnabled) {
       const confirmed = window.confirm(
-        'Turn on premium feature access? Active and test subscriptions will immediately unlock premium tools.',
+        "Turn on premium feature access? Active and test subscriptions will immediately unlock premium tools.",
       );
       if (!confirmed) return;
     }
@@ -413,28 +470,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPremiumAccessSaving(true);
     const response = await saveAdminPaymentConfig({
       premiumAccessEnabled: enabled,
-      premiumAccessReason: premiumAccessReason.trim() || DEFAULT_PREMIUM_ACCESS_REASON,
+      premiumAccessReason:
+        premiumAccessReason.trim() || DEFAULT_PREMIUM_ACCESS_REASON,
     });
     setPremiumAccessSaving(false);
 
     if (!response.success || !response.data?.premiumAccess) {
-      toast.error(response.error || 'Failed to update premium feature access.');
+      toast.error(response.error || "Failed to update premium feature access.");
       return;
     }
 
     if (response.data.paymentCollection) {
       setPaymentCollection(response.data.paymentCollection);
-      setPaymentCollectionReason(response.data.paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON);
+      setPaymentCollectionReason(
+        response.data.paymentCollection.reason ||
+          DEFAULT_PAYMENT_COLLECTION_REASON,
+      );
     }
     setPremiumAccess(response.data.premiumAccess);
-    setPremiumAccessReason(response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
-    toast.success(response.message || 'Premium feature access updated.');
+    setPremiumAccessReason(
+      response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
+    );
+    toast.success(response.message || "Premium feature access updated.");
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
   const handleCreateTeamMember = async () => {
     if (!teamMemberDraft.name.trim() || !teamMemberDraft.email.trim()) {
-      toast.error('Name and email are required.');
+      toast.error("Name and email are required.");
       return;
     }
 
@@ -450,31 +513,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setCreatingTeamMember(false);
 
     if (!response.success || !response.data?.user) {
-      toast.error(response.error || 'Failed to create admin team member.');
+      toast.error(response.error || "Failed to create admin team member.");
       return;
     }
 
     setTemporaryPassword(response.data.temporaryPassword || null);
     setTeamMemberDraft({
-      name: '',
-      email: '',
-      password: '',
-      role: 'manager',
-      profileType: 'baby',
+      name: "",
+      email: "",
+      password: "",
+      role: "manager",
+      profileType: "baby",
     });
-    const createdRole = response.data.user.role === 'admin' ? 'full admin' : 'limited admin';
+    const createdRole =
+      response.data.user.role === "admin" ? "full admin" : "limited admin";
     toast.success(`${response.data.user.name} created as ${createdRole}.`);
     await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
   };
 
   const handleApplyRole = async (user: AdminUserRecord) => {
     const nextRole = (roleDrafts[user.id] || user.role) as
-      | 'admin'
-      | 'manager'
-      | 'user'
-      | 'doctor'
-      | 'caregiver'
-      | 'viewer';
+      | "admin"
+      | "manager"
+      | "user"
+      | "doctor"
+      | "caregiver"
+      | "viewer";
 
     if (!nextRole || nextRole === user.role) return;
 
@@ -483,7 +547,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setActingUserId(null);
 
     if (!result.success) {
-      toast.error(result.error || 'Failed to update role.');
+      toast.error(result.error || "Failed to update role.");
       return;
     }
 
@@ -491,7 +555,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
   };
 
-  const handlePromote = async (user: AdminUserRecord, nextRole: 'manager' | 'admin') => {
+  const handlePromote = async (
+    user: AdminUserRecord,
+    nextRole: "manager" | "admin",
+  ) => {
     if (user.role === nextRole) return;
     setActingUserId(user.id);
     const result = await promoteAdminUser(user.id, nextRole);
@@ -507,7 +574,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const handleDemote = async (user: AdminUserRecord) => {
-    if (user.role === 'user') return;
+    if (user.role === "user") return;
     setActingUserId(user.id);
     const result = await demoteAdminUser(user.id);
     setActingUserId(null);
@@ -522,7 +589,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const handleDeleteUser = async (user: AdminUserRecord) => {
-    const confirmed = window.confirm(`Delete ${user.email || user.name}? This permanently removes their account.`);
+    const confirmed = window.confirm(
+      `Delete ${user.email || user.name}? This permanently removes their account.`,
+    );
     if (!confirmed) return;
 
     setActingUserId(user.id);
@@ -552,12 +621,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
   };
 
-  const handleResolveBilling = async (reference: string, status: 'reconciled' | 'cancelled') => {
+  const handleResolveBilling = async (
+    reference: string,
+    status: "reconciled" | "cancelled",
+  ) => {
     const notes = window.prompt(
-      status === 'reconciled'
-        ? 'Optional notes for marking this payment reconciled:'
-        : 'Optional notes for marking this payment cancelled:',
-      '',
+      status === "reconciled"
+        ? "Optional notes for marking this payment reconciled:"
+        : "Optional notes for marking this payment cancelled:",
+      "",
     );
 
     setBillingActingReference(reference);
@@ -584,9 +656,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         status: billingStatusFilter || undefined,
         recoveryStatus: billingRecoveryFilter || undefined,
       });
-      toast.success('Billing export downloaded.');
+      toast.success("Billing export downloaded.");
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to export billing events.');
+      toast.error(error?.message || "Failed to export billing events.");
     }
   };
 
@@ -602,10 +674,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     return () => window.clearTimeout(timeoutId);
   }, [billingSearch, billingStatusFilter, billingRecoveryFilter]);
 
-  const countEntries = useMemo(() => Object.entries(counts).sort((a, b) => b[1] - a[1]), [counts]);
+  const countEntries = useMemo(
+    () => Object.entries(counts).sort((a, b) => b[1] - a[1]),
+    [counts],
+  );
 
   const recentSections = useMemo(
-    () => Object.entries(recent).filter(([, values]) => Array.isArray(values) && values.length > 0),
+    () =>
+      Object.entries(recent).filter(
+        ([, values]) => Array.isArray(values) && values.length > 0,
+      ),
     [recent],
   );
 
@@ -613,48 +691,95 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const query = search.trim().toLowerCase();
     if (!query) return users;
     return users.filter((user) => {
-      const haystack = `${user.name} ${user.email} ${user.role} ${user.profileType || ''}`.toLowerCase();
+      const haystack =
+        `${user.name} ${user.email} ${user.role} ${user.profileType || ""}`.toLowerCase();
       return haystack.includes(query);
     });
   }, [users, search]);
 
   const paymentCollectionEnabled = Boolean(paymentCollection?.enabled);
-  const paymentCollectionStatusLabel = paymentCollectionLoading ? 'Checking' : paymentCollectionEnabled ? 'On' : 'Off';
+  const paymentCollectionStatusLabel = paymentCollectionLoading
+    ? "Checking"
+    : paymentCollectionEnabled
+      ? "On"
+      : "Off";
   const premiumAccessEnabled = Boolean(premiumAccess?.enabled);
-  const premiumAccessStatusLabel = paymentCollectionLoading ? 'Checking' : premiumAccessEnabled ? 'On' : 'Off';
+  const premiumAccessStatusLabel = paymentCollectionLoading
+    ? "Checking"
+    : premiumAccessEnabled
+      ? "On"
+      : "Off";
   const activeSectionMeta = useMemo(
-    () => ADMIN_SECTIONS.find((section) => section.id === activeSection) || ADMIN_SECTIONS[0],
+    () =>
+      ADMIN_SECTIONS.find((section) => section.id === activeSection) ||
+      ADMIN_SECTIONS[0],
     [activeSection],
   );
   const ActiveSectionIcon = activeSectionMeta.Icon;
+  const adminRoleCount =
+    roleDistribution.find((item) => item.role === "admin")?.count || 0;
+  const managerRoleCount =
+    roleDistribution.find((item) => item.role === "manager")?.count || 0;
+  const heroStats = [
+    {
+      label: "Users loaded",
+      value: usersTotal || users.length || counts.users || 0,
+    },
+    { label: "Admins", value: adminRoleCount },
+    { label: "Managers", value: managerRoleCount },
+    { label: "Failed billing", value: billingSummary.failed },
+  ];
 
   return (
-    <div className="fit-screen bg-background">
-      <header className="fixed top-0 w-full z-40 bg-background/80 backdrop-blur-xl h-20 px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 -ml-2 text-primary dark:text-zinc-400 hover:scale-110 active:scale-95 transition-all"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <span className="text-xl font-headline font-black text-foreground tracking-tight">Admin Panel</span>
-        </div>
+    <div className="fit-screen relative overflow-hidden bg-[#f6f7fb] dark:bg-[#050507]">
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-28 top-0 h-72 w-72 rounded-full bg-cyan-200/40 blur-3xl dark:bg-cyan-500/10" />
+        <div className="absolute right-[-8rem] top-24 h-96 w-96 rounded-full bg-slate-300/50 blur-3xl dark:bg-blue-500/10" />
+        <div className="absolute bottom-[-10rem] left-1/3 h-96 w-96 rounded-full bg-amber-100/60 blur-3xl dark:bg-amber-500/10" />
+      </div>
 
-        <button
-          onClick={() => refreshAll(true)}
-          disabled={refreshing || loading}
-          className="w-10 h-10 rounded-full bg-secondary text-white flex items-center justify-center shadow-lg disabled:opacity-60 active:scale-90 transition-all"
-          title="Refresh admin data"
-        >
-          <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+      <header className="fixed left-0 right-0 top-0 z-50 px-4 pt-4">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-4 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-all hover:scale-105 active:scale-95 dark:bg-white/10 dark:text-zinc-200"
+              aria-label="Go back"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
+                Babycore Command
+              </p>
+              <h1 className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">
+                Admin Console
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={() => refreshAll(true)}
+            disabled={refreshing || loading}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-lg shadow-slate-950/15 transition-all active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950"
+            title="Refresh admin data"
+            aria-label="Refresh admin data"
+          >
+            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-28">
-        <nav className="fixed left-5 top-1/2 z-40 hidden -translate-y-1/2 lg:block" aria-label="Admin sections">
-          <div className="flex w-[5.75rem] flex-col gap-2 rounded-[2rem] border border-border-gray bg-surface/90 p-2 shadow-2xl shadow-black/10 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/90">
+      <main className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36">
+        <nav
+          className="fixed left-5 top-28 z-40 hidden lg:block"
+          aria-label="Admin sections"
+        >
+          <div className="flex w-[6.25rem] flex-col gap-2 rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-2xl shadow-slate-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+            <p className="px-2 pb-1 pt-2 text-center text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
+              Admin
+            </p>
             {ADMIN_SECTIONS.map((section) => {
               const isActive = section.id === activeSection;
               const SectionIcon = section.Icon;
@@ -668,16 +793,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   onClick={() => {
                     setActiveSection(section.id);
                     window.requestAnimationFrame(() => {
-                      document.getElementById(`admin-${section.id}`)?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                      });
+                      document
+                        .getElementById(`admin-${section.id}`)
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
                     });
                   }}
                   className={`flex flex-col items-center gap-1 rounded-[1.45rem] px-2 py-3 text-[8px] font-black uppercase tracking-[0.14em] transition-all ${
                     isActive
-                      ? 'bg-foreground text-background shadow-lg shadow-black/10'
-                      : 'text-text-light hover:bg-surface-gray hover:text-foreground dark:hover:bg-zinc-900'
+                      ? "bg-[#111827] text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950"
+                      : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
                   }`}
                 >
                   <SectionIcon size={17} />
@@ -705,14 +832,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   onClick={() => {
                     setActiveSection(section.id);
                     window.requestAnimationFrame(() => {
-                      document.getElementById(`admin-${section.id}`)?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                      });
+                      document
+                        .getElementById(`admin-${section.id}`)
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
                     });
                   }}
                   className={`flex h-14 flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
-                    isActive ? 'bg-white text-[#1c1c1e]' : 'text-white/55 hover:text-white'
+                    isActive
+                      ? "bg-white text-[#1c1c1e]"
+                      : "text-white/55 hover:text-white"
                   }`}
                 >
                   <SectionIcon size={15} />
@@ -723,27 +854,78 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           </div>
         </nav>
 
-        <div className="max-w-md mx-auto w-full space-y-8">
-          <div className="bg-surface rounded-[3rem] p-8 border border-border-gray dark:border-zinc-800 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
+        <div className="mx-auto w-full max-w-6xl space-y-8">
+          <div className="relative overflow-hidden rounded-[2.75rem] border border-white/75 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8 lg:p-10">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-slate-500 to-amber-300" />
+            <div className="relative grid gap-8 lg:grid-cols-[1.25fr_0.95fr] lg:items-end">
               <div>
-                <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
+                    Full admin
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      premiumAccessEnabled
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                    }`}
+                  >
+                    Premium {premiumAccessStatusLabel}
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      paymentCollectionEnabled
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                    }`}
+                  >
+                    Payments {paymentCollectionStatusLabel}
+                  </span>
+                </div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.32em] text-text-light">
                   {activeSectionMeta.eyebrow}
                 </p>
-                <h2 className="text-2xl font-headline font-black text-foreground tracking-tight mt-2">
+                <h2 className="mt-3 max-w-2xl text-4xl font-headline font-black tracking-[-0.06em] text-foreground sm:text-5xl">
                   {activeSectionMeta.title}
                 </h2>
-                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-text-dim">
+                <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-text-dim sm:text-base">
                   {activeSectionMeta.description}
                 </p>
+                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-light">
+                  Generated {generatedAt ? formatDateTime(generatedAt) : "-"}
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-                <ActiveSectionIcon size={20} />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 flex items-center justify-between rounded-[1.75rem] border border-slate-200 bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:border-white/10 dark:bg-white dark:text-zinc-950">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] opacity-60">
+                      Viewing
+                    </p>
+                    <p className="mt-1 text-lg font-headline font-black tracking-tight">
+                      {activeSectionMeta.label}
+                    </p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 dark:bg-zinc-950/10">
+                    <ActiveSectionIcon size={20} />
+                  </div>
+                </div>
+                {heroStats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[1.55rem] border border-slate-200/80 bg-white/75 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                  >
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                      {item.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-headline font-black tracking-tight text-foreground">
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
-            <p className="text-[11px] font-bold text-text-dim mt-4">
-              Generated: {generatedAt ? formatDateTime(generatedAt) : '-'}
-            </p>
           </div>
 
           {error && (
@@ -752,26 +934,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-[2rem] p-6"
             >
-              <p className="text-sm font-black text-red-600 dark:text-red-300">{error}</p>
+              <p className="text-sm font-black text-red-600 dark:text-red-300">
+                {error}
+              </p>
             </MotionDiv>
           )}
 
           {loading ? (
-            <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-8 text-center">
-              <p className="text-sm font-bold text-text-light">Loading admin data...</p>
+            <div className="rounded-[2rem] border border-white/70 bg-white/80 p-8 text-center shadow-xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+              <p className="text-sm font-bold text-text-light">
+                Loading admin data...
+              </p>
             </div>
           ) : (
             <>
               <div id="admin-overview" className="space-y-4 scroll-mt-36">
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">Totals</h3>
-                <div className="grid grid-cols-2 gap-3">
+                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
+                  Totals
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {countEntries.map(([label, value]) => (
                     <div
                       key={label}
-                      className="bg-surface rounded-[1.6rem] border border-border-gray dark:border-zinc-800 p-4"
+                      className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
                     >
-                      <p className="text-[9px] font-black text-text-light uppercase tracking-widest">{label}</p>
-                      <p className="text-2xl font-headline font-black text-foreground mt-2">{value}</p>
+                      <p className="text-[9px] font-black text-text-light uppercase tracking-widest">
+                        {label}
+                      </p>
+                      <p className="text-2xl font-headline font-black text-foreground mt-2">
+                        {value}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -781,17 +973,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Distribution
                 </h3>
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-2">
+                <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
                   {roleDistribution.length === 0 && (
-                    <p className="text-sm font-bold text-text-light">No role distribution data.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No role distribution data.
+                    </p>
                   )}
                   {roleDistribution.map((item) => (
                     <div
                       key={item.role}
-                      className="bg-surface-gray dark:bg-zinc-900 rounded-xl px-4 py-3 flex items-center justify-between"
+                      className="flex items-center justify-between rounded-[1.25rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
                     >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">{item.role}</p>
-                      <p className="text-lg font-headline font-black text-foreground">{item.count}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                        {item.role}
+                      </p>
+                      <p className="text-lg font-headline font-black text-foreground">
+                        {item.count}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -804,36 +1002,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   <span
                     className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                       paymentCollectionEnabled
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
-                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                     }`}
                   >
                     {paymentCollectionStatusLabel}
                   </span>
                 </div>
 
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
                   <div className="flex items-start gap-4">
                     <div
                       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
                         paymentCollectionEnabled
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                       }`}
                     >
                       <Power size={20} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-black text-foreground">
-                        {paymentCollectionEnabled ? 'Live checkout is enabled' : 'Live checkout is paused'}
+                        {paymentCollectionEnabled
+                          ? "Live checkout is enabled"
+                          : "Live checkout is paused"}
                       </p>
                       <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                        Keep this off while we finish full-app QA. Turning it on lets users complete real checkout.
+                        Keep this off while we finish full-app QA. Turning it on
+                        lets users complete real checkout.
                       </p>
                     </div>
                   </div>
 
-                  {paymentCollectionError && <p className="text-sm font-bold text-red-500">{paymentCollectionError}</p>}
+                  {paymentCollectionError && (
+                    <p className="text-sm font-bold text-red-500">
+                      {paymentCollectionError}
+                    </p>
+                  )}
 
                   <label className="block space-y-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
@@ -841,28 +1046,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     </span>
                     <textarea
                       value={paymentCollectionReason}
-                      onChange={(event) => setPaymentCollectionReason(event.target.value)}
+                      onChange={(event) =>
+                        setPaymentCollectionReason(event.target.value)
+                      }
                       className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                     />
                   </label>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => void handleSavePaymentCollection(!paymentCollectionEnabled)}
-                      disabled={paymentCollectionSaving || paymentCollectionLoading}
+                      onClick={() =>
+                        void handleSavePaymentCollection(
+                          !paymentCollectionEnabled,
+                        )
+                      }
+                      disabled={
+                        paymentCollectionSaving || paymentCollectionLoading
+                      }
                       className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
-                        paymentCollectionEnabled ? 'bg-red-500' : 'bg-secondary'
+                        paymentCollectionEnabled ? "bg-red-500" : "bg-secondary"
                       }`}
                     >
                       {paymentCollectionSaving
-                        ? 'Saving...'
+                        ? "Saving..."
                         : paymentCollectionEnabled
-                          ? 'Turn Payments Off'
-                          : 'Turn Payments On'}
+                          ? "Turn Payments Off"
+                          : "Turn Payments On"}
                     </button>
                     <button
-                      onClick={() => void handleSavePaymentCollection(paymentCollectionEnabled)}
-                      disabled={paymentCollectionSaving || paymentCollectionLoading}
+                      onClick={() =>
+                        void handleSavePaymentCollection(
+                          paymentCollectionEnabled,
+                        )
+                      }
+                      disabled={
+                        paymentCollectionSaving || paymentCollectionLoading
+                      }
                       className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
                     >
                       Save Note
@@ -870,33 +1089,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   </div>
                 </div>
 
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
                       <div
                         className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-2xl ${
                           premiumAccessEnabled
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                         }`}
                       >
                         <ShieldCheck size={20} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-foreground">
-                          {premiumAccessEnabled ? 'Premium features are enabled' : 'Premium features are paused'}
+                          {premiumAccessEnabled
+                            ? "Premium features are enabled"
+                            : "Premium features are paused"}
                         </p>
                         <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                          This switch controls whether premium packages unlock the app. Keep it off while testing
-                          packages, even if checkout is also paused.
+                          This switch controls whether premium packages unlock
+                          the app. Keep it off while testing packages, even if
+                          checkout is also paused.
                         </p>
                       </div>
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                         premiumAccessEnabled
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                       }`}
                     >
                       {premiumAccessStatusLabel}
@@ -909,27 +1131,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     </span>
                     <textarea
                       value={premiumAccessReason}
-                      onChange={(event) => setPremiumAccessReason(event.target.value)}
+                      onChange={(event) =>
+                        setPremiumAccessReason(event.target.value)
+                      }
                       className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                     />
                   </label>
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => void handleSavePremiumAccess(!premiumAccessEnabled)}
+                      onClick={() =>
+                        void handleSavePremiumAccess(!premiumAccessEnabled)
+                      }
                       disabled={premiumAccessSaving || paymentCollectionLoading}
                       className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
-                        premiumAccessEnabled ? 'bg-red-500' : 'bg-secondary'
+                        premiumAccessEnabled ? "bg-red-500" : "bg-secondary"
                       }`}
                     >
                       {premiumAccessSaving
-                        ? 'Saving...'
+                        ? "Saving..."
                         : premiumAccessEnabled
-                          ? 'Turn Premium Off'
-                          : 'Turn Premium On'}
+                          ? "Turn Premium Off"
+                          : "Turn Premium On"}
                     </button>
                     <button
-                      onClick={() => void handleSavePremiumAccess(premiumAccessEnabled)}
+                      onClick={() =>
+                        void handleSavePremiumAccess(premiumAccessEnabled)
+                      }
                       disabled={premiumAccessSaving || paymentCollectionLoading}
                       className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
                     >
@@ -941,92 +1169,127 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Premium Pricing</h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Premium Pricing
+                  </h3>
                   <button
                     onClick={() => void handleSavePricing()}
-                    disabled={pricingSaving || pricingLoading || pricingPlans.length === 0}
+                    disabled={
+                      pricingSaving ||
+                      pricingLoading ||
+                      pricingPlans.length === 0
+                    }
                     className="rounded-full bg-secondary px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                   >
-                    {pricingSaving ? 'Saving...' : 'Save Pricing'}
+                    {pricingSaving ? "Saving..." : "Save Pricing"}
                   </button>
                 </div>
 
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  {pricingLoading && <p className="text-sm font-bold text-text-light">Loading pricing...</p>}
-
-                  {!pricingLoading && pricingError && <p className="text-sm font-bold text-red-500">{pricingError}</p>}
-
-                  {!pricingLoading && !pricingError && pricingPlans.length === 0 && (
-                    <p className="text-sm font-bold text-text-light">No pricing plans found.</p>
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
+                  {pricingLoading && (
+                    <p className="text-sm font-bold text-text-light">
+                      Loading pricing...
+                    </p>
                   )}
 
-                  {!pricingLoading && !pricingError && pricingPlans.length > 0 && (
-                    <div className="space-y-3">
-                      {pricingPlans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-black text-foreground">{plan.name}</p>
-                              <p className="text-[10px] font-semibold text-text-light mt-1">{plan.description}</p>
+                  {!pricingLoading && pricingError && (
+                    <p className="text-sm font-bold text-red-500">
+                      {pricingError}
+                    </p>
+                  )}
+
+                  {!pricingLoading &&
+                    !pricingError &&
+                    pricingPlans.length === 0 && (
+                      <p className="text-sm font-bold text-text-light">
+                        No pricing plans found.
+                      </p>
+                    )}
+
+                  {!pricingLoading &&
+                    !pricingError &&
+                    pricingPlans.length > 0 && (
+                      <div className="space-y-3">
+                        {pricingPlans.map((plan) => (
+                          <div
+                            key={plan.id}
+                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-black text-foreground">
+                                  {plan.name}
+                                </p>
+                                <p className="text-[10px] font-semibold text-text-light mt-1">
+                                  {plan.description}
+                                </p>
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
+                                {plan.billingPeriod}
+                              </span>
                             </div>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
-                              {plan.billingPeriod}
-                            </span>
-                          </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <label className="space-y-1">
-                              <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
-                                Ghana (GHS)
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={plan.ghanaAmount}
-                                onChange={(event) =>
-                                  handlePricingDraftChange(plan.id, 'ghanaAmount', event.target.value)
-                                }
-                                className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                              />
-                            </label>
-                            <label className="space-y-1">
-                              <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
-                                Outside Ghana (USD)
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={plan.internationalAmount}
-                                onChange={(event) =>
-                                  handlePricingDraftChange(plan.id, 'internationalAmount', event.target.value)
-                                }
-                                className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                              />
-                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                  Ghana (GHS)
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={plan.ghanaAmount}
+                                  onChange={(event) =>
+                                    handlePricingDraftChange(
+                                      plan.id,
+                                      "ghanaAmount",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                                />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                  Outside Ghana (USD)
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={plan.internationalAmount}
+                                  onChange={(event) =>
+                                    handlePricingDraftChange(
+                                      plan.id,
+                                      "internationalAmount",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                                />
+                              </label>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
                 </div>
               </div>
 
               <div id="admin-users" className="space-y-4 scroll-mt-36">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Admin Team</h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Admin Team
+                  </h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     manager = limited admin
                   </span>
                 </div>
 
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
                   <p className="text-[10px] font-semibold text-text-light leading-relaxed">
-                    Create full admins or limited admins. Use <span className="font-black text-secondary">manager</span>{' '}
+                    Create full admins or limited admins. Use{" "}
+                    <span className="font-black text-secondary">manager</span>{" "}
                     when you want a restricted admin account.
                   </p>
                   <div className="grid grid-cols-1 gap-3">
@@ -1069,7 +1332,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         onChange={(event) =>
                           setTeamMemberDraft((current) => ({
                             ...current,
-                            role: event.target.value as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+                            role: event.target
+                              .value as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
                           }))
                         }
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
@@ -1085,7 +1349,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         onChange={(event) =>
                           setTeamMemberDraft((current) => ({
                             ...current,
-                            profileType: event.target.value as (typeof PROFILE_TYPE_OPTIONS)[number],
+                            profileType: event.target
+                              .value as (typeof PROFILE_TYPE_OPTIONS)[number],
                           }))
                         }
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
@@ -1102,7 +1367,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       disabled={creatingTeamMember}
                       className="rounded-xl bg-secondary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
                     >
-                      {creatingTeamMember ? 'Creating...' : 'Create Admin Account'}
+                      {creatingTeamMember
+                        ? "Creating..."
+                        : "Create Admin Account"}
                     </button>
                   </div>
 
@@ -1121,7 +1388,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">User Directory</h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    User Directory
+                  </h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {filteredUsers.length}/{usersTotal}
                   </span>
@@ -1135,22 +1404,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                   />
 
-                  {usersLoading && <p className="text-sm font-bold text-text-light">Loading users...</p>}
-
-                  {!usersLoading && usersError && <p className="text-sm font-bold text-red-500">{usersError}</p>}
-
-                  {!usersLoading && !usersError && filteredUsers.length === 0 && (
-                    <p className="text-sm font-bold text-text-light">No users found.</p>
+                  {usersLoading && (
+                    <p className="text-sm font-bold text-text-light">
+                      Loading users...
+                    </p>
                   )}
+
+                  {!usersLoading && usersError && (
+                    <p className="text-sm font-bold text-red-500">
+                      {usersError}
+                    </p>
+                  )}
+
+                  {!usersLoading &&
+                    !usersError &&
+                    filteredUsers.length === 0 && (
+                      <p className="text-sm font-bold text-text-light">
+                        No users found.
+                      </p>
+                    )}
 
                   {!usersLoading && !usersError && filteredUsers.length > 0 && (
                     <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
                       {filteredUsers.map((user) => {
                         const selectedRole = roleDrafts[user.id] || user.role;
                         const isActing = actingUserId === user.id;
-                        const canPromoteManager = user.role !== 'manager';
-                        const canPromoteAdmin = user.role !== 'admin';
-                        const canDemote = user.role !== 'user';
+                        const canPromoteManager = user.role !== "manager";
+                        const canPromoteAdmin = user.role !== "admin";
+                        const canDemote = user.role !== "user";
 
                         return (
                           <div
@@ -1159,14 +1440,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-sm font-black text-foreground truncate">{user.name}</p>
-                                <p className="text-[10px] font-semibold text-text-light truncate">{user.email}</p>
+                                <p className="text-sm font-black text-foreground truncate">
+                                  {user.name}
+                                </p>
+                                <p className="text-[10px] font-semibold text-text-light truncate">
+                                  {user.email}
+                                </p>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
-                                  {user.role} | {user.profileType || 'baby'} | Babies {user.babiesCount || 0}
+                                  {user.role} | {user.profileType || "baby"} |
+                                  Babies {user.babiesCount || 0}
                                 </p>
                               </div>
                               <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
-                                {formatDateTime(user.lastSignInAt || user.createdAt || undefined)}
+                                {formatDateTime(
+                                  user.lastSignInAt ||
+                                    user.createdAt ||
+                                    undefined,
+                                )}
                               </span>
                             </div>
 
@@ -1190,7 +1480,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                               </select>
                               <button
                                 onClick={() => handleApplyRole(user)}
-                                disabled={isActing || selectedRole === user.role}
+                                disabled={
+                                  isActing || selectedRole === user.role
+                                }
                                 className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
                               >
                                 Apply Role
@@ -1199,14 +1491,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
                             <div className="grid grid-cols-2 gap-2">
                               <button
-                                onClick={() => handlePromote(user, 'manager')}
+                                onClick={() => handlePromote(user, "manager")}
                                 disabled={isActing || !canPromoteManager}
                                 className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
                               >
                                 Promote Manager
                               </button>
                               <button
-                                onClick={() => handlePromote(user, 'admin')}
+                                onClick={() => handlePromote(user, "admin")}
                                 disabled={isActing || !canPromoteAdmin}
                                 className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
                               >
@@ -1244,9 +1536,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </h3>
 
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">Action Logs</p>
+                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
+                    Action Logs
+                  </p>
                   {(logs || []).length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">No admin actions logged yet.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No admin actions logged yet.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {logs.slice(0, 6).map((log, index) => (
@@ -1255,13 +1551,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
                         >
                           <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                            {String(log.action || 'action')}
+                            {String(log.action || "action")}
                           </p>
                           <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
-                            target: {String(log.target_user_id || '-')}
+                            target: {String(log.target_user_id || "-")}
                           </p>
                           <p className="text-[10px] font-semibold text-text-light mt-1">
-                            {formatDateTime(String(log.created_at || ''))}
+                            {formatDateTime(String(log.created_at || ""))}
                           </p>
                         </div>
                       ))}
@@ -1270,9 +1566,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">Role Audit Trail</p>
+                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
+                    Role Audit Trail
+                  </p>
                   {(auditLogs || []).length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">No role assignment changes logged yet.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No role assignment changes logged yet.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {auditLogs.slice(0, 6).map((log, index) => (
@@ -1281,15 +1581,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
                         >
                           <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                            {String(log.previous_role || 'user')}
-                            {' -> '}
-                            {String(log.new_role || 'user')}
+                            {String(log.previous_role || "user")}
+                            {" -> "}
+                            {String(log.new_role || "user")}
                           </p>
                           <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
-                            user: {String(log.user_id || '-')}
+                            user: {String(log.user_id || "-")}
                           </p>
                           <p className="text-[10px] font-semibold text-text-light mt-1">
-                            {formatDateTime(String(log.created_at || ''))}
+                            {formatDateTime(String(log.created_at || ""))}
                           </p>
                         </div>
                       ))}
@@ -1300,7 +1600,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
               <div id="admin-billing" className="space-y-4 scroll-mt-36">
                 <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">Billing Ops</h3>
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Billing Ops
+                  </h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {billingEvents.length}/{billingTotal}
                   </span>
@@ -1309,18 +1611,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[
-                      { label: 'Failed', value: billingSummary.failed },
-                      { label: 'Retrying', value: billingSummary.retrying },
-                      { label: 'Recovered', value: billingSummary.recovered },
-                      { label: 'Abandoned', value: billingSummary.abandoned },
-                      { label: 'Visible', value: billingSummary.total },
+                      { label: "Failed", value: billingSummary.failed },
+                      { label: "Retrying", value: billingSummary.retrying },
+                      { label: "Recovered", value: billingSummary.recovered },
+                      { label: "Abandoned", value: billingSummary.abandoned },
+                      { label: "Visible", value: billingSummary.total },
                     ].map((item) => (
                       <div
                         key={item.label}
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">{item.label}</p>
-                        <p className="mt-1 text-lg font-headline font-black text-foreground">{item.value}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-lg font-headline font-black text-foreground">
+                          {item.value}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1335,7 +1641,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <div className="grid grid-cols-3 gap-2">
                       <select
                         value={billingStatusFilter}
-                        onChange={(event) => setBillingStatusFilter(event.target.value)}
+                        onChange={(event) =>
+                          setBillingStatusFilter(event.target.value)
+                        }
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
                       >
                         <option value="">All status</option>
@@ -1346,7 +1654,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       </select>
                       <select
                         value={billingRecoveryFilter}
-                        onChange={(event) => setBillingRecoveryFilter(event.target.value)}
+                        onChange={(event) =>
+                          setBillingRecoveryFilter(event.target.value)
+                        }
                         className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
                       >
                         <option value="">All recovery</option>
@@ -1366,113 +1676,165 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   </div>
 
                   {billingLoading && (
-                    <p className="text-sm font-bold text-text-light">Loading billing operations data...</p>
+                    <p className="text-sm font-bold text-text-light">
+                      Loading billing operations data...
+                    </p>
                   )}
 
-                  {!billingLoading && billingError && <p className="text-sm font-bold text-red-500">{billingError}</p>}
-
-                  {!billingLoading && !billingError && billingEvents.length === 0 && (
-                    <p className="text-sm font-bold text-text-light">No billing events match these filters.</p>
+                  {!billingLoading && billingError && (
+                    <p className="text-sm font-bold text-red-500">
+                      {billingError}
+                    </p>
                   )}
 
-                  {!billingLoading && !billingError && billingEvents.length > 0 && (
-                    <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
-                      {billingEvents.map((entry) => {
-                        const isActing = billingActingReference === entry.reference;
+                  {!billingLoading &&
+                    !billingError &&
+                    billingEvents.length === 0 && (
+                      <p className="text-sm font-bold text-text-light">
+                        No billing events match these filters.
+                      </p>
+                    )}
 
-                        return (
-                          <div
-                            key={entry.id}
-                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-black text-foreground truncate">
-                                  {entry.plan_name || 'Premium Access'}
-                                </p>
-                                <p className="text-[10px] font-semibold text-text-light break-all">{entry.reference}</p>
-                                <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
-                                  {entry.status} | {entry.currency || 'USD'} {Number(entry.amount || 0).toFixed(2)}
-                                </p>
-                              </div>
-                              <span
-                                className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryClass(
-                                  entry.recovery_status,
-                                )}`}
-                              >
-                                {entry.recovery_status || 'not_needed'}
-                              </span>
-                            </div>
+                  {!billingLoading &&
+                    !billingError &&
+                    billingEvents.length > 0 && (
+                      <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
+                        {billingEvents.map((entry) => {
+                          const isActing =
+                            billingActingReference === entry.reference;
 
-                            <div className="space-y-1 text-[10px] font-semibold text-text-dim">
-                              <p>Email: {entry.customer_email || '-'}</p>
-                              <p>Attempted: {formatDateTime(entry.attempted_at || undefined)}</p>
-                              <p>
-                                Retries: {entry.retry_count || 0}
-                                {entry.next_retry_at ? ` | Next ${formatDateTime(entry.next_retry_at)}` : ''}
-                              </p>
-                              {(entry.failure_code || entry.failure_source) && (
-                                <p>
-                                  Failure: {entry.failure_code || '-'} | {entry.failure_source || '-'}
-                                </p>
-                              )}
-                              {entry.error_message && <p className="text-rose-500">{entry.error_message}</p>}
-                            </div>
-
-                            {entry.payment_event_transitions?.length ? (
-                              <div className="rounded-lg border border-border-gray dark:border-zinc-800 bg-background dark:bg-zinc-950 px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                                  Recent Timeline
-                                </p>
-                                {entry.payment_event_transitions.slice(0, 3).map((transition) => (
-                                  <p key={transition.id} className="mt-1 text-[10px] font-semibold text-text-dim">
-                                    {transition.event_type}
-                                    {' -> '}
-                                    {transition.new_status}
-                                    {' | '}
-                                    {formatDateTime(transition.created_at)}
+                          return (
+                            <div
+                              key={entry.id}
+                              className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black text-foreground truncate">
+                                    {entry.plan_name || "Premium Access"}
                                   </p>
-                                ))}
+                                  <p className="text-[10px] font-semibold text-text-light break-all">
+                                    {entry.reference}
+                                  </p>
+                                  <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                                    {entry.status} | {entry.currency || "USD"}{" "}
+                                    {Number(entry.amount || 0).toFixed(2)}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryClass(
+                                    entry.recovery_status,
+                                  )}`}
+                                >
+                                  {entry.recovery_status || "not_needed"}
+                                </span>
                               </div>
-                            ) : null}
 
-                            <div className="grid grid-cols-3 gap-2">
-                              <button
-                                onClick={() => void handleRetryBilling(entry.reference)}
-                                disabled={isActing || entry.provider !== 'paystack'}
-                                className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                              >
-                                Retry Now
-                              </button>
-                              <button
-                                onClick={() => void handleResolveBilling(entry.reference, 'reconciled')}
-                                disabled={isActing}
-                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                              >
-                                Mark Reconciled
-                              </button>
-                              <button
-                                onClick={() => void handleResolveBilling(entry.reference, 'cancelled')}
-                                disabled={isActing}
-                                className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                              >
-                                Mark Cancelled
-                              </button>
+                              <div className="space-y-1 text-[10px] font-semibold text-text-dim">
+                                <p>Email: {entry.customer_email || "-"}</p>
+                                <p>
+                                  Attempted:{" "}
+                                  {formatDateTime(
+                                    entry.attempted_at || undefined,
+                                  )}
+                                </p>
+                                <p>
+                                  Retries: {entry.retry_count || 0}
+                                  {entry.next_retry_at
+                                    ? ` | Next ${formatDateTime(entry.next_retry_at)}`
+                                    : ""}
+                                </p>
+                                {(entry.failure_code ||
+                                  entry.failure_source) && (
+                                  <p>
+                                    Failure: {entry.failure_code || "-"} |{" "}
+                                    {entry.failure_source || "-"}
+                                  </p>
+                                )}
+                                {entry.error_message && (
+                                  <p className="text-rose-500">
+                                    {entry.error_message}
+                                  </p>
+                                )}
+                              </div>
+
+                              {entry.payment_event_transitions?.length ? (
+                                <div className="rounded-lg border border-border-gray dark:border-zinc-800 bg-background dark:bg-zinc-950 px-3 py-2">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                                    Recent Timeline
+                                  </p>
+                                  {entry.payment_event_transitions
+                                    .slice(0, 3)
+                                    .map((transition) => (
+                                      <p
+                                        key={transition.id}
+                                        className="mt-1 text-[10px] font-semibold text-text-dim"
+                                      >
+                                        {transition.event_type}
+                                        {" -> "}
+                                        {transition.new_status}
+                                        {" | "}
+                                        {formatDateTime(transition.created_at)}
+                                      </p>
+                                    ))}
+                                </div>
+                              ) : null}
+
+                              <div className="grid grid-cols-3 gap-2">
+                                <button
+                                  onClick={() =>
+                                    void handleRetryBilling(entry.reference)
+                                  }
+                                  disabled={
+                                    isActing || entry.provider !== "paystack"
+                                  }
+                                  className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                                >
+                                  Retry Now
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    void handleResolveBilling(
+                                      entry.reference,
+                                      "reconciled",
+                                    )
+                                  }
+                                  disabled={isActing}
+                                  className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                >
+                                  Mark Reconciled
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    void handleResolveBilling(
+                                      entry.reference,
+                                      "cancelled",
+                                    )
+                                  }
+                                  disabled={isActing}
+                                  className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                                >
+                                  Mark Cancelled
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
               </div>
 
               <div id="admin-data" className="space-y-4 scroll-mt-36">
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">Recent Data</h3>
+                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
+                  Recent Data
+                </h3>
                 <div className="space-y-4">
                   {recentSections.length === 0 && (
                     <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-6">
-                      <p className="text-sm font-bold text-text-light">No recent rows available.</p>
+                      <p className="text-sm font-bold text-text-light">
+                        No recent rows available.
+                      </p>
                     </div>
                   )}
 
@@ -1482,7 +1844,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4"
                     >
                       <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-                        <span className="text-sm font-headline font-black text-foreground tracking-tight">{table}</span>
+                        <span className="text-sm font-headline font-black text-foreground tracking-tight">
+                          {table}
+                        </span>
                         <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                           {rows.length} rows
                         </span>
@@ -1495,13 +1859,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                             className="bg-surface-gray dark:bg-zinc-900 rounded-xl p-3 border border-border-gray dark:border-zinc-800"
                           >
                             {Object.entries(row).map(([key, value]) => (
-                              <div key={key} className="flex items-start justify-between gap-3 py-0.5">
+                              <div
+                                key={key}
+                                className="flex items-start justify-between gap-3 py-0.5"
+                              >
                                 <span className="text-[9px] font-black uppercase tracking-widest text-text-light">
                                   {key}
                                 </span>
                                 <span className="text-[10px] font-bold text-foreground text-right break-all">
-                                  {key.includes('date') || key.includes('time') || key.endsWith('_at')
-                                    ? formatDateTime(typeof value === 'string' ? value : undefined)
+                                  {key.includes("date") ||
+                                  key.includes("time") ||
+                                  key.endsWith("_at")
+                                    ? formatDateTime(
+                                        typeof value === "string"
+                                          ? value
+                                          : undefined,
+                                      )
                                     : formatAny(value)}
                                 </span>
                               </div>

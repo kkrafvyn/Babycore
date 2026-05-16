@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   ChevronLeft,
@@ -7,27 +7,32 @@ import {
   RefreshCw,
   ScrollText,
   ShieldCheck,
-} from 'lucide-react';
-import { motion } from 'framer-motion';
+} from "lucide-react";
+import { motion } from "framer-motion";
 import {
   fetchAdminBilling,
   resolveAdminBillingEvent,
   retryAdminBillingEvent,
-} from '../../lib/admin-api';
+} from "../../lib/admin-api";
 import {
   fetchManagerActivityLogs,
   fetchManagerDashboard,
   fetchManagerPermissions,
   fetchManagerReports,
-} from '../../lib/manager-api';
-import type { BillingEventRecord } from '../../lib/payment-api';
-import { toast } from 'sonner';
+} from "../../lib/manager-api";
+import type { BillingEventRecord } from "../../lib/payment-api";
+import { toast } from "sonner";
 
 interface ManagerPanelProps {
   onBack: () => void;
 }
 
-type ManagerSectionId = 'overview' | 'billing' | 'activity' | 'reports' | 'permissions';
+type ManagerSectionId =
+  | "overview"
+  | "billing"
+  | "activity"
+  | "reports"
+  | "permissions";
 
 const MotionDiv = motion.div as any;
 
@@ -40,64 +45,68 @@ const MANAGER_SECTIONS: Array<{
   Icon: typeof ShieldCheck;
 }> = [
   {
-    id: 'overview',
-    label: 'Overview',
-    eyebrow: 'Manager View',
-    title: 'Limited Admin Workspace',
-    description: 'Monitor platform health without full admin-only user controls.',
+    id: "overview",
+    label: "Overview",
+    eyebrow: "Manager View",
+    title: "Limited Admin Workspace",
+    description:
+      "Monitor platform health without full admin-only user controls.",
     Icon: BarChart3,
   },
   {
-    id: 'billing',
-    label: 'Billing',
-    eyebrow: 'Payment Ops',
-    title: 'Billing Recovery',
-    description: 'Review failed payments, retry eligible references, and reconcile outcomes.',
+    id: "billing",
+    label: "Billing",
+    eyebrow: "Payment Ops",
+    title: "Billing Recovery",
+    description:
+      "Review failed payments, retry eligible references, and reconcile outcomes.",
     Icon: Receipt,
   },
   {
-    id: 'activity',
-    label: 'Activity',
-    eyebrow: 'Operations Trail',
-    title: 'Recent Platform Activity',
-    description: 'Track the latest admin and manager actions across the system.',
+    id: "activity",
+    label: "Activity",
+    eyebrow: "Operations Trail",
+    title: "Recent Platform Activity",
+    description:
+      "Track the latest admin and manager actions across the system.",
     Icon: ScrollText,
   },
   {
-    id: 'reports',
-    label: 'Reports',
-    eyebrow: 'Analytics',
-    title: 'Manager Reports',
-    description: 'View saved manager reports generated for operational review.',
+    id: "reports",
+    label: "Reports",
+    eyebrow: "Analytics",
+    title: "Manager Reports",
+    description: "View saved manager reports generated for operational review.",
     Icon: ClipboardList,
   },
   {
-    id: 'permissions',
-    label: 'Access',
-    eyebrow: 'Role Boundary',
-    title: 'Manager Permissions',
-    description: 'See exactly which admin powers are available to this manager role.',
+    id: "permissions",
+    label: "Access",
+    eyebrow: "Role Boundary",
+    title: "Manager Permissions",
+    description:
+      "See exactly which admin powers are available to this manager role.",
     Icon: ShieldCheck,
   },
 ];
 
 const formatDateTime = (value?: string | null): string => {
-  if (!value) return '-';
+  if (!value) return "-";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
 };
 
 const getRecoveryClass = (status?: string | null): string => {
   switch (status) {
-    case 'recovered':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300';
-    case 'retry_scheduled':
-    case 'retrying':
-      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300';
-    case 'abandoned':
-      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300';
+    case "recovered":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300";
+    case "retry_scheduled":
+    case "retrying":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300";
+    case "abandoned":
+      return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-300";
     default:
-      return 'border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900';
+      return "border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900";
   }
 };
 
@@ -105,9 +114,13 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [roleStatistics, setRoleStatistics] = useState<Record<string, number>>({});
-  const [managerId, setManagerId] = useState('');
-  const [activityLogs, setActivityLogs] = useState<Array<Record<string, any>>>([]);
+  const [roleStatistics, setRoleStatistics] = useState<Record<string, number>>(
+    {},
+  );
+  const [managerId, setManagerId] = useState("");
+  const [activityLogs, setActivityLogs] = useState<Array<Record<string, any>>>(
+    [],
+  );
   const [reports, setReports] = useState<Array<Record<string, any>>>([]);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [billingEvents, setBillingEvents] = useState<BillingEventRecord[]>([]);
@@ -118,23 +131,27 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
     recovered: 0,
     abandoned: 0,
   });
-  const [billingActingReference, setBillingActingReference] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<ManagerSectionId>('overview');
+  const [billingActingReference, setBillingActingReference] = useState<
+    string | null
+  >(null);
+  const [activeSection, setActiveSection] =
+    useState<ManagerSectionId>("overview");
 
   const loadWorkspace = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
-    const [dashboard, activity, managerReports, managerPermissions, billing] = await Promise.all([
-      fetchManagerDashboard(),
-      fetchManagerActivityLogs(),
-      fetchManagerReports(),
-      fetchManagerPermissions(),
-      fetchAdminBilling({ limit: 20, offset: 0, status: 'failed' }),
-    ]);
+    const [dashboard, activity, managerReports, managerPermissions, billing] =
+      await Promise.all([
+        fetchManagerDashboard(),
+        fetchManagerActivityLogs(),
+        fetchManagerReports(),
+        fetchManagerPermissions(),
+        fetchAdminBilling({ limit: 20, offset: 0, status: "failed" }),
+      ]);
 
     if (!dashboard.success || !dashboard.data) {
-      setError(dashboard.error || 'Unable to load manager dashboard.');
+      setError(dashboard.error || "Unable to load manager dashboard.");
       setLoading(false);
       setRefreshing(false);
       return;
@@ -142,11 +159,25 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
 
     setError(null);
     setRoleStatistics(dashboard.data.roleStatistics || {});
-    setManagerId(dashboard.data.managerId || '');
-    setActivityLogs(activity.success && activity.data ? activity.data.logs || [] : dashboard.data.recentActivity || []);
-    setReports(managerReports.success && managerReports.data ? managerReports.data.reports || [] : []);
-    setPermissions(managerPermissions.success && managerPermissions.data ? managerPermissions.data : {});
-    setBillingEvents(billing.success && billing.data ? billing.data.events || [] : []);
+    setManagerId(dashboard.data.managerId || "");
+    setActivityLogs(
+      activity.success && activity.data
+        ? activity.data.logs || []
+        : dashboard.data.recentActivity || [],
+    );
+    setReports(
+      managerReports.success && managerReports.data
+        ? managerReports.data.reports || []
+        : [],
+    );
+    setPermissions(
+      managerPermissions.success && managerPermissions.data
+        ? managerPermissions.data
+        : {},
+    );
+    setBillingEvents(
+      billing.success && billing.data ? billing.data.events || [] : [],
+    );
     setBillingSummary(
       billing.success && billing.data
         ? billing.data.summary
@@ -166,8 +197,8 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
     setActiveSection(sectionId);
     window.requestAnimationFrame(() => {
       document.getElementById(`manager-${sectionId}`)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+        behavior: "smooth",
+        block: "start",
       });
     });
   };
@@ -186,12 +217,15 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
     await loadWorkspace(true);
   };
 
-  const handleResolveBilling = async (reference: string, status: 'reconciled' | 'cancelled') => {
+  const handleResolveBilling = async (
+    reference: string,
+    status: "reconciled" | "cancelled",
+  ) => {
     const notes = window.prompt(
-      status === 'reconciled'
-        ? 'Optional notes for marking this payment reconciled:'
-        : 'Optional notes for marking this payment cancelled:',
-      '',
+      status === "reconciled"
+        ? "Optional notes for marking this payment reconciled:"
+        : "Optional notes for marking this payment cancelled:",
+      "",
     );
 
     setBillingActingReference(reference);
@@ -216,43 +250,90 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   }, []);
 
   const roleEntries = useMemo(
-    () => Object.entries(roleStatistics).sort((a, b) => Number(b[1]) - Number(a[1])),
+    () =>
+      Object.entries(roleStatistics).sort(
+        (a, b) => Number(b[1]) - Number(a[1]),
+      ),
     [roleStatistics],
   );
-  const permissionEntries = useMemo(() => Object.entries(permissions), [permissions]);
+  const permissionEntries = useMemo(
+    () => Object.entries(permissions),
+    [permissions],
+  );
   const activeSectionMeta = useMemo(
-    () => MANAGER_SECTIONS.find((section) => section.id === activeSection) || MANAGER_SECTIONS[0],
+    () =>
+      MANAGER_SECTIONS.find((section) => section.id === activeSection) ||
+      MANAGER_SECTIONS[0],
     [activeSection],
   );
   const ActiveSectionIcon = activeSectionMeta.Icon;
+  const totalAccountsVisible = roleEntries.reduce(
+    (sum, [, count]) => sum + Number(count || 0),
+    0,
+  );
+  const enabledPermissionCount = permissionEntries.filter(([, enabled]) =>
+    Boolean(enabled),
+  ).length;
+  const managerHeroStats = [
+    { label: "Visible roles", value: totalAccountsVisible },
+    { label: "Failed billing", value: billingSummary.failed },
+    { label: "Reports", value: reports.length },
+    {
+      label: "Powers on",
+      value: `${enabledPermissionCount}/${permissionEntries.length || 0}`,
+    },
+  ];
 
   return (
-    <div className="fit-screen bg-background">
-      <header className="fixed top-0 w-full z-40 bg-background/80 backdrop-blur-xl h-20 px-8 flex justify-between items-center border-b border-border-gray dark:border-zinc-800/50">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 -ml-2 text-primary dark:text-zinc-400 hover:scale-110 active:scale-95 transition-all"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <span className="text-xl font-headline font-black text-foreground tracking-tight">Manager Workspace</span>
-        </div>
+    <div className="fit-screen relative overflow-hidden bg-[#f7f8fb] dark:bg-[#050507]">
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-28 top-8 h-72 w-72 rounded-full bg-sky-200/45 blur-3xl dark:bg-sky-500/10" />
+        <div className="absolute right-[-9rem] top-36 h-96 w-96 rounded-full bg-emerald-100/70 blur-3xl dark:bg-emerald-500/10" />
+        <div className="absolute bottom-[-11rem] left-1/4 h-96 w-96 rounded-full bg-slate-200/70 blur-3xl dark:bg-indigo-500/10" />
+      </div>
 
-        <button
-          onClick={() => void loadWorkspace(true)}
-          disabled={refreshing || loading}
-          className="w-10 h-10 rounded-full bg-secondary text-white flex items-center justify-center shadow-lg disabled:opacity-60 active:scale-90 transition-all"
-          title="Refresh manager data"
-        >
-          <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+      <header className="fixed left-0 right-0 top-0 z-50 px-4 pt-4">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-4 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-all hover:scale-105 active:scale-95 dark:bg-white/10 dark:text-zinc-200"
+              aria-label="Go back"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
+                Babycore Ops
+              </p>
+              <h1 className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">
+                Manager Workspace
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={() => void loadWorkspace(true)}
+            disabled={refreshing || loading}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-lg shadow-slate-950/15 transition-all active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950"
+            title="Refresh manager data"
+            aria-label="Refresh manager data"
+          >
+            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-24 px-6 pb-28">
-        <nav className="fixed left-5 top-1/2 z-40 hidden -translate-y-1/2 lg:block" aria-label="Manager sections">
-          <div className="flex w-[5.75rem] flex-col gap-2 rounded-[2rem] border border-border-gray bg-surface/90 p-2 shadow-2xl shadow-black/10 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/90">
+      <main className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36">
+        <nav
+          className="fixed left-5 top-28 z-40 hidden lg:block"
+          aria-label="Manager sections"
+        >
+          <div className="flex w-[6.25rem] flex-col gap-2 rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-2xl shadow-slate-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+            <p className="px-2 pb-1 pt-2 text-center text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
+              Manager
+            </p>
             {MANAGER_SECTIONS.map((section) => {
               const isActive = section.id === activeSection;
               const SectionIcon = section.Icon;
@@ -266,8 +347,8 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                   onClick={() => handleSectionChange(section.id)}
                   className={`flex flex-col items-center gap-1 rounded-[1.45rem] px-2 py-3 text-[8px] font-black uppercase tracking-[0.14em] transition-all ${
                     isActive
-                      ? 'bg-foreground text-background shadow-lg shadow-black/10'
-                      : 'text-text-light hover:bg-surface-gray hover:text-foreground dark:hover:bg-zinc-900'
+                      ? "bg-[#111827] text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950"
+                      : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
                   }`}
                 >
                   <SectionIcon size={17} />
@@ -294,7 +375,9 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                   aria-pressed={isActive}
                   onClick={() => handleSectionChange(section.id)}
                   className={`flex h-14 flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
-                    isActive ? 'bg-white text-[#1c1c1e]' : 'text-white/55 hover:text-white'
+                    isActive
+                      ? "bg-white text-[#1c1c1e]"
+                      : "text-white/55 hover:text-white"
                   }`}
                 >
                   <SectionIcon size={15} />
@@ -305,27 +388,63 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
           </div>
         </nav>
 
-        <div className="max-w-md mx-auto w-full space-y-8">
-          <div className="bg-surface rounded-[3rem] p-8 border border-border-gray dark:border-zinc-800 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
+        <div className="mx-auto w-full max-w-6xl space-y-8">
+          <div className="relative overflow-hidden rounded-[2.75rem] border border-white/75 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8 lg:p-10">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-emerald-300 to-slate-500" />
+            <div className="relative grid gap-8 lg:grid-cols-[1.25fr_0.95fr] lg:items-end">
               <div>
-                <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
+                    Limited admin
+                  </span>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    Safe ops mode
+                  </span>
+                </div>
+
+                <p className="text-[10px] font-black uppercase tracking-[0.32em] text-text-light">
                   {activeSectionMeta.eyebrow}
                 </p>
-                <h2 className="text-2xl font-headline font-black text-foreground tracking-tight mt-2">
+                <h2 className="mt-3 max-w-2xl text-4xl font-headline font-black tracking-[-0.06em] text-foreground sm:text-5xl">
                   {activeSectionMeta.title}
                 </h2>
-                <p className="mt-2 text-[11px] font-semibold leading-relaxed text-text-dim">
+                <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-text-dim sm:text-base">
                   {activeSectionMeta.description}
                 </p>
+                <p className="mt-5 break-all text-[11px] font-bold uppercase tracking-[0.16em] text-text-light">
+                  Manager ID {managerId || "-"}
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-                <ActiveSectionIcon size={20} />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 flex items-center justify-between rounded-[1.75rem] border border-slate-200 bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:border-white/10 dark:bg-white dark:text-zinc-950">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] opacity-60">
+                      Viewing
+                    </p>
+                    <p className="mt-1 text-lg font-headline font-black tracking-tight">
+                      {activeSectionMeta.label}
+                    </p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 dark:bg-zinc-950/10">
+                    <ActiveSectionIcon size={20} />
+                  </div>
+                </div>
+                {managerHeroStats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[1.55rem] border border-slate-200/80 bg-white/75 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                  >
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                      {item.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-headline font-black tracking-tight text-foreground">
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
-            <p className="text-[11px] font-bold text-text-dim mt-4 break-all">
-              Manager ID: {managerId || '-'}
-            </p>
           </div>
 
           {error && (
@@ -334,13 +453,17 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-[2rem] p-6"
             >
-              <p className="text-sm font-black text-red-600 dark:text-red-300">{error}</p>
+              <p className="text-sm font-black text-red-600 dark:text-red-300">
+                {error}
+              </p>
             </MotionDiv>
           )}
 
           {loading ? (
-            <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-8 text-center">
-              <p className="text-sm font-bold text-text-light">Loading manager workspace...</p>
+            <div className="rounded-[2rem] border border-white/70 bg-white/80 p-8 text-center shadow-xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+              <p className="text-sm font-bold text-text-light">
+                Loading manager workspace...
+              </p>
             </div>
           ) : (
             <>
@@ -348,14 +471,18 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Snapshot
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {roleEntries.map(([role, count]) => (
                     <div
                       key={role}
-                      className="bg-surface rounded-[1.6rem] border border-border-gray dark:border-zinc-800 p-4"
+                      className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
                     >
-                      <p className="text-[9px] font-black text-text-light uppercase tracking-widest">{role}</p>
-                      <p className="text-2xl font-headline font-black text-foreground mt-2">{count}</p>
+                      <p className="text-[9px] font-black text-text-light uppercase tracking-widest">
+                        {role}
+                      </p>
+                      <p className="text-2xl font-headline font-black text-foreground mt-2">
+                        {count}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -365,45 +492,55 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Billing Recovery
                 </h3>
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[
-                      { label: 'Failed', value: billingSummary.failed },
-                      { label: 'Retrying', value: billingSummary.retrying },
-                      { label: 'Recovered', value: billingSummary.recovered },
-                      { label: 'Abandoned', value: billingSummary.abandoned },
-                      { label: 'Visible', value: billingSummary.total },
+                      { label: "Failed", value: billingSummary.failed },
+                      { label: "Retrying", value: billingSummary.retrying },
+                      { label: "Recovered", value: billingSummary.recovered },
+                      { label: "Abandoned", value: billingSummary.abandoned },
+                      { label: "Visible", value: billingSummary.total },
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
+                        className="rounded-[1.2rem] border border-slate-200/70 bg-slate-50/80 px-3 py-3 dark:border-white/10 dark:bg-white/5"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">{item.label}</p>
-                        <p className="mt-1 text-lg font-headline font-black text-foreground">{item.value}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-lg font-headline font-black text-foreground">
+                          {item.value}
+                        </p>
                       </div>
                     ))}
                   </div>
 
                   {billingEvents.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">No failed billing events right now.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No failed billing events right now.
+                    </p>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="grid gap-3 xl:grid-cols-2">
                       {billingEvents.map((entry) => {
-                        const isActing = billingActingReference === entry.reference;
+                        const isActing =
+                          billingActingReference === entry.reference;
 
                         return (
                           <div
                             key={entry.id}
-                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                            className="rounded-[1.35rem] border border-slate-200/70 bg-slate-50/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5 space-y-3"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="text-sm font-black text-foreground truncate">
-                                  {entry.plan_name || 'Premium Access'}
+                                  {entry.plan_name || "Premium Access"}
                                 </p>
-                                <p className="text-[10px] font-semibold text-text-light break-all">{entry.reference}</p>
+                                <p className="text-[10px] font-semibold text-text-light break-all">
+                                  {entry.reference}
+                                </p>
                                 <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
-                                  {entry.status} | {entry.currency || 'USD'} {Number(entry.amount || 0).toFixed(2)}
+                                  {entry.status} | {entry.currency || "USD"}{" "}
+                                  {Number(entry.amount || 0).toFixed(2)}
                                 </p>
                               </div>
                               <span
@@ -411,31 +548,46 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                                   entry.recovery_status,
                                 )}`}
                               >
-                                {entry.recovery_status || 'not_needed'}
+                                {entry.recovery_status || "not_needed"}
                               </span>
                             </div>
 
                             <p className="text-[10px] font-semibold text-text-dim">
-                              {entry.customer_email || '-'} | {formatDateTime(entry.attempted_at)}
+                              {entry.customer_email || "-"} |{" "}
+                              {formatDateTime(entry.attempted_at)}
                             </p>
 
                             <div className="grid grid-cols-3 gap-2">
                               <button
-                                onClick={() => void handleRetryBilling(entry.reference)}
-                                disabled={isActing || entry.provider !== 'paystack'}
+                                onClick={() =>
+                                  void handleRetryBilling(entry.reference)
+                                }
+                                disabled={
+                                  isActing || entry.provider !== "paystack"
+                                }
                                 className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
                               >
                                 Retry
                               </button>
                               <button
-                                onClick={() => void handleResolveBilling(entry.reference, 'reconciled')}
+                                onClick={() =>
+                                  void handleResolveBilling(
+                                    entry.reference,
+                                    "reconciled",
+                                  )
+                                }
                                 disabled={isActing}
                                 className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
                               >
                                 Reconcile
                               </button>
                               <button
-                                onClick={() => void handleResolveBilling(entry.reference, 'cancelled')}
+                                onClick={() =>
+                                  void handleResolveBilling(
+                                    entry.reference,
+                                    "cancelled",
+                                  )
+                                }
                                 disabled={isActing}
                                 className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
                               >
@@ -454,23 +606,27 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Activity Trail
                 </h3>
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
                   {activityLogs.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">No activity logs available.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No activity logs available.
+                    </p>
                   ) : (
-                    activityLogs.slice(0, 8).map((log, index) => (
-                      <div
-                        key={`${log.id || index}`}
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
-                      >
-                        <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                          {String(log.action || 'action')}
-                        </p>
-                        <p className="text-[10px] font-semibold text-text-light mt-1">
-                          {formatDateTime(String(log.created_at || ''))}
-                        </p>
-                      </div>
-                    ))
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {activityLogs.slice(0, 8).map((log, index) => (
+                        <div
+                          key={`${log.id || index}`}
+                          className="rounded-[1.35rem] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5"
+                        >
+                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                            {String(log.action || "action")}
+                          </p>
+                          <p className="text-[10px] font-semibold text-text-light mt-1">
+                            {formatDateTime(String(log.created_at || ""))}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -479,24 +635,34 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Reports
                 </h3>
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
                   {reports.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">No manager reports found.</p>
+                    <p className="text-sm font-bold text-text-light">
+                      No manager reports found.
+                    </p>
                   ) : (
-                    reports.slice(0, 8).map((report, index) => (
-                      <div
-                        key={`${report.id || index}`}
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
-                      >
-                        <p className="text-sm font-black text-foreground">{String(report.title || 'Report')}</p>
-                        <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
-                          {String(report.report_type || 'custom')}
-                        </p>
-                        <p className="mt-1 text-[10px] font-semibold text-text-light">
-                          {formatDateTime(String(report.generated_at || report.created_at || ''))}
-                        </p>
-                      </div>
-                    ))
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {reports.slice(0, 8).map((report, index) => (
+                        <div
+                          key={`${report.id || index}`}
+                          className="rounded-[1.35rem] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5"
+                        >
+                          <p className="text-sm font-black text-foreground">
+                            {String(report.title || "Report")}
+                          </p>
+                          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                            {String(report.report_type || "custom")}
+                          </p>
+                          <p className="mt-1 text-[10px] font-semibold text-text-light">
+                            {formatDateTime(
+                              String(
+                                report.generated_at || report.created_at || "",
+                              ),
+                            )}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -505,21 +671,23 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Powers
                 </h3>
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-2">
+                <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
                   {permissionEntries.map(([permission, enabled]) => (
                     <div
                       key={permission}
-                      className="bg-surface-gray dark:bg-zinc-900 rounded-xl px-4 py-3 flex items-center justify-between"
+                      className="flex items-center justify-between rounded-[1.25rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
                     >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">{permission}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                        {permission}
+                      </p>
                       <span
                         className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                           enabled
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
-                            : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400'
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            : "bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
                         }`}
                       >
-                        {enabled ? 'On' : 'Off'}
+                        {enabled ? "On" : "Off"}
                       </span>
                     </div>
                   ))}
