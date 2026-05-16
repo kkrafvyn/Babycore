@@ -13,6 +13,139 @@ import { syncAcceptedDoctorInvitesForDoctor } from '../utils/doctor-assignment.j
 
 const router = Router();
 
+const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
+
+const getBabyRowsByIds = async (babyIds: string[]) => {
+  const uniqueBabyIds = Array.from(new Set(babyIds.map((id) => String(id || '').trim()).filter(Boolean)));
+
+  if (uniqueBabyIds.length === 0) {
+    return new Map<string, any>();
+  }
+
+  const { data, error } = await supabase
+    .from('babies')
+    .select('id,name,date_of_birth,gender,photo_url,country,created_at')
+    .in('id', uniqueBabyIds);
+
+  if (error) throw error;
+
+  const babiesById = new Map<string, any>();
+  for (const row of data || []) {
+    babiesById.set(String(row.id), row);
+  }
+
+  return babiesById;
+};
+
+const getDoctorAssignments = async (doctorId: string) => {
+  const { data, error } = await supabase
+    .from('doctor_baby_assignments')
+    .select('baby_id,parent_id,status,assignment_reason,start_date,created_at')
+    .eq('doctor_id', doctorId)
+    .eq('status', 'active')
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
+const getDoctorAssignedBabies = async (doctorId: string) => {
+  const assignments = await getDoctorAssignments(doctorId);
+  const babiesById = await getBabyRowsByIds(assignments.map((assignment: any) => assignment.baby_id));
+
+  return assignments.map((assignment: any) => {
+    const babyId = String(assignment?.baby_id || '');
+    const baby = babiesById.get(babyId);
+
+    return {
+      babyId,
+      babyName: baby?.name || `Baby ${babyId.slice(0, 8)}`,
+      babyDateOfBirth: baby?.date_of_birth || null,
+      babyGender: baby?.gender || 'other',
+      babyPhotoUrl: baby?.photo_url || null,
+      babyCountry: baby?.country || 'US',
+      babyCreatedAt: baby?.created_at || null,
+      parentId: assignment?.parent_id || null,
+      parentEmail: null,
+      status: assignment?.status || 'active',
+      assignmentReason: assignment?.assignment_reason || null,
+    };
+  });
+};
+
+const getDoctorUpcomingAppointments = async (doctorId: string, daysAhead = 7) => {
+  const startDate = toIsoDate(new Date());
+  const endDate = toIsoDate(new Date(Date.now() + Math.max(0, daysAhead) * 24 * 60 * 60 * 1000));
+  const { data, error } = await supabase
+    .from('appointment_reminders')
+    .select('id,baby_id,parent_id,scheduled_date,scheduled_time,appointment_type,status')
+    .eq('doctor_id', doctorId)
+    .gte('scheduled_date', startDate)
+    .lte('scheduled_date', endDate)
+    .in('status', ['pending', 'reminded'])
+    .order('scheduled_date', { ascending: true })
+    .order('scheduled_time', { ascending: true });
+
+  if (error) throw error;
+
+  const rows = data || [];
+  const babiesById = await getBabyRowsByIds(rows.map((appointment: any) => appointment.baby_id));
+
+  return rows.map((appointment: any) => {
+    const babyId = String(appointment?.baby_id || '');
+    const baby = babiesById.get(babyId);
+
+    return {
+      appointment_id: appointment.id,
+      baby_id: babyId,
+      baby_name: baby?.name || `Baby ${babyId.slice(0, 8)}`,
+      parent_id: appointment.parent_id || null,
+      scheduled_date: appointment.scheduled_date,
+      scheduled_time: appointment.scheduled_time,
+      appointment_type: appointment.appointment_type,
+      status: appointment.status,
+    };
+  });
+};
+
+const getBabyActiveMedications = async (babyId: string) => {
+  const today = toIsoDate(new Date());
+  const { data, error } = await supabase
+    .from('medications')
+    .select('id,medication_name,dosage,frequency,doctor_id,prescribed_at,status,end_date')
+    .eq('baby_id', babyId)
+    .eq('status', 'active')
+    .or(`end_date.is.null,end_date.gte.${today}`)
+    .order('prescribed_at', { ascending: false });
+
+  if (error) throw error;
+
+  const rows = data || [];
+  const doctorIds = Array.from(
+    new Set(rows.map((medication: any) => String(medication?.doctor_id || '').trim()).filter(Boolean)),
+  );
+  const { data: doctors, error: doctorsError } = doctorIds.length
+    ? await supabase.from('doctor_profiles').select('user_id,full_name').in('user_id', doctorIds)
+    : { data: [], error: null };
+
+  if (doctorsError) throw doctorsError;
+
+  const doctorsById = new Map<string, string>();
+  for (const doctor of doctors || []) {
+    doctorsById.set(String(doctor.user_id), String(doctor.full_name || 'Doctor'));
+  }
+
+  return rows.map((medication: any) => ({
+    medication_id: medication.id,
+    medication_name: medication.medication_name,
+    dosage: medication.dosage,
+    frequency: medication.frequency,
+    doctor_name: doctorsById.get(String(medication.doctor_id)) || 'Doctor',
+    prescribed_at: medication.prescribed_at,
+    status: medication.status,
+  }));
+};
+
 // ============================================================================
 // DOCTOR PROFILE ENDPOINTS
 // ============================================================================
@@ -204,53 +337,12 @@ router.post('/assign-baby', requireAuth, async (req: AuthRequest, res: Response)
  */
 router.get('/babies', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const doctorId = req.user?.id;
-
-    const { data: assignments, error } = await supabase
-      .rpc('get_doctor_assigned_babies', { doctor_user_id: doctorId });
-
-    if (error) throw error;
-
-    const babyIds = Array.from(
-      new Set(
-        (assignments || [])
-          .map((assignment: any) => String(assignment?.baby_id || '').trim())
-          .filter(Boolean),
-      ),
-    );
-
-    const { data: babyRows, error: babyError } = babyIds.length
-      ? await supabase
-          .from('babies')
-          .select('id,name,date_of_birth,gender,photo_url,country,created_at')
-          .in('id', babyIds)
-      : { data: [], error: null };
-
-    if (babyError) throw babyError;
-
-    const babiesById = new Map<string, any>();
-    for (const row of babyRows || []) {
-      babiesById.set(String(row.id), row);
+    const doctorId = String(req.user?.id || '');
+    if (!doctorId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
 
-    const enrichedAssignments = (assignments || []).map((assignment: any) => {
-      const babyId = String(assignment?.baby_id || '');
-      const baby = babiesById.get(babyId);
-
-      return {
-        babyId,
-        babyName: baby?.name || assignment?.baby_name || `Baby ${babyId.slice(0, 8)}`,
-        babyDateOfBirth: baby?.date_of_birth || null,
-        babyGender: baby?.gender || 'other',
-        babyPhotoUrl: baby?.photo_url || null,
-        babyCountry: baby?.country || 'US',
-        babyCreatedAt: baby?.created_at || null,
-        parentId: assignment?.parent_id || null,
-        parentEmail: assignment?.parent_email || null,
-        status: assignment?.status || 'active',
-        assignmentReason: assignment?.assignment_reason || null,
-      };
-    });
+    const enrichedAssignments = await getDoctorAssignedBabies(doctorId);
 
     res.json({
       success: true,
@@ -304,8 +396,7 @@ router.get('/babies/:babyId/details', requireAuth, async (req: AuthRequest, res:
       .order('created_at', { ascending: false });
 
     // Get active medications
-    const { data: medications } = await supabase
-      .rpc('get_baby_active_medications', { baby_id_param: babyId });
+    const medications = await getBabyActiveMedications(String(babyId));
 
     // Get medical history
     const { data: history } = await supabase
@@ -533,10 +624,7 @@ router.get('/medications/:babyId', requireAuth, async (req: AuthRequest, res: Re
 
     if (!(await ensureBabyAccess(req, res, String(babyId)))) return;
 
-    const { data: medications, error } = await supabase
-      .rpc('get_baby_active_medications', { baby_id_param: babyId });
-
-    if (error) throw error;
+    const medications = await getBabyActiveMedications(String(babyId));
 
     res.json({
       success: true,
@@ -703,13 +791,11 @@ router.get('/appointments/upcoming', requireAuth, async (req: AuthRequest, res: 
     const doctorId = req.user?.id;
     const daysAhead = req.query.days ? parseInt(req.query.days as string) : 7;
 
-    const { data: appointments, error } = await supabase
-      .rpc('get_doctor_upcoming_appointments', {
-        doctor_user_id: doctorId,
-        days_ahead: daysAhead,
-      });
+    if (!doctorId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
 
-    if (error) throw error;
+    const appointments = await getDoctorUpcomingAppointments(String(doctorId), daysAhead);
 
     res.json({
       success: true,
@@ -853,13 +939,18 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
   try {
     const doctorId = req.user?.id;
 
-    const [{ data: patientCount, error: patientCountError }, { data: appointments, error: appointmentsError }, { data: recentDiagnoses, error: diagnosisError }] =
+    if (!doctorId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+
+    const [{ count: patientCount, error: patientCountError }, appointments, { data: recentDiagnoses, error: diagnosisError }] =
       await Promise.all([
-        supabase.rpc('get_doctor_patient_count', { doctor_user_id: doctorId }),
-        supabase.rpc('get_doctor_upcoming_appointments', {
-          doctor_user_id: doctorId,
-          days_ahead: 14,
-        }),
+        supabase
+          .from('doctor_baby_assignments')
+          .select('baby_id', { count: 'exact', head: true })
+          .eq('doctor_id', doctorId)
+          .eq('status', 'active'),
+        getDoctorUpcomingAppointments(String(doctorId), 14),
         supabase
           .from('diagnoses')
           .select('*')
@@ -869,14 +960,13 @@ router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) =>
       ]);
 
     if (patientCountError) throw patientCountError;
-    if (appointmentsError) throw appointmentsError;
     if (diagnosisError) throw diagnosisError;
 
     res.json({
       success: true,
       data: {
         patientCount: patientCount || 0,
-        upcomingAppointments: (appointments || []).slice(0, 5),
+        upcomingAppointments: appointments.slice(0, 5),
         recentDiagnoses: recentDiagnoses || [],
       },
     });
