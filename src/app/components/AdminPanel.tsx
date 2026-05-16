@@ -1109,8 +1109,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </p>
                         <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
                           Open access lets normal users enter premium tools
-                          during QA without paying. Require premium again before
-                          marketing or launch.
+                          during QA without paying. Payment pause also opens
+                          premium automatically so users are not trapped behind
+                          checkout.
                         </p>
                       </div>
                     </div>

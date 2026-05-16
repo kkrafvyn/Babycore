@@ -872,8 +872,13 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
     }
 
     const now = Date.now();
-    const premiumAccess = await getPremiumAccessSettings();
-    const premiumTestingAccessOpen = !premiumAccess.enabled && premiumAccess.source !== 'fallback';
+    const [paymentCollection, premiumAccess] = await Promise.all([
+      getPaymentCollectionSettings(),
+      getPremiumAccessSettings(),
+    ]);
+    const premiumTestingAccessOpen =
+      (!premiumAccess.enabled && premiumAccess.source !== 'fallback') ||
+      (!paymentCollection.enabled && paymentCollection.source !== 'fallback');
     if (premiumTestingAccessOpen) {
       const startDate = new Date().toISOString();
       const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
@@ -893,6 +898,7 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
           autoRenewal: false,
         },
         data: {
+          paymentCollection,
           premiumAccess,
           premiumTestingAccessOpen: true,
         },

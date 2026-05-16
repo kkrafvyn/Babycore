@@ -276,7 +276,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     const loadPremiumTestingAccess = async () => {
       const config = await fetchPaymentFeatureConfig();
       if (!cancelled) {
-        setPremiumTestingAccessOpen(config.premiumAccess.source !== 'fallback' && !config.premiumAccess.enabled);
+        const premiumOpen =
+          config.premiumAccess.source !== 'fallback' && !config.premiumAccess.enabled;
+        const paymentsPaused =
+          config.paymentCollection.source !== 'fallback' && !config.paymentCollection.enabled;
+        setPremiumTestingAccessOpen(premiumOpen || paymentsPaused);
       }
     };
 
