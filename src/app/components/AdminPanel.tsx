@@ -8,6 +8,7 @@ import {
   Receipt,
   RefreshCw,
   ScrollText,
+  Settings2,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -53,7 +54,8 @@ type AdminSectionId =
   | "users"
   | "activity"
   | "billing"
-  | "data";
+  | "data"
+  | "settings";
 
 const ADMIN_SECTIONS: Array<{
   id: AdminSectionId;
@@ -84,11 +86,20 @@ const ADMIN_SECTIONS: Array<{
   {
     id: "users",
     label: "Users",
-    eyebrow: "Access Control",
-    title: "Admin Team & User Roles",
+    eyebrow: "User Directory",
+    title: "Platform Users",
     description:
-      "Create limited admins, search accounts, and apply role changes safely.",
+      "Search accounts and inspect profile status without changing roles from this page.",
     Icon: Users,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    eyebrow: "Role Settings",
+    title: "Admin Settings",
+    description:
+      "Create admin accounts and switch user roles from one intentional control page.",
+    Icon: Settings2,
   },
   {
     id: "activity",
@@ -236,6 +247,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   >(null);
   const [activeSection, setActiveSection] =
     useState<AdminSectionId>("overview");
+  const mainRef = React.useRef<HTMLElement | null>(null);
+
+  const handleSectionChange = (sectionId: AdminSectionId) => {
+    setActiveSection(sectionId);
+    window.requestAnimationFrame(() => {
+      mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
 
   const loadOverview = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -787,7 +806,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36">
+      <main
+        ref={mainRef}
+        className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36"
+      >
         <nav
           className="fixed left-5 top-28 z-40 hidden lg:block"
           aria-label="Admin sections"
@@ -806,17 +828,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   type="button"
                   aria-pressed={isActive}
                   title={section.label}
-                  onClick={() => {
-                    setActiveSection(section.id);
-                    window.requestAnimationFrame(() => {
-                      document
-                        .getElementById(`admin-${section.id}`)
-                        ?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
-                    });
-                  }}
+                  onClick={() => handleSectionChange(section.id)}
                   className={`flex flex-col items-center gap-1 rounded-[1.45rem] px-2 py-3 text-[8px] font-black uppercase tracking-[0.14em] transition-all ${
                     isActive
                       ? "bg-[#111827] text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950"
@@ -835,7 +847,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 px-4 pb-5 lg:hidden"
           aria-label="Admin sections"
         >
-          <div className="pointer-events-auto mx-auto grid max-w-md grid-cols-6 gap-1 rounded-[2rem] border border-white/10 bg-[#1c1c1e]/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-2xl">
+          <div className="pointer-events-auto mx-auto flex max-w-md gap-1 overflow-x-auto rounded-[2rem] border border-white/10 bg-[#1c1c1e]/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-2xl no-scrollbar">
             {ADMIN_SECTIONS.map((section) => {
               const isActive = section.id === activeSection;
               const SectionIcon = section.Icon;
@@ -845,18 +857,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   key={section.id}
                   type="button"
                   aria-pressed={isActive}
-                  onClick={() => {
-                    setActiveSection(section.id);
-                    window.requestAnimationFrame(() => {
-                      document
-                        .getElementById(`admin-${section.id}`)
-                        ?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
-                    });
-                  }}
-                  className={`flex h-14 flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
+                  onClick={() => handleSectionChange(section.id)}
+                  className={`flex h-14 min-w-[4rem] flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
                     isActive
                       ? "bg-white text-[#1c1c1e]"
                       : "text-white/55 hover:text-white"
@@ -975,7 +977,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </div>
           ) : (
             <>
-              <div id="admin-overview" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-overview"
+                className={activeSection === "overview" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Totals
                 </h3>
@@ -996,7 +1001,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className={activeSection === "overview" ? "space-y-4" : "hidden"}>
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Distribution
                 </h3>
@@ -1021,7 +1026,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   ))}
                 </div>
               </div>
-              <div id="admin-payments" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-payments"
+                className={activeSection === "payments" ? "space-y-4" : "hidden"}
+              >
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                     Payment Collection
@@ -1261,7 +1269,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className={activeSection === "payments" ? "space-y-4" : "hidden"}>
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                     Premium Pricing
@@ -1370,7 +1378,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="admin-users" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-settings"
+                className={activeSection === "settings" ? "space-y-4" : "hidden"}
+              >
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                     Admin Team
@@ -1480,10 +1491,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div
+                id="admin-users"
+                className={
+                  activeSection === "users" || activeSection === "settings"
+                    ? "space-y-4"
+                    : "hidden"
+                }
+              >
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    User Directory
+                    {activeSection === "settings"
+                      ? "Role Switcher"
+                      : "User Directory"}
                   </h3>
                   <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                     {filteredUsers.length}/{usersTotal}
@@ -1491,6 +1511,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                  {activeSection === "users" && (
+                    <div className="rounded-[1.4rem] border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-cyan-900 dark:border-cyan-400/20 dark:bg-cyan-950/20 dark:text-cyan-100">
+                      <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">
+                        Read-only page
+                      </p>
+                      <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs font-bold leading-relaxed">
+                          Role switching now lives only in Admin Settings so
+                          permission changes happen in one deliberate place.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleSectionChange("settings")}
+                          className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-900/10"
+                        >
+                          Open Settings
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -1554,68 +1595,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <select
-                                value={selectedRole}
-                                onChange={(event) =>
-                                  setRoleDrafts((prev) => ({
-                                    ...prev,
-                                    [user.id]: event.target.value,
-                                  }))
-                                }
-                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                                disabled={isActing}
-                              >
-                                {ROLE_OPTIONS.map((role) => (
-                                  <option key={role} value={role}>
-                                    {role}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => handleApplyRole(user)}
-                                disabled={
-                                  isActing || selectedRole === user.role
-                                }
-                                className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                              >
-                                Apply Role
-                              </button>
-                            </div>
+                            {activeSection === "settings" ? (
+                              <>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <select
+                                    value={selectedRole}
+                                    onChange={(event) =>
+                                      setRoleDrafts((prev) => ({
+                                        ...prev,
+                                        [user.id]: event.target.value,
+                                      }))
+                                    }
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                                    disabled={isActing}
+                                  >
+                                    {ROLE_OPTIONS.map((role) => (
+                                      <option key={role} value={role}>
+                                        {role}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleApplyRole(user)}
+                                    disabled={
+                                      isActing || selectedRole === user.role
+                                    }
+                                    className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                                  >
+                                    Apply Role
+                                  </button>
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                onClick={() => handlePromote(user, "manager")}
-                                disabled={isActing || !canPromoteManager}
-                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                              >
-                                Promote Manager
-                              </button>
-                              <button
-                                onClick={() => handlePromote(user, "admin")}
-                                disabled={isActing || !canPromoteAdmin}
-                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                              >
-                                Promote Admin
-                              </button>
-                            </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() =>
+                                      handlePromote(user, "manager")
+                                    }
+                                    disabled={isActing || !canPromoteManager}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Promote Manager
+                                  </button>
+                                  <button
+                                    onClick={() => handlePromote(user, "admin")}
+                                    disabled={isActing || !canPromoteAdmin}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Promote Admin
+                                  </button>
+                                </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                onClick={() => handleDemote(user)}
-                                disabled={isActing || !canDemote}
-                                className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                              >
-                                Demote User
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user)}
-                                disabled={isActing}
-                                className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                              >
-                                Delete User
-                              </button>
-                            </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => handleDemote(user)}
+                                    disabled={isActing || !canDemote}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Demote User
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(user)}
+                                    disabled={isActing}
+                                    className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                                  >
+                                    Delete User
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3 text-[10px] font-bold leading-relaxed text-text-light dark:border-white/10 dark:bg-white/5">
+                                Role controls are available from Admin Settings
+                                only.
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1624,7 +1676,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="admin-activity" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-activity"
+                className={activeSection === "activity" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Admin Activity
                 </h3>
@@ -1692,7 +1747,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="admin-billing" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-billing"
+                className={activeSection === "billing" ? "space-y-4" : "hidden"}
+              >
                 <div className="flex items-center justify-between px-1 gap-3">
                   <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                     Billing Ops
@@ -1919,7 +1977,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="admin-data" className="space-y-4 scroll-mt-36">
+              <div
+                id="admin-data"
+                className={activeSection === "data" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Recent Data
                 </h3>
