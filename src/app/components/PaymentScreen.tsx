@@ -80,9 +80,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
   const [paymentCollection, setPaymentCollection] = useState<PaymentCollectionConfig>(
     DEFAULT_PAYMENT_COLLECTION_CONFIG,
   );
-  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig>(
-    DEFAULT_PREMIUM_ACCESS_CONFIG,
-  );
+  const [premiumAccess, setPremiumAccess] = useState<PaymentCollectionConfig>(DEFAULT_PREMIUM_ACCESS_CONFIG);
   const [paymentCollectionLoading, setPaymentCollectionLoading] = useState(true);
 
   const paystackPlans = useMemo(
@@ -124,10 +122,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     () => paystackPlans.find((plan) => plan.id === selectedPlan) || paystackPlans[0],
     [paystackPlans, selectedPlan],
   );
-  const paystackLocationConfig = useMemo(
-    () => getPaystackLocationConfig(currentBaby?.country),
-    [currentBaby?.country],
-  );
+  const paystackLocationConfig = useMemo(() => getPaystackLocationConfig(currentBaby?.country), [currentBaby?.country]);
   const isGhanaCheckout = paystackLocationConfig.currency === 'GHS';
   const paymentChannelLabel = isGhanaCheckout ? 'Card, Mobile Money, and Bank' : 'Card only';
   const paymentCheckoutSummary = isGhanaCheckout
@@ -237,7 +232,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     }
 
     if (!premiumAccess.enabled) {
-      setError(premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON);
+      setError(premiumAccess.reason || 'Premium access is open for testing right now. No checkout is required.');
       return;
     }
 
@@ -248,17 +243,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
     setLoading(true);
     setError(null);
-    let processedPayment:
-      | {
-          reference: string;
-          provider?: string;
-          amount: number;
-          currency: any;
-          planId: string;
-          planName: string;
-          countryCode?: string;
-        }
-      | null = null;
+    let processedPayment: {
+      reference: string;
+      provider?: string;
+      amount: number;
+      currency: any;
+      planId: string;
+      planName: string;
+      countryCode?: string;
+    } | null = null;
 
     try {
       const plan = selectedPlanData;
@@ -408,9 +401,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             >
               <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
               <div>
-                <p className="text-sm font-black text-amber-800 dark:text-amber-200">
-                  Payments are paused for testing
-                </p>
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">Payments are paused for testing</p>
                 <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
                   {paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON}
                 </p>
@@ -427,10 +418,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
               <div>
                 <p className="text-sm font-black text-amber-800 dark:text-amber-200">
-                  Premium packages are paused
+                  Premium access is open for testing
                 </p>
                 <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
-                  {premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON}
+                  {premiumAccess.reason ||
+                    'Premium tools are available without checkout while Babycore tests packages.'}
                 </p>
               </div>
             </MotionDiv>
@@ -461,9 +453,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                       >
                         {plan.name}
                       </h3>
-                      <p className="text-[11px] font-bold leading-tight text-text-dim">
-                        {plan.description}
-                      </p>
+                      <p className="text-[11px] font-bold leading-tight text-text-dim">{plan.description}</p>
                     </div>
                     {selectedPlan === plan.id && (
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-white shadow-lg">
@@ -493,9 +483,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                         className="flex shrink-0 items-center gap-2 rounded-full border border-border-gray/30 bg-surface-gray px-4 py-2 dark:bg-zinc-800/50"
                       >
                         <Check size={10} className="text-secondary" strokeWidth={4} />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-text-dim">
-                          {feature}
-                        </span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-text-dim">{feature}</span>
                       </div>
                     ))}
                   </div>
@@ -505,9 +493,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
           </div>
 
           <div className="space-y-6">
-            <h3 className="px-2 text-[10px] font-black uppercase tracking-[0.3em] text-text-light">
-              Patron Identity
-            </h3>
+            <h3 className="px-2 text-[10px] font-black uppercase tracking-[0.3em] text-text-light">Patron Identity</h3>
             <div className="space-y-8 rounded-[3rem] border border-border-gray bg-surface p-10 shadow-sm dark:border-zinc-800">
               <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
@@ -567,9 +553,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               <div className="flex items-end justify-between">
                 <div className="space-y-1">
                   <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-50">Grand Total</p>
-                  <h4 className="text-2xl font-headline font-black tracking-tight">
-                    {selectedPlanData?.name}
-                  </h4>
+                  <h4 className="text-2xl font-headline font-black tracking-tight">{selectedPlanData?.name}</h4>
                 </div>
                 <p className="text-4xl font-headline font-black tracking-tighter">
                   {paystackLocationConfig.currency} {formatAmount(amount)}
@@ -577,21 +561,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               </div>
               <div className="h-px w-full bg-white/10" />
               <div className="space-y-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/50">
-                  {paymentChannelLabel}
-                </p>
-                <p className="text-[10px] font-bold italic leading-relaxed text-white/70">
-                  {paymentCheckoutSummary}
-                </p>
+                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/50">{paymentChannelLabel}</p>
+                <p className="text-[10px] font-bold italic leading-relaxed text-white/70">{paymentCheckoutSummary}</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-3 rounded-[2rem] border border-border-gray bg-surface p-5 dark:border-zinc-800">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                Billing History
-              </p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-text-light">Billing History</p>
               <span className="text-[10px] font-bold text-text-dim">
                 {loadingHistory ? 'Loading...' : `${billingHistory.length} records`}
               </span>
@@ -679,9 +657,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
 
                 {entry.payment_event_transitions?.length ? (
                   <div className="mt-2 rounded-lg border border-border-gray bg-surface-gray p-2 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-text-light">
-                      Recovery Timeline
-                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-text-light">Recovery Timeline</p>
                     {entry.payment_event_transitions.slice(0, 3).map((transition) => (
                       <p key={transition.id} className="mt-1 text-[10px] font-semibold text-text-dim">
                         {transition.event_type}
@@ -742,7 +718,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             ) : !paymentCollection.enabled ? (
               <span>Payments Paused</span>
             ) : !premiumAccess.enabled ? (
-              <span>Premium Paused</span>
+              <span>Premium Open</span>
             ) : (
               <>
                 <span>{i18nT('payment.payNow')}</span>

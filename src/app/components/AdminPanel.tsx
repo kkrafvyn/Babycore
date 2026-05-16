@@ -78,7 +78,7 @@ const ADMIN_SECTIONS: Array<{
     eyebrow: "Revenue Control",
     title: "Payment Settings",
     description:
-      "Pause checkout, disable premium access, and tune plan pricing before launch.",
+      "Pause checkout, open premium testing access, and tune plan pricing before launch.",
     Icon: CreditCard,
   },
   {
@@ -462,7 +462,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const handleSavePremiumAccess = async (enabled: boolean) => {
     if (enabled && !premiumAccessEnabled) {
       const confirmed = window.confirm(
-        "Turn on premium feature access? Active and test subscriptions will immediately unlock premium tools.",
+        "Require an active premium plan again? Users without an active or test subscription will see the paywall.",
       );
       if (!confirmed) return;
     }
@@ -476,7 +476,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPremiumAccessSaving(false);
 
     if (!response.success || !response.data?.premiumAccess) {
-      toast.error(response.error || "Failed to update premium feature access.");
+      toast.error(response.error || "Failed to update premium access mode.");
       return;
     }
 
@@ -491,7 +491,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPremiumAccessReason(
       response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
     );
-    toast.success(response.message || "Premium feature access updated.");
+    toast.success(response.message || "Premium access mode updated.");
     await Promise.all([loadOverview(true), loadAdminLogs()]);
   };
 
@@ -707,8 +707,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const premiumAccessStatusLabel = paymentCollectionLoading
     ? "Checking"
     : premiumAccessEnabled
-      ? "On"
-      : "Off";
+      ? "Restricted"
+      : "Open";
   const activeSectionMeta = useMemo(
     () =>
       ADMIN_SECTIONS.find((section) => section.id === activeSection) ||
@@ -866,8 +866,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   <span
                     className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
                       premiumAccessEnabled
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                        ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                     }`}
                   >
                     Premium {premiumAccessStatusLabel}
@@ -1095,8 +1095,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       <div
                         className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-2xl ${
                           premiumAccessEnabled
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                            ? "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
                         }`}
                       >
                         <ShieldCheck size={20} />
@@ -1104,21 +1104,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       <div className="min-w-0">
                         <p className="text-sm font-black text-foreground">
                           {premiumAccessEnabled
-                            ? "Premium features are enabled"
-                            : "Premium features are paused"}
+                            ? "Premium requires a plan"
+                            : "Premium is open for user testing"}
                         </p>
                         <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                          This switch controls whether premium packages unlock
-                          the app. Keep it off while testing packages, even if
-                          checkout is also paused.
+                          Open access lets normal users enter premium tools
+                          during QA without paying. Require premium again before
+                          marketing or launch.
                         </p>
                       </div>
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                         premiumAccessEnabled
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
                       }`}
                     >
                       {premiumAccessStatusLabel}
@@ -1127,7 +1127,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
                   <label className="block space-y-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                      Premium pause note
+                      Premium access note
                     </span>
                     <textarea
                       value={premiumAccessReason}
@@ -1145,14 +1145,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       }
                       disabled={premiumAccessSaving || paymentCollectionLoading}
                       className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
-                        premiumAccessEnabled ? "bg-red-500" : "bg-secondary"
+                        premiumAccessEnabled ? "bg-secondary" : "bg-slate-950"
                       }`}
                     >
                       {premiumAccessSaving
                         ? "Saving..."
                         : premiumAccessEnabled
-                          ? "Turn Premium Off"
-                          : "Turn Premium On"}
+                          ? "Open Access"
+                          : "Require Premium"}
                     </button>
                     <button
                       onClick={() =>

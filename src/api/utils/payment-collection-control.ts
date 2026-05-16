@@ -12,7 +12,7 @@ export interface PaymentCollectionSettings {
 export const DEFAULT_PAYMENT_COLLECTION_REASON =
   'Payments are disabled while Babycore completes full-app testing before marketing.';
 export const DEFAULT_PREMIUM_ACCESS_REASON =
-  'Premium features are disabled while Babycore completes package testing before marketing.';
+  'Premium enforcement is open while Babycore completes package testing before marketing.';
 
 const PAYMENT_COLLECTION_ADDON_NAME = 'config:payments:collection';
 const PAYMENT_COLLECTION_CONTENT_URL = 'payment-config://collection';
@@ -51,9 +51,7 @@ const getFallbackSettings = (source: PaymentCollectionSource = 'fallback'): Paym
   updatedAt: null,
 });
 
-const getFallbackPremiumAccessSettings = (
-  source: PaymentCollectionSource = 'fallback',
-): PaymentCollectionSettings => ({
+const getFallbackPremiumAccessSettings = (source: PaymentCollectionSource = 'fallback'): PaymentCollectionSettings => ({
   enabled: getPremiumAccessEnvironmentDefaultEnabled(),
   reason: process.env.PREMIUM_ACCESS_DISABLED_REASON || DEFAULT_PREMIUM_ACCESS_REASON,
   source,
@@ -141,9 +139,7 @@ const insertPremiumAccessRow = async (
   return mapConfigRowToSettings(data, DEFAULT_PREMIUM_ACCESS_REASON);
 };
 
-export const getPaymentCollectionSettings = async (
-  supabase = defaultSupabase,
-): Promise<PaymentCollectionSettings> => {
+export const getPaymentCollectionSettings = async (supabase = defaultSupabase): Promise<PaymentCollectionSettings> => {
   try {
     const existingRow = await fetchPaymentCollectionRow(supabase);
     if (existingRow) {
@@ -158,9 +154,7 @@ export const getPaymentCollectionSettings = async (
   }
 };
 
-export const getPremiumAccessSettings = async (
-  supabase = defaultSupabase,
-): Promise<PaymentCollectionSettings> => {
+export const getPremiumAccessSettings = async (supabase = defaultSupabase): Promise<PaymentCollectionSettings> => {
   try {
     const existingRow = await fetchPremiumAccessRow(supabase);
     if (existingRow) {
@@ -247,5 +241,4 @@ export const setPremiumAccessEnabled = async (
   return mapConfigRowToSettings(data, DEFAULT_PREMIUM_ACCESS_REASON);
 };
 
-export const isConfigAddonName = (addonName?: string | null): boolean =>
-  String(addonName || '').startsWith('config:');
+export const isConfigAddonName = (addonName?: string | null): boolean => String(addonName || '').startsWith('config:');

@@ -23,15 +23,9 @@ import {
   getUserRole,
 } from '../utils/role-manager.js';
 import { logger } from '../../utils/logger.js';
-import {
-  MAX_AUTOMATED_PAYMENT_RETRIES,
-  planNextPaymentRetry,
-} from '../../lib/billing-retry.js';
+import { MAX_AUTOMATED_PAYMENT_RETRIES, planNextPaymentRetry } from '../../lib/billing-retry.js';
 import { createAdminManagedUser } from '../utils/admin-users.js';
-import {
-  getManagedSubscriptionPricing,
-  updateManagedSubscriptionPricing,
-} from '../utils/payment-pricing.js';
+import { getManagedSubscriptionPricing, updateManagedSubscriptionPricing } from '../utils/payment-pricing.js';
 import {
   DEFAULT_PAYMENT_COLLECTION_REASON,
   DEFAULT_PREMIUM_ACCESS_REASON,
@@ -91,11 +85,7 @@ const enrichPaymentEvents = async (events: PaymentEventRecord[]) => {
 };
 
 const fetchPaymentEventByReference = async (reference: string) => {
-  const { data, error } = await supabase
-    .from('payment_events')
-    .select('*')
-    .eq('reference', reference)
-    .maybeSingle();
+  const { data, error } = await supabase.from('payment_events').select('*').eq('reference', reference).maybeSingle();
 
   if (error) {
     throw error;
@@ -154,8 +144,12 @@ router.post('/users', requireRole('admin'), async (req: AuthRequest, res: Respon
         adminUserId: req.user.id,
         email: String(req.body?.email || ''),
         name: String(req.body?.name || ''),
-        role: String(req.body?.role || 'manager').trim().toLowerCase() as any,
-        profileType: String(req.body?.profileType || 'baby').trim().toLowerCase() as any,
+        role: String(req.body?.role || 'manager')
+          .trim()
+          .toLowerCase() as any,
+        profileType: String(req.body?.profileType || 'baby')
+          .trim()
+          .toLowerCase() as any,
         password: req.body?.password ? String(req.body.password) : undefined,
       },
       supabase,
@@ -556,7 +550,7 @@ router.get('/payment-config', requireRole('admin'), async (req: AuthRequest, res
 
 /**
  * POST /api/admin/payment-config
- * Enable or disable live checkout collection.
+ * Enable/disable live checkout collection and premium access enforcement.
  */
 router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
@@ -602,8 +596,8 @@ router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, re
       action:
         hasPremiumAccessInput && !hasPaymentCollectionInput
           ? premiumAccess.enabled
-            ? 'premium_access_enabled'
-            : 'premium_access_disabled'
+            ? 'premium_access_required'
+            : 'premium_open_access_enabled'
           : paymentCollection.enabled
             ? 'payment_collection_enabled'
             : 'payment_collection_disabled',
@@ -621,8 +615,8 @@ router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, re
       success: true,
       message: hasPremiumAccessInput
         ? premiumAccess.enabled
-          ? 'Premium features are now enabled.'
-          : 'Premium features are now disabled.'
+          ? 'Premium now requires an active plan.'
+          : 'Premium is now open for user testing.'
         : paymentCollection.enabled
           ? 'Payment collection is now enabled.'
           : 'Payment collection is now disabled.',
@@ -659,9 +653,7 @@ router.get('/billing', requireRole(['admin', 'manager']), async (req: AuthReques
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(
-        `reference.ilike.%${search}%,customer_email.ilike.%${search}%,plan_name.ilike.%${search}%`,
-      );
+      query = query.or(`reference.ilike.%${search}%,customer_email.ilike.%${search}%,plan_name.ilike.%${search}%`);
     }
     if (statusFilter) {
       query = query.eq('status', statusFilter);
@@ -730,7 +722,10 @@ router.post('/billing/retry-now', requireRole(['admin', 'manager']), async (req:
     }
 
     if (String(paymentEvent.provider || 'paystack') !== 'paystack') {
-      return res.status(400).json({ success: false, error: 'Manual retry is only supported for Paystack events' });
+      return res.status(400).json({
+        success: false,
+        error: 'Manual retry is only supported for Paystack events',
+      });
     }
 
     const nowIso = new Date().toISOString();
@@ -814,14 +809,12 @@ router.post('/billing/retry-now', requireRole(['admin', 'manager']), async (req:
       countryCode: paymentEvent.country_code || null,
       customerEmail: paymentEvent.customer_email || null,
       providerEventId: verification?.data?.id ? String(verification.data.id) : null,
-      subscriptionId:
-        verification?.data?.subscription?.subscription_code
-          ? String(verification.data.subscription.subscription_code)
-          : paymentEvent.subscription_id || null,
-      invoiceId:
-        verification?.data?.invoice_id
-          ? String(verification.data.invoice_id)
-          : paymentEvent.invoice_id || null,
+      subscriptionId: verification?.data?.subscription?.subscription_code
+        ? String(verification.data.subscription.subscription_code)
+        : paymentEvent.subscription_id || null,
+      invoiceId: verification?.data?.invoice_id
+        ? String(verification.data.invoice_id)
+        : paymentEvent.invoice_id || null,
       gatewayPayload: verification?.data || {},
       verifiedAt: nowIso,
       recoveredAt: nowIso,
@@ -890,7 +883,10 @@ router.post('/billing/resolve', requireRole(['admin', 'manager']), async (req: A
       return res.status(400).json({ success: false, error: 'reference is required' });
     }
     if (!['reconciled', 'cancelled'].includes(resolutionStatus)) {
-      return res.status(400).json({ success: false, error: 'status must be reconciled or cancelled' });
+      return res.status(400).json({
+        success: false,
+        error: 'status must be reconciled or cancelled',
+      });
     }
 
     const paymentEvent = await fetchPaymentEventByReference(reference);
@@ -932,8 +928,7 @@ router.post('/billing/resolve', requireRole(['admin', 'manager']), async (req: A
       verifiedAt: resolutionStatus === 'reconciled' ? nowIso : null,
       recoveredAt: resolutionStatus === 'reconciled' ? nowIso : null,
       reconciledBy: req.user?.id || paymentEvent.user_id,
-      reconciliationNotes:
-        notes || `Marked ${resolutionStatus} by billing ops.`,
+      reconciliationNotes: notes || `Marked ${resolutionStatus} by billing ops.`,
       nextRetryAt: null,
       recoveryStatus: resolutionStatus === 'reconciled' ? 'recovered' : 'abandoned',
       transitionMetadata: {
@@ -987,9 +982,7 @@ router.get('/billing/export', requireRole(['admin', 'manager']), async (req: Aut
       .limit(1000);
 
     if (search) {
-      query = query.or(
-        `reference.ilike.%${search}%,customer_email.ilike.%${search}%,plan_name.ilike.%${search}%`,
-      );
+      query = query.or(`reference.ilike.%${search}%,customer_email.ilike.%${search}%,plan_name.ilike.%${search}%`);
     }
     if (statusFilter) {
       query = query.eq('status', statusFilter);

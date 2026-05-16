@@ -25,11 +25,7 @@ interface PaywallProps {
 
 const MotionDiv = motion.div as any;
 
-export const Paywall: React.FC<PaywallProps> = ({
-  feature = 'Premium Features',
-  onClose,
-  onUpgrade,
-}) => {
+export const Paywall: React.FC<PaywallProps> = ({ feature = 'Premium Features', onClose, onUpgrade }) => {
   const { currentBaby } = useAppContext();
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPeriod>('annual');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,9 +39,10 @@ export const Paywall: React.FC<PaywallProps> = ({
   const annualPlan = plans.find((plan) => plan.id === 'premium-yearly') || SUBSCRIPTION_PLANS[1];
   const monthlyAmount = resolveSubscriptionPlanAmount(monthlyPlan, currentBaby?.country);
   const annualAmount = resolveSubscriptionPlanAmount(annualPlan, currentBaby?.country);
-  const annualSavings = monthlyAmount > 0
-    ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100))
-    : Number(pricing.annual.savings) || 17;
+  const annualSavings =
+    monthlyAmount > 0
+      ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100))
+      : Number(pricing.annual.savings) || 17;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -141,12 +138,8 @@ export const Paywall: React.FC<PaywallProps> = ({
       >
         <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl p-8 flex items-center justify-between border-b border-border-gray dark:border-zinc-800">
           <div>
-            <h2 className="text-2xl font-headline font-black text-foreground tracking-tighter">
-              Unlock Sanctuary
-            </h2>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mt-1">
-              {feature}
-            </p>
+            <h2 className="text-2xl font-headline font-black text-foreground tracking-tighter">Unlock Sanctuary</h2>
+            <p className="text-[10px] font-black text-secondary uppercase tracking-widest mt-1">{feature}</p>
           </div>
           <button
             onClick={onClose}
@@ -172,14 +165,15 @@ export const Paywall: React.FC<PaywallProps> = ({
           )}
 
           {!premiumAccessLoading && !premiumAccess.enabled && (
-            <div className="flex items-start gap-4 rounded-[2rem] border border-amber-200 bg-amber-50 p-6 dark:border-amber-900/50 dark:bg-amber-950/20">
-              <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
+            <div className="flex items-start gap-4 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <AlertCircle className="shrink-0 text-emerald-600 dark:text-emerald-300" size={20} />
               <div>
-                <p className="text-sm font-black text-amber-800 dark:text-amber-200">
-                  Premium packages are paused
+                <p className="text-sm font-black text-emerald-800 dark:text-emerald-200">
+                  Premium access is open for testing
                 </p>
-                <p className="mt-1 text-[11px] font-bold leading-relaxed text-amber-700 dark:text-amber-300">
-                  {premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON}
+                <p className="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700 dark:text-emerald-300">
+                  {premiumAccess.reason ||
+                    'Premium tools are available without checkout while Babycore tests packages.'}
                 </p>
               </div>
             </div>
@@ -241,17 +235,13 @@ export const Paywall: React.FC<PaywallProps> = ({
                 >
                   {locationConfig.currency} {annualAmount.toFixed(2)}
                 </p>
-                <p className="text-[10px] font-bold text-text-dim mt-2 italic">
-                  Save {annualSavings}%
-                </p>
+                <p className="text-[10px] font-bold text-text-dim mt-2 italic">Save {annualSavings}%</p>
               </button>
             </div>
           </div>
 
           <div className="space-y-6">
-            <p className="text-[10px] font-black text-text-light uppercase tracking-widest px-2">
-              Sanctuary Utilities
-            </p>
+            <p className="text-[10px] font-black text-text-light uppercase tracking-widest px-2">Sanctuary Utilities</p>
             <div className="grid grid-cols-1 gap-3">
               {premiumFeatures.map((item) => (
                 <div
@@ -265,9 +255,7 @@ export const Paywall: React.FC<PaywallProps> = ({
                     <p className="font-headline font-black text-sm text-foreground tracking-tight leading-none">
                       {item.title}
                     </p>
-                    <p className="text-[11px] font-bold text-text-dim leading-tight mt-1.5">
-                      {item.description}
-                    </p>
+                    <p className="text-[11px] font-bold text-text-dim leading-tight mt-1.5">{item.description}</p>
                   </div>
                 </div>
               ))}
@@ -284,7 +272,7 @@ export const Paywall: React.FC<PaywallProps> = ({
             ) : premiumAccessLoading ? (
               <>Checking Premium...</>
             ) : !premiumAccess.enabled ? (
-              <>Premium Paused</>
+              <>Premium Open For Testing</>
             ) : (
               <>Initialize {selectedPlan} Sanctuary</>
             )}

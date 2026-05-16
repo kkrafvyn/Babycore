@@ -10,7 +10,7 @@ export interface PaymentCollectionConfig {
 export const DEFAULT_PAYMENT_COLLECTION_REASON =
   'Payments are disabled while Babycore completes full-app testing before marketing.';
 export const DEFAULT_PREMIUM_ACCESS_REASON =
-  'Premium features are disabled while Babycore completes package testing before marketing.';
+  'Premium enforcement is open while Babycore completes package testing before marketing.';
 
 export const DEFAULT_PAYMENT_COLLECTION_CONFIG: PaymentCollectionConfig = {
   enabled: false,
@@ -34,9 +34,7 @@ export interface PaymentFeatureConfig {
 const normalizePaymentCollectionConfig = (value: any): PaymentCollectionConfig => ({
   enabled: Boolean(value?.enabled),
   reason:
-    typeof value?.reason === 'string' && value.reason.trim()
-      ? value.reason.trim()
-      : DEFAULT_PAYMENT_COLLECTION_REASON,
+    typeof value?.reason === 'string' && value.reason.trim() ? value.reason.trim() : DEFAULT_PAYMENT_COLLECTION_REASON,
   source: value?.source || 'fallback',
   updatedAt: value?.updatedAt || null,
 });
