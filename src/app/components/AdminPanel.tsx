@@ -709,6 +709,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     : premiumAccessEnabled
       ? "Restricted"
       : "Open";
+  const paymentControlsReady = Boolean(paymentCollection && premiumAccess);
+  const userPremiumAccessOpen =
+    paymentControlsReady && (!paymentCollectionEnabled || !premiumAccessEnabled);
+  const userPremiumAccessStatusLabel =
+    paymentCollectionLoading || !paymentControlsReady
+      ? "Checking"
+      : userPremiumAccessOpen
+        ? "Open"
+        : "Plan Required";
+  const userPremiumAccessReason = !paymentControlsReady
+    ? "Checking latest payment controls."
+    : !paymentCollectionEnabled
+      ? "Payments are paused, so premium tools are open automatically during QA."
+      : !premiumAccessEnabled
+        ? "Premium access is explicitly open for user testing."
+        : "Payments and premium enforcement are both on.";
   const activeSectionMeta = useMemo(
     () =>
       ADMIN_SECTIONS.find((section) => section.id === activeSection) ||
@@ -881,6 +897,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   >
                     Payments {paymentCollectionStatusLabel}
                   </span>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      paymentCollectionLoading || !paymentControlsReady
+                        ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                        : userPremiumAccessOpen
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                    }`}
+                  >
+                    User Premium {userPremiumAccessStatusLabel}
+                  </span>
                 </div>
 
                 <p className="text-[10px] font-black uppercase tracking-[0.32em] text-text-light">
@@ -1008,6 +1035,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   >
                     {paymentCollectionStatusLabel}
                   </span>
+                </div>
+
+                <div
+                  className={`relative overflow-hidden rounded-[2.35rem] border p-5 shadow-xl backdrop-blur-xl ${
+                    paymentCollectionLoading || !paymentControlsReady
+                      ? "border-white/70 bg-white/80 shadow-slate-950/5 dark:border-white/10 dark:bg-zinc-950/70"
+                      : userPremiumAccessOpen
+                        ? "border-emerald-200/80 bg-emerald-50/85 shadow-emerald-950/5 dark:border-emerald-400/20 dark:bg-emerald-950/20"
+                        : "border-rose-200/80 bg-rose-50/85 shadow-rose-950/5 dark:border-rose-400/20 dark:bg-rose-950/20"
+                  }`}
+                >
+                  <div className="absolute right-[-2rem] top-[-3rem] h-28 w-28 rounded-full bg-white/50 blur-2xl dark:bg-white/10" />
+                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                          userPremiumAccessOpen
+                            ? "bg-emerald-500 text-white"
+                            : "bg-slate-950 text-white dark:bg-white dark:text-zinc-950"
+                        }`}
+                      >
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
+                          Effective user access
+                        </p>
+                        <p className="mt-1 text-lg font-headline font-black tracking-tight text-foreground">
+                          {userPremiumAccessOpen
+                            ? "Users can open premium tools"
+                            : paymentCollectionLoading || !paymentControlsReady
+                              ? "Checking premium access"
+                              : "Users need an active plan"}
+                        </p>
+                        <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-text-dim">
+                          {userPremiumAccessReason}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center sm:w-80">
+                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                          Payments
+                        </p>
+                        <p className="mt-1 text-xs font-black text-foreground">
+                          {paymentCollectionStatusLabel}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                          Premium
+                        </p>
+                        <p className="mt-1 text-xs font-black text-foreground">
+                          {premiumAccessStatusLabel}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                          Result
+                        </p>
+                        <p className="mt-1 text-xs font-black text-foreground">
+                          {userPremiumAccessStatusLabel}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
