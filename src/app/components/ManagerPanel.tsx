@@ -136,6 +136,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   >(null);
   const [activeSection, setActiveSection] =
     useState<ManagerSectionId>("overview");
+  const mainRef = React.useRef<HTMLElement | null>(null);
 
   const loadWorkspace = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -196,10 +197,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   const handleSectionChange = (sectionId: ManagerSectionId) => {
     setActiveSection(sectionId);
     window.requestAnimationFrame(() => {
-      document.getElementById(`manager-${sectionId}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
   };
 
@@ -325,7 +323,10 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
         </div>
       </header>
 
-      <main className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36">
+      <main
+        ref={mainRef}
+        className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36"
+      >
         <nav
           className="fixed left-5 top-28 z-40 hidden lg:block"
           aria-label="Manager sections"
@@ -467,7 +468,10 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
             </div>
           ) : (
             <>
-              <div id="manager-overview" className="space-y-4 scroll-mt-36">
+              <div
+                id="manager-overview"
+                className={activeSection === "overview" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Snapshot
                 </h3>
@@ -488,7 +492,10 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="manager-billing" className="space-y-4 scroll-mt-36">
+              <div
+                id="manager-billing"
+                className={activeSection === "billing" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Billing Recovery
                 </h3>
@@ -602,7 +609,10 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="manager-activity" className="space-y-4 scroll-mt-36">
+              <div
+                id="manager-activity"
+                className={activeSection === "activity" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Activity Trail
                 </h3>
@@ -631,7 +641,10 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="manager-reports" className="space-y-4 scroll-mt-36">
+              <div
+                id="manager-reports"
+                className={activeSection === "reports" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Reports
                 </h3>
@@ -667,10 +680,23 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 </div>
               </div>
 
-              <div id="manager-permissions" className="space-y-4 scroll-mt-36">
+              <div
+                id="manager-permissions"
+                className={activeSection === "permissions" ? "space-y-4" : "hidden"}
+              >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
                   Role Powers
                 </h3>
+                <div className="rounded-[2rem] border border-sky-200/80 bg-sky-50/85 p-5 shadow-xl shadow-sky-950/5 backdrop-blur-xl dark:border-sky-400/20 dark:bg-sky-950/20">
+                  <p className="text-[9px] font-black uppercase tracking-[0.24em] text-sky-700 dark:text-sky-300">
+                    Role boundary
+                  </p>
+                  <p className="mt-2 text-sm font-bold leading-relaxed text-sky-950 dark:text-sky-50">
+                    Managers can review the powers enabled for this limited
+                    admin role. Switching account roles stays in Admin Settings
+                    only.
+                  </p>
+                </div>
                 <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
                   {permissionEntries.map(([permission, enabled]) => (
                     <div
