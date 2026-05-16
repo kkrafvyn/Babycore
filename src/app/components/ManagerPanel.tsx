@@ -32,7 +32,7 @@ type ManagerSectionId =
   | "billing"
   | "activity"
   | "reports"
-  | "permissions";
+  | "settings";
 
 const MotionDiv = motion.div as any;
 
@@ -80,12 +80,12 @@ const MANAGER_SECTIONS: Array<{
     Icon: ClipboardList,
   },
   {
-    id: "permissions",
-    label: "Access",
+    id: "settings",
+    label: "Settings",
     eyebrow: "Role Boundary",
-    title: "Manager Permissions",
+    title: "Manager Settings",
     description:
-      "See exactly which admin powers are available to this manager role.",
+      "Review manager permissions and confirm role changes stay admin-only.",
     Icon: ShieldCheck,
   },
 ];
@@ -681,11 +681,11 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
               </div>
 
               <div
-                id="manager-permissions"
-                className={activeSection === "permissions" ? "space-y-4" : "hidden"}
+                id="manager-settings"
+                className={activeSection === "settings" ? "space-y-4" : "hidden"}
               >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Role Powers
+                  Manager Settings
                 </h3>
                 <div className="rounded-[2rem] border border-sky-200/80 bg-sky-50/85 p-5 shadow-xl shadow-sky-950/5 backdrop-blur-xl dark:border-sky-400/20 dark:bg-sky-950/20">
                   <p className="text-[9px] font-black uppercase tracking-[0.24em] text-sky-700 dark:text-sky-300">
@@ -693,8 +693,8 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                   </p>
                   <p className="mt-2 text-sm font-bold leading-relaxed text-sky-950 dark:text-sky-50">
                     Managers can review the powers enabled for this limited
-                    admin role. Switching account roles stays in Admin Settings
-                    only.
+                    admin role. They cannot switch account roles here; role
+                    changes stay in full Admin Settings only.
                   </p>
                 </div>
                 <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
