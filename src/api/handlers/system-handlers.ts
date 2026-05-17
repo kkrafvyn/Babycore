@@ -7,45 +7,21 @@ import { resolveFallbackRoleFromUser } from '../utils/effective-role.js';
 import { getRoleDistribution } from '../utils/role-manager.js';
 import { ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
-
-const isTruthy = (value: string | undefined): boolean => Boolean(value && value.trim().length > 0);
+import {
+  getRuntimeEnvironment,
+  hasValue,
+  isLocalUrl,
+  isPlaceholder,
+  isProductionRuntime,
+  isTruthy,
+} from '../utils/runtime-config.js';
 
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const INVITE_ROLES = new Set(['editor', 'viewer', 'caregiver', 'doctor']);
 const INVITE_VIEWS = new Set(['patients', 'family-sharing']);
 
-const isLikelyPlaceholder = (value: string | undefined): boolean => {
-  if (!value) return true;
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return true;
-  return (
-    normalized.includes('your_') ||
-    normalized.includes('example') ||
-    normalized.includes('changeme') ||
-    normalized.includes('replace_me') ||
-    normalized.includes('placeholder')
-  );
-};
-
-const isLocalUrl = (value: string | undefined): boolean => {
-  if (!value) return false;
-
-  try {
-    const parsed = new URL(value);
-    return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
-  } catch {
-    return false;
-  }
-};
-
 const isTrueEnvFlag = (value: string | undefined): boolean =>
   TRUE_VALUES.has(String(value || '').trim().toLowerCase());
-
-const getRuntimeEnvironment = (): string =>
-  process.env.VERCEL_ENV || process.env.NODE_ENV || 'production';
-
-const isProductionRuntime = (): boolean =>
-  process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
 
 const escapeHtml = (value: string): string =>
   value
@@ -75,13 +51,13 @@ const isGenericEmailEndpointEnabled = (): boolean =>
   isTrueEnvFlag(process.env.ENABLE_GENERIC_EMAIL_ENDPOINT);
 
 const hasSupabasePublishableKey = (): boolean =>
-  isTruthy(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) || isTruthy(process.env.VITE_SUPABASE_ANON_KEY);
+  hasValue(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) || hasValue(process.env.VITE_SUPABASE_ANON_KEY);
 
 const hasFcmHttpV1Config = (): boolean => {
   const serviceAccountFile =
     process.env.FCM_SERVICE_ACCOUNT_JSON_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  if (isTruthy(serviceAccountFile) && !isLikelyPlaceholder(serviceAccountFile)) {
+  if (hasValue(serviceAccountFile) && !isPlaceholder(serviceAccountFile)) {
     return true;
   }
 
@@ -91,7 +67,7 @@ const hasFcmHttpV1Config = (): boolean => {
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
-  if (isTruthy(serviceAccountJson) && !isLikelyPlaceholder(serviceAccountJson)) {
+  if (hasValue(serviceAccountJson) && !isPlaceholder(serviceAccountJson)) {
     return true;
   }
 
@@ -110,19 +86,19 @@ const hasFcmHttpV1Config = (): boolean => {
     process.env.GOOGLE_PRIVATE_KEY;
 
   return (
-    isTruthy(projectId) &&
-    !isLikelyPlaceholder(projectId) &&
-    isTruthy(clientEmail) &&
-    !isLikelyPlaceholder(clientEmail) &&
-    isTruthy(privateKey) &&
-    !isLikelyPlaceholder(privateKey)
+    hasValue(projectId) &&
+    !isPlaceholder(projectId) &&
+    hasValue(clientEmail) &&
+    !isPlaceholder(clientEmail) &&
+    hasValue(privateKey) &&
+    !isPlaceholder(privateKey)
   );
 };
 
 const hasApnsAuthConfig = (): boolean => {
   const authKeyFile = process.env.APNS_AUTH_KEY_P8_FILE || process.env.APNS_AUTH_KEY_FILE;
 
-  if (isTruthy(authKeyFile) && !isLikelyPlaceholder(authKeyFile)) {
+  if (hasValue(authKeyFile) && !isPlaceholder(authKeyFile)) {
     return true;
   }
 
@@ -131,12 +107,12 @@ const hasApnsAuthConfig = (): boolean => {
   const keyId = process.env.APNS_KEY_ID || process.env.APPLE_KEY_ID;
 
   return (
-    isTruthy(authKey) &&
-    !isLikelyPlaceholder(authKey) &&
-    isTruthy(teamId) &&
-    !isLikelyPlaceholder(teamId) &&
-    isTruthy(keyId) &&
-    !isLikelyPlaceholder(keyId)
+    hasValue(authKey) &&
+    !isPlaceholder(authKey) &&
+    hasValue(teamId) &&
+    !isPlaceholder(teamId) &&
+    hasValue(keyId) &&
+    !isPlaceholder(keyId)
   );
 };
 
@@ -351,28 +327,29 @@ export function healthCheckHandler(_req: Request, res: Response): void {
 export function healthConfigHandler(_req: Request, res: Response): void {
   const checks = {
     supabaseFrontendUrl:
-      isTruthy(process.env.VITE_SUPABASE_URL) && !isLikelyPlaceholder(process.env.VITE_SUPABASE_URL),
+      hasValue(process.env.VITE_SUPABASE_URL) && !isPlaceholder(process.env.VITE_SUPABASE_URL),
     supabaseFrontendKey: hasSupabasePublishableKey(),
     supabaseServerUrl:
-      isTruthy(process.env.SUPABASE_URL) && !isLikelyPlaceholder(process.env.SUPABASE_URL),
+      hasValue(process.env.SUPABASE_URL) && !isPlaceholder(process.env.SUPABASE_URL),
     supabaseServiceKey:
-      (isTruthy(process.env.SUPABASE_SERVICE_KEY) || isTruthy(process.env.SUPABASE_SERVICE_ROLE_KEY)) &&
-      !isLikelyPlaceholder(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
+      (hasValue(process.env.SUPABASE_SERVICE_KEY) || hasValue(process.env.SUPABASE_SERVICE_ROLE_KEY)) &&
+      !isPlaceholder(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
     paystackPublicKey:
-      isTruthy(process.env.VITE_PAYSTACK_PUBLIC_KEY) &&
-      !isLikelyPlaceholder(process.env.VITE_PAYSTACK_PUBLIC_KEY),
+      hasValue(process.env.VITE_PAYSTACK_PUBLIC_KEY) &&
+      !isPlaceholder(process.env.VITE_PAYSTACK_PUBLIC_KEY),
     paystackSecretKey:
-      (isTruthy(process.env.PAYSTACK_SECRET_KEY) || isTruthy(process.env.PAYSTACK_SERVICE_KEY)) &&
-      !isLikelyPlaceholder(process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SERVICE_KEY),
+      (hasValue(process.env.PAYSTACK_SECRET_KEY) || hasValue(process.env.PAYSTACK_SERVICE_KEY)) &&
+      !isPlaceholder(process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SERVICE_KEY),
     oauthRedirectConfigured:
-      isTruthy(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL) &&
+      hasValue(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL) &&
+      !isPlaceholder(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL) &&
       !isLocalUrl(process.env.VITE_SUPABASE_AUTH_REDIRECT_URL),
     vapidPublicKey:
-      isTruthy(process.env.VITE_VAPID_PUBLIC_KEY) &&
-      !isLikelyPlaceholder(process.env.VITE_VAPID_PUBLIC_KEY),
+      hasValue(process.env.VITE_VAPID_PUBLIC_KEY) &&
+      !isPlaceholder(process.env.VITE_VAPID_PUBLIC_KEY),
     vapidPrivateKey:
-      isTruthy(process.env.VAPID_PRIVATE_KEY) &&
-      !isLikelyPlaceholder(process.env.VAPID_PRIVATE_KEY),
+      hasValue(process.env.VAPID_PRIVATE_KEY) &&
+      !isPlaceholder(process.env.VAPID_PRIVATE_KEY),
     fcmHttpV1: hasFcmHttpV1Config(),
     apnsAuth: hasApnsAuthConfig(),
   };

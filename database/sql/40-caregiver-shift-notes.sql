@@ -1,0 +1,122 @@
+-- ============================================================================
+-- CAREGIVER SHIFT NOTES
+-- Durable handoff notes for caregiver sessions. Viewers can read notes through
+-- the app, while write access stays limited to owners and editable care roles.
+-- ============================================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS public.caregiver_shift_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  baby_id UUID NOT NULL REFERENCES public.babies(id) ON DELETE CASCADE,
+  author_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'saved' CHECK (status IN ('draft', 'saved')),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_caregiver_shift_notes_baby_updated
+  ON public.caregiver_shift_notes(baby_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_caregiver_shift_notes_author_updated
+  ON public.caregiver_shift_notes(author_id, updated_at DESC);
+
+ALTER TABLE public.caregiver_shift_notes ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc
+    WHERE proname = 'set_updated_at_now'
+      AND pg_function_is_visible(oid)
+  ) THEN
+    DROP TRIGGER IF EXISTS set_caregiver_shift_notes_updated_at ON public.caregiver_shift_notes;
+    CREATE TRIGGER set_caregiver_shift_notes_updated_at
+      BEFORE UPDATE ON public.caregiver_shift_notes
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_updated_at_now();
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS "Caregiver shift notes readable by care team" ON public.caregiver_shift_notes;
+CREATE POLICY "Caregiver shift notes readable by care team"
+ON public.caregiver_shift_notes
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = caregiver_shift_notes.baby_id
+      AND b.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.family_sharing_invites fsi
+    WHERE fsi.baby_id = caregiver_shift_notes.baby_id
+      AND fsi.accepted_at IS NOT NULL
+      AND (
+        fsi.accepted_by = auth.uid()
+        OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.doctor_baby_assignments dba
+    WHERE dba.baby_id = caregiver_shift_notes.baby_id
+      AND dba.doctor_id = auth.uid()
+      AND dba.status = 'active'
+  )
+);
+
+DROP POLICY IF EXISTS "Caregiver shift notes writable by editable care team" ON public.caregiver_shift_notes;
+CREATE POLICY "Caregiver shift notes writable by editable care team"
+ON public.caregiver_shift_notes
+FOR INSERT
+WITH CHECK (
+  author_id = auth.uid()
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM public.babies b
+      WHERE b.id = caregiver_shift_notes.baby_id
+        AND b.user_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.family_sharing_invites fsi
+      WHERE fsi.baby_id = caregiver_shift_notes.baby_id
+        AND fsi.accepted_at IS NOT NULL
+        AND fsi.role IN ('owner', 'editor', 'caregiver', 'doctor')
+        AND (
+          fsi.accepted_by = auth.uid()
+          OR lower(fsi.invited_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+        )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.doctor_baby_assignments dba
+      WHERE dba.baby_id = caregiver_shift_notes.baby_id
+        AND dba.doctor_id = auth.uid()
+        AND dba.status = 'active'
+    )
+  )
+);
+
+DROP POLICY IF EXISTS "Caregiver shift notes updatable by author or owner" ON public.caregiver_shift_notes;
+CREATE POLICY "Caregiver shift notes updatable by author or owner"
+ON public.caregiver_shift_notes
+FOR UPDATE
+USING (
+  author_id = auth.uid()
+  OR EXISTS (
+    SELECT 1
+    FROM public.babies b
+    WHERE b.id = caregiver_shift_notes.baby_id
+      AND b.user_id = auth.uid()
+  )
+)
+WITH CHECK (
+  author_id = auth.uid()
+);

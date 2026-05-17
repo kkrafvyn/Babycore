@@ -55,6 +55,16 @@ export interface SharingActivityLog {
   created_at: string;
 }
 
+export interface CaregiverShiftNote {
+  id: string;
+  baby_id: string;
+  author_id?: string;
+  note: string;
+  status: 'draft' | 'saved';
+  created_at: string;
+  updated_at: string;
+}
+
 const isLocalBrowserHost = (): boolean => {
   if (typeof window === 'undefined') {
     return false;
@@ -562,6 +572,88 @@ export async function getSharingActivityLog(
   } catch (err) {
     console.error('Error fetching activity log:', err);
     return [];
+  }
+}
+
+export async function getCaregiverShiftNote(babyId: string): Promise<CaregiverShiftNote | null> {
+  try {
+    try {
+      const backendResponse = await callFamilyApi<{
+        success: boolean;
+        data?: CaregiverShiftNote | null;
+      }>(`/family/shift-note?babyId=${encodeURIComponent(babyId)}`, {
+        method: 'GET',
+      });
+
+      if (backendResponse) {
+        return backendResponse.data || null;
+      }
+
+      if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    } catch (backendError) {
+      console.warn('Backend caregiver shift note fetch failed.', backendError);
+      if (!shouldAllowDirectSupabaseFallback()) {
+        return null;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('caregiver_shift_notes')
+      .select('*')
+      .eq('baby_id', babyId)
+      .eq('status', 'saved')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || null;
+  } catch (err) {
+    console.error('Error fetching caregiver shift note:', err);
+    return null;
+  }
+}
+
+export async function saveCaregiverShiftNote(
+  babyId: string,
+  note: string,
+): Promise<CaregiverShiftNote | null> {
+  try {
+    const backendResponse = await callFamilyApi<{
+      success: boolean;
+      data?: CaregiverShiftNote;
+    }>('/family/shift-note', {
+      method: 'PUT',
+      body: JSON.stringify({ babyId, note }),
+    });
+
+    if (backendResponse?.data) {
+      return backendResponse.data;
+    }
+
+    if (backendResponse === null && !shouldAllowDirectSupabaseFallback()) {
+      return null;
+    }
+
+    const userId = await getCurrentUserId();
+    const { data, error } = await supabase
+      .from('caregiver_shift_notes')
+      .insert({
+        baby_id: babyId,
+        author_id: userId,
+        note,
+        status: 'saved',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data || null;
+  } catch (err) {
+    console.error('Error saving caregiver shift note:', err);
+    return null;
   }
 }
 

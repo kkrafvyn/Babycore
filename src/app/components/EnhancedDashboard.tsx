@@ -41,6 +41,7 @@ import { getAdminAccountMode, isPrimaryAdminEmail } from '../../lib/admin-accoun
 import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 import { fetchPaymentFeatureConfig } from '../../lib/payment-config';
+import { canOpenAppViewForRole, isReadOnlyViewerRole, isViewerAllowedView } from '../../lib/role-access';
 
 type ViewMode = AppView;
 
@@ -156,6 +157,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
   const [premiumTestingAccessOpen, setPremiumTestingAccessOpen] = useState(false);
+  const [readonlyNotice, setReadonlyNotice] = useState<string | null>(null);
   const hasPremiumAccess = premiumTestingAccessOpen || isPremiumSubscriptionActive(settings?.subscriptionStatus);
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) || 'baby';
@@ -163,6 +165,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const primaryAdminModeActive =
     isPrimaryAdminEmail(user?.email) && getAdminAccountMode(user?.user_metadata) === 'admin';
   const effectiveUserRole = primaryAdminModeActive ? 'admin' : userRole;
+  const isViewerReadOnly = isReadOnlyViewerRole(effectiveUserRole);
 
   const sorted = (arr: any[], key: string) =>
     [...arr].sort((a, b) => new Date(b[key]).getTime() - new Date(a[key]).getTime());
@@ -256,11 +259,25 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
   const openView = (view: ViewMode, label?: string) => {
     const premiumFeature = PREMIUM_FEATURE_BY_VIEW[view];
-    if (premiumFeature && !hasPremiumAccess) {
+    const accessDecision = canOpenAppViewForRole({
+      role: effectiveUserRole,
+      view,
+      hasPremiumAccess,
+      premiumFeature,
+    });
+
+    if (!accessDecision.allowed && accessDecision.reason === 'read_only') {
+      setReadonlyNotice(`${label || 'This area'} is locked in viewer mode. Viewer access can review records but cannot edit care data or billing.`);
+      return;
+    }
+
+    if (!accessDecision.allowed && accessDecision.reason === 'premium') {
       setPendingPremiumView(view);
       setPaywallFeature(label || 'Premium Feature');
       return;
     }
+
+    setReadonlyNotice(null);
     changeView(view);
   };
 
@@ -306,6 +323,13 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       setActiveView(requestedView);
     }
   }, [requestedView, activeView]);
+
+  useEffect(() => {
+    if (!isViewerReadOnly || isViewerAllowedView(activeView)) return;
+
+    setReadonlyNotice('Viewer mode is read-only, so we moved you back to the dashboard.');
+    changeView('dashboard');
+  }, [activeView, changeView, isViewerReadOnly]);
 
   useEffect(() => {
     if (!currentBaby) return;
@@ -526,25 +550,178 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         : i18nT('dashboard.greetingEvening');
   const carePlanSummary = getCareProfileSummary(accountProfileType, settings?.careProfilePreferences);
   const carePlanBadges = getCareProfileBadges(accountProfileType, settings?.careProfilePreferences);
+  const isToday = (value?: string | null) => {
+    if (!value) return false;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.toDateString() === new Date().toDateString();
+  };
+  const nextCareFocus = nextVaccine
+    ? nextVaccine.status === 'overdue'
+      ? {
+          label: 'Overdue vaccine',
+          title: nextVaccine.name.split('(')[0].trim(),
+          detail:
+            vaccineDaysUntil !== null
+              ? `${Math.abs(vaccineDaysUntil)} day${Math.abs(vaccineDaysUntil) === 1 ? '' : 's'} overdue`
+              : 'Needs review',
+          tone: 'border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-400/20 dark:bg-rose-950/20 dark:text-rose-300',
+          action: 'Review vaccines',
+          view: 'vaccination' as ViewMode,
+          icon: <AlertTriangle size={18} />,
+        }
+      : {
+          label: 'Next vaccine',
+          title: nextVaccine.name.split('(')[0].trim(),
+          detail:
+            vaccineDaysUntil !== null
+              ? vaccineDaysUntil <= 0
+                ? 'Due today'
+                : `Due in ${vaccineDaysUntil} day${vaccineDaysUntil === 1 ? '' : 's'}`
+              : 'Scheduled',
+          tone: 'border-amber-200 bg-amber-50/80 text-amber-700 dark:border-amber-400/20 dark:bg-amber-950/20 dark:text-amber-300',
+          action: 'Plan visit',
+          view: 'vaccination' as ViewMode,
+          icon: <Syringe size={18} />,
+        }
+    : latestFeed
+      ? {
+          label: 'Latest feed',
+          title: feedLabel,
+          detail: feedSub,
+          tone: 'border-emerald-200 bg-emerald-50/80 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-950/20 dark:text-emerald-300',
+          action: 'Log feeding',
+          view: 'feeding' as ViewMode,
+          icon: <Droplets size={18} />,
+        }
+      : {
+          label: 'Start today',
+          title: 'Log the first care moment',
+          detail: 'Track feeding, sleep, or diaper changes as they happen.',
+          tone: 'border-sky-200 bg-sky-50/80 text-sky-700 dark:border-sky-400/20 dark:bg-sky-950/20 dark:text-sky-300',
+          action: 'Log feeding',
+          view: 'feeding' as ViewMode,
+          icon: <Sparkles size={18} />,
+        };
+  const careTeamHomeCopy =
+    accountProfileType === 'doctor'
+      ? {
+          eyebrow: 'Doctor Home',
+          title: 'Start with your patient list',
+          description:
+            'Accept shared profiles, complete your doctor record, and open the clinic panel when patients are assigned.',
+          primary: 'Open My Patients',
+          secondary: 'Clinic Panel',
+          secondaryView: 'clinic-panel' as ViewMode,
+        }
+      : {
+          eyebrow: 'Caregiver Home',
+          title: 'Your daily care handoff starts here',
+          description:
+            'Accept shared babies, choose an active profile, then use handoff tasks to coordinate the next care block.',
+          primary: 'Open Assigned Babies',
+          secondary: 'Settings',
+          secondaryView: 'settings' as ViewMode,
+        };
+  const todayPlanItems = [
+    {
+      label: 'Feeding',
+      detail: latestFeed ? feedSub : 'Log the first feed when baby eats.',
+      completed: isToday(latestFeed?.timestamp),
+      view: 'feeding' as ViewMode,
+      Icon: Droplets,
+    },
+    {
+      label: 'Sleep',
+      detail: isSleeping ? `Sleeping now for ${sleepLabel}` : latestSleep ? sleepSub : 'Start or log the first nap.',
+      completed: isSleeping || isToday(latestSleep?.startTime),
+      view: 'sleep' as ViewMode,
+      Icon: Moon,
+    },
+    {
+      label: 'Diaper',
+      detail: latestDiaper ? diaperSub : 'Capture the next diaper change.',
+      completed: isToday(latestDiaper?.timestamp),
+      view: 'diaper' as ViewMode,
+      Icon: Droplets,
+    },
+    {
+      label: 'Medication',
+      detail: 'Review health records and reminders.',
+      completed: false,
+      view: 'health-records' as ViewMode,
+      Icon: Heart,
+    },
+    {
+      label: 'Vaccines',
+      detail: nextVaccine
+        ? nextVaccine.status === 'overdue'
+          ? `${nextVaccine.name.split('(')[0].trim()} is overdue.`
+          : `${nextVaccine.name.split('(')[0].trim()} is coming up.`
+        : 'No upcoming vaccines found.',
+      completed: !nextVaccine,
+      view: 'vaccination' as ViewMode,
+      Icon: Syringe,
+    },
+    {
+      label: 'Growth',
+      detail: 'Add measurements when you have a new weight or height.',
+      completed: false,
+      view: 'growth' as ViewMode,
+      Icon: TrendingUp,
+    },
+  ];
 
   const renderDashboard = () => {
     if (isCareTeamProfile && babies.length === 0) {
       return (
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-border-gray bg-surface p-6 sm:p-8 dark:border-zinc-800">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-light">Care Team</p>
-            <h2 className="mt-3 text-2xl font-headline font-black tracking-tight text-foreground">
-              Manage Shared Patients
-            </h2>
-            <p className="mt-2 text-sm font-semibold text-text-light">
-              Parents can share baby profiles with you. Accept a pending share to add that baby to your list.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
+          <div className="relative overflow-hidden rounded-[2.75rem] border border-white/70 bg-white/85 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8">
+            <div className="pointer-events-none absolute -right-14 -top-20 h-52 w-52 rounded-full bg-sky-200/70 blur-3xl dark:bg-sky-500/10" />
+            <div className="relative">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
+                <Users size={13} />
+                {careTeamHomeCopy.eyebrow}
+              </div>
+              <h2 className="max-w-xl text-3xl font-headline font-black tracking-[-0.05em] text-foreground sm:text-4xl">
+                {careTeamHomeCopy.title}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
+                {careTeamHomeCopy.description}
+              </p>
+            </div>
+            <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                { label: 'Step 1', value: 'Accept invite', helper: 'Parents share access to your email.' },
+                { label: 'Step 2', value: 'Select profile', helper: 'Make the baby active for care tools.' },
+                {
+                  label: 'Step 3',
+                  value: accountProfileType === 'doctor' ? 'Review care' : 'Coordinate handoff',
+                  helper: accountProfileType === 'doctor' ? 'Open clinic and follow-ups.' : 'Track tasks and sessions.',
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[1.65rem] border border-slate-200/80 bg-white/75 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                >
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">{item.label}</p>
+                  <p className="mt-2 text-sm font-headline font-black text-foreground">{item.value}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-text-dim">{item.helper}</p>
+                </div>
+              ))}
+            </div>
+            <div className="relative mt-6 flex flex-wrap gap-3">
               <button
                 onClick={() => openView('patients')}
                 className="rounded-2xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
               >
-                Open My Patients
+                {careTeamHomeCopy.primary}
+              </button>
+              <button
+                onClick={() => openView(careTeamHomeCopy.secondaryView)}
+                className="rounded-2xl border border-border-gray bg-white/70 px-5 py-3 text-xs font-black uppercase tracking-widest text-foreground shadow-sm transition-all hover:border-secondary dark:border-white/10 dark:bg-white/5"
+              >
+                {careTeamHomeCopy.secondary}
               </button>
             </div>
           </div>
@@ -648,6 +825,48 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
         )}
 
+        {premiumTestingAccessOpen && (
+          <div className="rounded-[1.75rem] border border-emerald-200/80 bg-emerald-50/90 p-4 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-950/20">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white">
+                <Zap size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-300">
+                  Premium testing is open
+                </p>
+                <p className="mt-1 text-sm font-bold leading-6 text-emerald-950 dark:text-emerald-50">
+                  Premium tools are available while payments or package enforcement are paused for QA.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isViewerReadOnly && (
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
+                <Lock size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-zinc-400">
+                  Viewer read-only mode
+                </p>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-900 dark:text-zinc-100">
+                  You can review logs, growth, memories, health records, family sharing, and emergency details. Editing care data,
+                  payments, and admin tools stays locked.
+                </p>
+                {readonlyNotice && (
+                  <p className="mt-2 rounded-2xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 dark:bg-zinc-900 dark:text-zinc-300">
+                    {readonlyNotice}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {effectiveUserRole === 'admin' && (
           <div className="overflow-hidden rounded-[2rem] border border-cyan-400/25 bg-gradient-to-br from-cyan-500/15 via-surface to-blue-500/10 p-5 shadow-sm dark:border-cyan-300/20 sm:rounded-[2.75rem] sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -668,7 +887,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
               </div>
               <button
-                onClick={() => changeView('admin')}
+                onClick={() => openView('admin')}
                 className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
               >
                 Open Admin
@@ -697,11 +916,80 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                 </div>
               </div>
               <button
-                onClick={() => changeView('manager')}
+                onClick={() => openView('manager')}
                 className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
               >
                 Open Manager
               </button>
+            </div>
+          </div>
+        )}
+
+        {!isCareTeamProfile && (
+          <div className={`overflow-hidden rounded-[2.4rem] border p-5 shadow-sm sm:p-6 ${nextCareFocus.tone}`}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 shadow-inner dark:bg-white/10">
+                  {nextCareFocus.icon}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">
+                    Today's focus
+                  </p>
+                  <h3 className="mt-1 text-2xl font-headline font-black tracking-[-0.04em] text-foreground">
+                    {nextCareFocus.title}
+                  </h3>
+                  <p className="mt-1 text-sm font-bold leading-6 text-text-dim">{nextCareFocus.detail}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => openView(nextCareFocus.view, nextCareFocus.action)}
+                className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
+              >
+                {nextCareFocus.action}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isCareTeamProfile && (
+          <div className="rounded-[2.35rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:p-6">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
+                  Today plan
+                </p>
+                <h3 className="mt-1 text-2xl font-headline font-black tracking-[-0.04em] text-foreground">
+                  A calmer checklist for {currentBaby?.name || 'baby'}
+                </h3>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-secondary">
+                {todayPlanItems.filter((item) => item.completed).length}/{todayPlanItems.length} clear
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {todayPlanItems.map(({ Icon, ...item }) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => openView(item.view, item.label)}
+                  className="flex items-center gap-3 rounded-[1.45rem] border border-border-gray bg-surface-gray p-3 text-left transition-all hover:border-secondary hover:bg-surface dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <div
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                      item.completed
+                        ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300'
+                        : 'bg-white text-text-light dark:bg-white/10'
+                    }`}
+                  >
+                    {item.completed ? <CheckCircle size={18} /> : <Icon size={18} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-headline font-black text-foreground">{item.label}</p>
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-text-light">{item.detail}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -756,7 +1044,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               </div>
               {accountProfileType === 'baby' && (
                 <button
-                  onClick={() => changeView('settings')}
+                  onClick={() => openView('settings')}
                   className="rounded-full bg-surface-gray px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-secondary transition-all hover:bg-secondary hover:text-white dark:bg-zinc-800 dark:hover:bg-blue-500"
                 >
                   Adjust in Settings
@@ -1062,7 +1350,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <button
-              onClick={() => changeView('sleep')}
+              onClick={() => openView('sleep', 'Sleep')}
               className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1086,7 +1374,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             </button>
 
             <div
-              onClick={() => changeView('feeding')}
+              onClick={() => openView('feeding', 'Feeding')}
               className="cursor-pointer bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1108,6 +1396,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (isViewerReadOnly) {
+                    setReadonlyNotice('Feeding timers are locked in viewer mode.');
+                    return;
+                  }
+
                   setShowTimer(true);
                 }}
                 className="mt-3 sm:mt-4 py-2.5 sm:py-3 bg-emerald-500/10 text-emerald-500 rounded-xl sm:rounded-2xl text-[8px] sm:text-[9px] font-black uppercase tracking-[0.12em] sm:tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 sm:gap-2"
@@ -1118,7 +1411,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             </div>
 
             <button
-              onClick={() => changeView('diaper')}
+              onClick={() => openView('diaper', 'Diaper')}
               className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1140,7 +1433,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             </button>
 
             <button
-              onClick={() => changeView('health-records')}
+              onClick={() => openView('health-records', 'Health records')}
               className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1162,7 +1455,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             </button>
 
             <button
-              onClick={() => changeView('memories')}
+              onClick={() => openView('memories', 'Memories')}
               className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1184,7 +1477,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             </button>
 
             <button
-              onClick={() => changeView('vaccination')}
+              onClick={() => openView('vaccination', 'Vaccines')}
               className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
@@ -1225,7 +1518,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
             <button
-              onClick={() => changeView('sleep')}
+              onClick={() => openView('sleep', 'Sleep')}
               className="aspect-square bg-primary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all"
             >
               <Moon size={24} className="sm:h-9 sm:w-9" fill="currentColor" />
@@ -1234,7 +1527,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               </span>
             </button>
             <button
-              onClick={() => changeView('feeding')}
+              onClick={() => openView('feeding', 'Feeding')}
               className="aspect-square bg-secondary rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all"
             >
               <Utensils size={24} className="sm:h-9 sm:w-9" />
@@ -1243,7 +1536,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               </span>
             </button>
             <button
-              onClick={() => changeView('diaper')}
+              onClick={() => openView('diaper', 'Diaper')}
               className="aspect-square bg-text-dim rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col items-center justify-center gap-1.5 sm:gap-3 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all"
             >
               <Droplets size={24} className="sm:h-9 sm:w-9" />
@@ -1258,6 +1551,10 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   };
 
   const renderContent = () => {
+    if (isViewerReadOnly && !isViewerAllowedView(activeView)) {
+      return renderDashboard();
+    }
+
     switch (activeView) {
       case 'journal':
         return <JournalScreen />;
@@ -1270,7 +1567,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             showBackButton={false}
             onLogout={onSignOut || (() => window.location.reload())}
             isAdmin={effectiveUserRole === 'admin'}
-            onOpenAdminPanel={() => changeView('admin')}
+            onOpenAdminPanel={() => openView('admin', 'Admin')}
           />
         );
       case 'logs':
@@ -1349,8 +1646,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             babyId={currentBaby.id}
             babyName={currentBaby.name}
             onBack={backToDashboard}
-            onOpenVaccines={() => changeView('vaccination')}
-            onOpenHealthRecords={() => changeView('health-records')}
+            onOpenVaccines={() => openView('vaccination', 'Vaccines')}
+            onOpenHealthRecords={() => openView('health-records', 'Health records')}
           />
         ) : null;
       case 'parent-wellness':
@@ -1404,7 +1701,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           onClose={() => setPaywallFeature(null)}
           onUpgrade={async () => {
             setPaywallFeature(null);
-            changeView('payment');
+            openView('payment', 'Premium');
           }}
         />
       )}

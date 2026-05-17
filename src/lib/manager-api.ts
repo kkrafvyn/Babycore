@@ -40,6 +40,20 @@ export interface ManagerPermissionsResponse {
   error?: string;
 }
 
+export interface CreateManagerReportInput {
+  reportType: 'daily' | 'weekly' | 'monthly' | 'custom';
+  title: string;
+  description?: string;
+  metrics?: Record<string, any>;
+}
+
+export interface CreateManagerReportResponse {
+  success: boolean;
+  message?: string;
+  data?: Record<string, any>;
+  error?: string;
+}
+
 const getManagerAuthToken = async (): Promise<string | null> => {
   const auth = supabase.auth as any;
   const {
@@ -102,6 +116,15 @@ export const fetchManagerDashboard = async (): Promise<ManagerDashboardResponse>
 
 export const fetchManagerReports = async (): Promise<ManagerReportsResponse> =>
   managerRequest<ManagerReportsResponse>('/manager/reports', { method: 'GET' });
+
+export const createManagerReport = async (
+  input: CreateManagerReportInput,
+): Promise<CreateManagerReportResponse> =>
+  managerRequest<CreateManagerReportResponse>('/manager/reports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 
 export const fetchManagerActivityLogs = async (): Promise<ManagerActivityResponse> =>
   managerRequest<ManagerActivityResponse>('/manager/activity-logs?limit=30&offset=0', { method: 'GET' });

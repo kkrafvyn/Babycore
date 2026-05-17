@@ -7,6 +7,7 @@ const configuredBaseUrl =
   process.env.VITE_APP_URL ||
   process.env.CLIENT_URL ||
   process.env.APP_URL ||
+  process.env.VITE_SUPABASE_AUTH_REDIRECT_URL ||
   '';
 
 if (!configuredBaseUrl) {

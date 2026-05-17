@@ -1,0 +1,58 @@
+name: QA
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      VITE_SUPABASE_URL: https://babycore-demo.supabase.co
+      SUPABASE_URL: https://babycore-demo.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_babycore_demo
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_babycore_demo
+      SUPABASE_SERVICE_KEY: sb_service_babycore_demo
+      VITE_SUPABASE_AUTH_REDIRECT_URL: https://app.babycore.dev/auth/callback
+      VITE_PAYSTACK_PUBLIC_KEY: pk_test_babycore_demo
+      PAYSTACK_SECRET_KEY: sk_test_babycore_demo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build:full
+
+      - name: Cold-start smoke
+        run: npm run smoke:cold-start
+
+      - name: End-to-end smoke
+        run: npm run test:e2e

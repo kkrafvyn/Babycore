@@ -5,7 +5,6 @@
 
 import express, { Express, Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authMiddleware, { rateLimit } from './middleware/auth.js';
 import babiesRoutes from './routes/babies.js';
 import feedingRoutes from './routes/feeding.js';
@@ -49,13 +48,13 @@ import {
   syncSnapshotHandler,
   voiceTranscribeHandler,
 } from './handlers/system-handlers.js';
+import {
+  getRuntimeEnvironment,
+  isProductionRuntime,
+  loadServerEnvironment,
+} from './utils/runtime-config.js';
 
-// Load baseline environment values from .env in every runtime.
-dotenv.config({ path: '.env' });
-// In development, allow .env.local to override .env if present.
-if ((process.env.NODE_ENV || 'development') !== 'production') {
-  dotenv.config({ path: '.env.local', override: true });
-}
+loadServerEnvironment();
 
 const app: Express = express();
 const genericEmailRateLimit = rateLimit(3, '1m');
@@ -247,13 +246,13 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 
   const statusCode = err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
+  const message = isProductionRuntime()
     ? 'Internal server error' 
     : err.message;
 
   res.status(statusCode).json({
     error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    ...(!isProductionRuntime() && { stack: err.stack }),
   });
 });
 
@@ -261,6 +260,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || 'localhost';
+const runtimeEnvironment = getRuntimeEnvironment();
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`
@@ -268,7 +268,7 @@ const server = app.listen(PORT, HOST, () => {
 ║     BabyLog Backend API Server         ║
 ╚════════════════════════════════════════╝
 
-Environment: ${process.env.NODE_ENV || 'development'}
+Environment: ${runtimeEnvironment}
 Server:     http://${HOST}:${PORT}
 Client:     ${process.env.CLIENT_URL || 'http://localhost:5173'}
 Database:   ${process.env.SUPABASE_URL?.substring(8, 30)}...

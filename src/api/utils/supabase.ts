@@ -4,19 +4,22 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  getSupabasePublicKey,
+  getSupabaseServerUrl,
+  getSupabaseServiceKey,
+  loadServerEnvironment,
+} from './runtime-config.js';
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_KEY ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SECRET_KEY ||
-  '';
-const supabasePublicKey =
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_PUBLISHABLE_KEY ||
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  '';
+loadServerEnvironment();
+
+const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiYWJ5bG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE1MTYyMzkwMjJ9.signature';
+
+const supabaseUrl = getSupabaseServerUrl();
+const supabaseServiceKey = getSupabaseServiceKey();
+const supabasePublicKey = getSupabasePublicKey();
 
 const createMissingConfigProxy = (label: string) =>
   new Proxy(
@@ -48,8 +51,8 @@ export const supabase = hasServiceConfig
 
 // Create Supabase client with anon key (for public operations)
 export const supabasePublic = createClient(
-  supabaseUrl || 'https://example.supabase.co',
-  supabasePublicKey,
+  supabaseUrl || FALLBACK_SUPABASE_URL,
+  supabasePublicKey || FALLBACK_SUPABASE_PUBLISHABLE_KEY,
   {
     auth: {
       autoRefreshToken: false,

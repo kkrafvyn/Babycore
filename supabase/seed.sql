@@ -1,0 +1,1 @@
+-- Seed data is optional. Add deterministic local fixtures here when needed.

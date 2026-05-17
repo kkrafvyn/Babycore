@@ -15,6 +15,7 @@ import {
   retryAdminBillingEvent,
 } from "../../lib/admin-api";
 import {
+  createManagerReport,
   fetchManagerActivityLogs,
   fetchManagerDashboard,
   fetchManagerPermissions,
@@ -110,6 +111,28 @@ const getRecoveryClass = (status?: string | null): string => {
   }
 };
 
+const ManagerEmptyState = ({
+  Icon,
+  title,
+  description,
+}: {
+  Icon: typeof ShieldCheck;
+  title: string;
+  description: string;
+}) => (
+  <div className="rounded-[2rem] border border-dashed border-slate-300/80 bg-white/60 p-6 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-zinc-200">
+      <Icon size={20} />
+    </div>
+    <p className="mt-4 text-sm font-headline font-black tracking-tight text-foreground">
+      {title}
+    </p>
+    <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+      {description}
+    </p>
+  </div>
+);
+
 export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -134,6 +157,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   const [billingActingReference, setBillingActingReference] = useState<
     string | null
   >(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
   const [activeSection, setActiveSection] =
     useState<ManagerSectionId>("overview");
   const mainRef = React.useRef<HTMLElement | null>(null);
@@ -243,10 +267,6 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
     await loadWorkspace(true);
   };
 
-  useEffect(() => {
-    void loadWorkspace();
-  }, []);
-
   const roleEntries = useMemo(
     () =>
       Object.entries(roleStatistics).sort(
@@ -272,6 +292,75 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   const enabledPermissionCount = permissionEntries.filter(([, enabled]) =>
     Boolean(enabled),
   ).length;
+  const generatedManagerReport = useMemo(() => {
+    const failedBilling = Number(billingSummary.failed || 0);
+    const retryingBilling = Number(billingSummary.retrying || 0);
+    const recoveredBilling = Number(billingSummary.recovered || 0);
+    const operationalRisk =
+      failedBilling > 0
+        ? "Needs payment recovery review"
+        : activityLogs.length === 0
+          ? "Quiet activity period"
+          : "Stable";
+    const insights = [
+      failedBilling > 0
+        ? `${failedBilling} failed payment event${failedBilling === 1 ? "" : "s"} need recovery action.`
+        : "No failed payment events are currently visible.",
+      retryingBilling > 0
+        ? `${retryingBilling} payment event${retryingBilling === 1 ? " is" : "s are"} already retrying.`
+        : "No payment retries are currently in progress.",
+      recoveredBilling > 0
+        ? `${recoveredBilling} payment event${recoveredBilling === 1 ? " has" : "s have"} recovered.`
+        : "No recovered payment events are visible in this filtered view.",
+      `${enabledPermissionCount}/${permissionEntries.length || 0} manager powers are enabled.`,
+      `${activityLogs.length} recent activity log${activityLogs.length === 1 ? "" : "s"} loaded for review.`,
+    ];
+
+    return {
+      summary: `${operationalRisk}. Visible roles: ${totalAccountsVisible}. Failed billing: ${failedBilling}. Reports saved: ${reports.length}.`,
+      insights,
+      metrics: {
+        totalAccountsVisible,
+        roleStatistics,
+        billingSummary,
+        recentActivityCount: activityLogs.length,
+        savedReportsCount: reports.length,
+        enabledPermissionCount,
+        totalPermissionCount: permissionEntries.length,
+      },
+    };
+  }, [
+    activityLogs.length,
+    billingSummary,
+    enabledPermissionCount,
+    permissionEntries.length,
+    reports.length,
+    roleStatistics,
+    totalAccountsVisible,
+  ]);
+  const handleSaveGeneratedReport = async () => {
+    setGeneratingReport(true);
+    const result = await createManagerReport({
+      reportType: "daily",
+      title: `Operations readiness report - ${new Date().toLocaleDateString()}`,
+      description: generatedManagerReport.summary,
+      metrics: generatedManagerReport.metrics,
+    });
+    setGeneratingReport(false);
+
+    if (!result.success) {
+      toast.error(result.error || "Failed to save manager report.");
+      return;
+    }
+
+    toast.success(result.message || "Manager report saved.");
+    await loadWorkspace(true);
+  };
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, []);
+
   const managerHeroStats = [
     { label: "Visible roles", value: totalAccountsVisible },
     { label: "Failed billing", value: billingSummary.failed },
@@ -472,9 +561,21 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 id="manager-overview"
                 className={activeSection === "overview" ? "space-y-4" : "hidden"}
               >
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Role Snapshot
-                </h3>
+                <div className="px-1">
+                  <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Role Snapshot
+                  </p>
+                  <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
+                    Operational account mix
+                  </h3>
+                </div>
+                {roleEntries.length === 0 && (
+                  <ManagerEmptyState
+                    Icon={BarChart3}
+                    title="No role statistics yet"
+                    description="Manager overview data will appear as soon as the backend returns account statistics."
+                  />
+                )}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {roleEntries.map(([role, count]) => (
                     <div
@@ -523,9 +624,11 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                   </div>
 
                   {billingEvents.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">
-                      No failed billing events right now.
-                    </p>
+                    <ManagerEmptyState
+                      Icon={Receipt}
+                      title="No failed payments need action"
+                      description="When a payment fails, managers can retry eligible Paystack references or mark the event reconciled here."
+                    />
                   ) : (
                     <div className="grid gap-3 xl:grid-cols-2">
                       {billingEvents.map((entry) => {
@@ -618,9 +721,11 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 </h3>
                 <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
                   {activityLogs.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">
-                      No activity logs available.
-                    </p>
+                    <ManagerEmptyState
+                      Icon={ScrollText}
+                      title="No activity logs available"
+                      description="Recent admin and manager activity will appear here once platform actions are recorded."
+                    />
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {activityLogs.slice(0, 8).map((log, index) => (
@@ -649,10 +754,46 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                   Reports
                 </h3>
                 <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
+                  <div className="rounded-[1.8rem] border border-slate-200/80 bg-slate-950 p-5 text-white shadow-xl shadow-slate-950/10 dark:border-white/10 dark:bg-white dark:text-zinc-950">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.24em] opacity-60">
+                          Live generated report
+                        </p>
+                        <h4 className="mt-2 text-xl font-headline font-black tracking-tight">
+                          Operations readiness snapshot
+                        </h4>
+                        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 opacity-75">
+                          {generatedManagerReport.summary}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveGeneratedReport()}
+                        disabled={generatingReport}
+                        className="rounded-2xl bg-white px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-950 shadow-lg transition-all active:scale-95 disabled:opacity-60 dark:bg-zinc-950 dark:text-white"
+                      >
+                        {generatingReport ? "Saving..." : "Save Report"}
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      {generatedManagerReport.insights.map((insight) => (
+                        <div
+                          key={insight}
+                          className="rounded-[1.15rem] bg-white/10 px-3 py-3 text-xs font-semibold leading-5 dark:bg-zinc-950/10"
+                        >
+                          {insight}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {reports.length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">
-                      No manager reports found.
-                    </p>
+                    <ManagerEmptyState
+                      Icon={ClipboardList}
+                      title="No saved reports yet"
+                      description="Use the live generated report above to create the first saved manager report."
+                    />
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {reports.slice(0, 8).map((report, index) => (
@@ -673,6 +814,33 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                               ),
                             )}
                           </p>
+                          {report.description && (
+                            <p className="mt-3 text-xs font-semibold leading-5 text-text-dim">
+                              {String(report.description)}
+                            </p>
+                          )}
+                          {report.metrics && typeof report.metrics === "object" && (
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {Object.entries(report.metrics)
+                                .filter(([, value]) =>
+                                  ["string", "number", "boolean"].includes(typeof value),
+                                )
+                                .slice(0, 4)
+                                .map(([key, value]) => (
+                                  <div
+                                    key={key}
+                                    className="rounded-xl bg-white/70 px-3 py-2 dark:bg-white/5"
+                                  >
+                                    <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                                      {key}
+                                    </p>
+                                    <p className="mt-1 text-xs font-black text-foreground">
+                                      {String(value)}
+                                    </p>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -697,7 +865,50 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                     changes stay in full Admin Settings only.
                   </p>
                 </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      label: "Scope",
+                      value: "Billing, reports, activity",
+                      detail: "Managers stay focused on operations instead of user role control.",
+                    },
+                    {
+                      label: "Escalation",
+                      value: "Admin handles roles",
+                      detail: "Promotions, demotions, and deletes require the full admin page.",
+                    },
+                    {
+                      label: "Launch QA",
+                      value: "Safe by default",
+                      detail: "Managers can verify billing recovery without unlocking broader settings.",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+                    >
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
+                        {item.label}
+                      </p>
+                      <p className="mt-2 text-sm font-headline font-black tracking-tight text-foreground">
+                        {item.value}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-text-dim">
+                        {item.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
                 <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
+                  {permissionEntries.length === 0 && (
+                    <div className="sm:col-span-2">
+                      <ManagerEmptyState
+                        Icon={ShieldCheck}
+                        title="No permission details loaded"
+                        description="Manager powers will list here when the permissions endpoint returns enabled capabilities."
+                      />
+                    </div>
+                  )}
                   {permissionEntries.map(([permission, enabled]) => (
                     <div
                       key={permission}

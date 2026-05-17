@@ -94,6 +94,148 @@ const fetchPaymentEventByReference = async (reference: string) => {
   return data as PaymentEventRecord | null;
 };
 
+type LaunchHealthStatus = 'ready' | 'warning' | 'blocked';
+
+type LaunchHealthCheck = {
+  id: string;
+  label: string;
+  status: LaunchHealthStatus;
+  title: string;
+  description: string;
+  source: 'api' | 'database' | 'vercel' | 'payments' | 'logs';
+  checkedAt: string;
+};
+
+const buildLaunchHealthCheck = (
+  input: Omit<LaunchHealthCheck, 'checkedAt'>,
+): LaunchHealthCheck => ({
+  ...input,
+  checkedAt: new Date().toISOString(),
+});
+
+const isMissingRelationError = (error: any): boolean =>
+  error?.code === '42P01' ||
+  /relation .* does not exist|schema cache|could not find the table/i.test(
+    String(error?.message || error?.details || error?.hint || ''),
+  );
+
+const checkLaunchTable = async (tableName: string): Promise<LaunchHealthCheck> => {
+  const { count, error } = await supabase.from(tableName).select('*', { count: 'exact', head: true }).limit(1);
+
+  if (error) {
+    return buildLaunchHealthCheck({
+      id: `table-${tableName}`,
+      label: tableName,
+      status: isMissingRelationError(error) ? 'blocked' : 'warning',
+      title: isMissingRelationError(error) ? `${tableName} is missing` : `${tableName} check returned a warning`,
+      description: String(error.message || error.details || error.hint || 'Unable to query table.'),
+      source: 'database',
+    });
+  }
+
+  return buildLaunchHealthCheck({
+    id: `table-${tableName}`,
+    label: tableName,
+    status: 'ready',
+    title: `${tableName} is reachable`,
+    description: `Table exists and responded to a metadata count check${typeof count === 'number' ? ` (${count} rows visible).` : '.'}`,
+    source: 'database',
+  });
+};
+
+const fetchVercelJson = async (path: string, token: string, teamId?: string | null) => {
+  const url = new URL(path, 'https://api.vercel.com');
+  if (teamId && !url.searchParams.has('teamId')) {
+    url.searchParams.set('teamId', teamId);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const fetchVercelRuntimeLogSummary = async (
+  deploymentId: string,
+  token: string,
+  teamId?: string | null,
+): Promise<{ status: LaunchHealthStatus; description: string }> => {
+  const url = new URL(`/v3/deployments/${deploymentId}/events`, 'https://api.vercel.com');
+  url.searchParams.set('limit', '25');
+  if (teamId) {
+    url.searchParams.set('teamId', teamId);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        status: 'warning',
+        description: `Runtime log request returned HTTP ${response.status}.`,
+      };
+    }
+
+    const text = await response.text();
+    const lines = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 25);
+    const errorLines = lines.filter((line) => /error|exception|failed/i.test(line)).length;
+    const warningLines = lines.filter((line) => /warn|warning/i.test(line)).length;
+
+    if (errorLines > 0) {
+      return {
+        status: 'blocked',
+        description: `${errorLines} recent runtime log line${errorLines === 1 ? '' : 's'} look like errors.`,
+      };
+    }
+
+    if (warningLines > 0) {
+      return {
+        status: 'warning',
+        description: `${warningLines} recent runtime log line${warningLines === 1 ? '' : 's'} look like warnings.`,
+      };
+    }
+
+    return {
+      status: 'ready',
+      description: lines.length
+        ? `${lines.length} recent runtime log line${lines.length === 1 ? '' : 's'} checked without obvious errors.`
+        : 'Runtime log endpoint responded, but no recent log lines were returned.',
+    };
+  } catch (error: any) {
+    return {
+      status: 'warning',
+      description: error?.name === 'AbortError'
+        ? 'Runtime log request timed out before returning recent events.'
+        : error?.message || 'Unable to read runtime logs.',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 // ============================================================================
 // ADMIN ROUTES
 // ============================================================================
@@ -328,6 +470,197 @@ router.get('/stats', requireRole(['admin', 'manager']), async (req: AuthRequest,
     res.status(500).json({
       success: false,
       error: 'Failed to fetch statistics',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/launch-health
+ * Live launch checks from backend config, critical database tables, and Vercel deployment/log APIs.
+ */
+router.get('/launch-health', requireRole('admin'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const checks: LaunchHealthCheck[] = [
+      buildLaunchHealthCheck({
+        id: 'api-runtime',
+        label: 'API',
+        status: 'ready',
+        title: 'Backend API responded',
+        description: `API route executed in ${process.env.VERCEL_ENV || process.env.NODE_ENV || 'local'} mode.`,
+        source: 'api',
+      }),
+    ];
+
+    const [paymentCollection, premiumAccess, ...tableChecks] = await Promise.all([
+      getPaymentCollectionSettings(),
+      getPremiumAccessSettings(),
+      checkLaunchTable('babies'),
+      checkLaunchTable('user_settings'),
+      checkLaunchTable('shared_care_workspaces'),
+      checkLaunchTable('caregiver_shift_notes'),
+      checkLaunchTable('payment_events'),
+      checkLaunchTable('admin_actions_log'),
+      checkLaunchTable('role_assignment_logs'),
+    ]);
+
+    checks.push(
+      buildLaunchHealthCheck({
+        id: 'payment-collection',
+        label: 'Payments',
+        status: paymentCollection.enabled ? 'warning' : 'ready',
+        title: paymentCollection.enabled ? 'Live payment collection is on' : 'Payment collection is paused',
+        description: paymentCollection.enabled
+          ? 'Users can complete real checkout. Confirm this before launch QA.'
+          : paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON,
+        source: 'payments',
+      }),
+      buildLaunchHealthCheck({
+        id: 'premium-access',
+        label: 'Premium',
+        status: premiumAccess.enabled ? 'warning' : 'ready',
+        title: premiumAccess.enabled ? 'Premium package enforcement is on' : 'Premium package testing is open',
+        description: premiumAccess.enabled
+          ? 'Users without active subscriptions are blocked from premium features.'
+          : premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
+        source: 'payments',
+      }),
+      ...tableChecks,
+    );
+
+    const recentActionResult = await supabase
+      .from('admin_actions_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    checks.push(
+      buildLaunchHealthCheck({
+        id: 'api-action-log',
+        label: 'API Logs',
+        status: recentActionResult.error ? 'warning' : 'ready',
+        title: recentActionResult.error ? 'Admin action log check returned a warning' : 'Admin action log is readable',
+        description: recentActionResult.error
+          ? String(recentActionResult.error.message || 'Unable to read admin action log.')
+          : `${recentActionResult.data?.length || 0} recent admin event${recentActionResult.data?.length === 1 ? '' : 's'} loaded from backend logs.`,
+        source: 'logs',
+      }),
+    );
+
+    const vercelToken = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN || '';
+    const vercelTeamId = process.env.VERCEL_TEAM_ID || process.env.VERCEL_ORG_ID || null;
+    const vercelDeploymentId = process.env.VERCEL_DEPLOYMENT_ID || '';
+    const vercelProjectId = process.env.VERCEL_PROJECT_ID || '';
+    let deploymentIdForLogs = vercelDeploymentId;
+
+    if (!vercelToken) {
+      checks.push(
+        buildLaunchHealthCheck({
+          id: 'vercel-auth',
+          label: 'Vercel',
+          status: 'warning',
+          title: 'Vercel API token is not configured',
+          description: 'Set VERCEL_TOKEN or VERCEL_API_TOKEN to let launch readiness inspect deployments and runtime logs.',
+          source: 'vercel',
+        }),
+      );
+    } else {
+      try {
+        if (vercelDeploymentId) {
+          const { response, payload } = await fetchVercelJson(`/v13/deployments/${vercelDeploymentId}`, vercelToken, vercelTeamId);
+          const state = String(payload?.readyState || payload?.state || '').toUpperCase();
+          checks.push(
+            buildLaunchHealthCheck({
+              id: 'vercel-deployment',
+              label: 'Deployment',
+              status: response.ok && (state === 'READY' || state === 'BUILDING') ? 'ready' : response.ok ? 'warning' : 'blocked',
+              title: response.ok ? `Current deployment is ${state || 'reachable'}` : 'Current deployment lookup failed',
+              description: response.ok
+                ? `${payload?.url || process.env.VERCEL_URL || 'Deployment'} responded through Vercel API.`
+                : payload?.error?.message || `Vercel deployment lookup returned HTTP ${response.status}.`,
+              source: 'vercel',
+            }),
+          );
+        } else {
+          const deploymentPath = `/v13/deployments?limit=1${vercelProjectId ? `&projectId=${encodeURIComponent(vercelProjectId)}` : ''}`;
+          const { response, payload } = await fetchVercelJson(deploymentPath, vercelToken, vercelTeamId);
+          const deployment = payload?.deployments?.[0] || null;
+          deploymentIdForLogs = String(deployment?.uid || deployment?.id || '');
+          const state = String(deployment?.readyState || deployment?.state || '').toUpperCase();
+
+          checks.push(
+            buildLaunchHealthCheck({
+              id: 'vercel-deployment',
+              label: 'Deployment',
+              status: response.ok && deployment ? (state === 'READY' || state === 'BUILDING' ? 'ready' : 'warning') : 'warning',
+              title: response.ok && deployment ? `Latest deployment is ${state || 'reachable'}` : 'No Vercel deployment was discovered',
+              description: response.ok && deployment
+                ? `${deployment.url || deployment.name || 'Latest deployment'} loaded from Vercel API.`
+                : payload?.error?.message || 'Set VERCEL_DEPLOYMENT_ID or VERCEL_PROJECT_ID for a more precise launch check.',
+              source: 'vercel',
+            }),
+          );
+        }
+
+        if (deploymentIdForLogs) {
+          const runtimeLogSummary = await fetchVercelRuntimeLogSummary(deploymentIdForLogs, vercelToken, vercelTeamId);
+          checks.push(
+            buildLaunchHealthCheck({
+              id: 'vercel-runtime-logs',
+              label: 'Runtime Logs',
+              status: runtimeLogSummary.status,
+              title: runtimeLogSummary.status === 'ready'
+                ? 'Runtime logs look clean'
+                : runtimeLogSummary.status === 'blocked'
+                  ? 'Runtime logs show possible errors'
+                  : 'Runtime logs need review',
+              description: runtimeLogSummary.description,
+              source: 'vercel',
+            }),
+          );
+        } else {
+          checks.push(
+            buildLaunchHealthCheck({
+              id: 'vercel-runtime-logs',
+              label: 'Runtime Logs',
+              status: 'warning',
+              title: 'Runtime log check needs a deployment id',
+              description: 'Set VERCEL_DEPLOYMENT_ID or VERCEL_PROJECT_ID so the backend can inspect recent runtime events.',
+              source: 'vercel',
+            }),
+          );
+        }
+      } catch (error: any) {
+        checks.push(
+          buildLaunchHealthCheck({
+            id: 'vercel-deployment',
+            label: 'Deployment',
+            status: 'warning',
+            title: 'Vercel API check could not complete',
+            description: error?.message || 'Unable to query Vercel deployment state.',
+            source: 'vercel',
+          }),
+        );
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        checks,
+        summary: {
+          ready: checks.filter((check) => check.status === 'ready').length,
+          warning: checks.filter((check) => check.status === 'warning').length,
+          blocked: checks.filter((check) => check.status === 'blocked').length,
+          total: checks.length,
+        },
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Failed to fetch launch health checks', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to fetch launch health checks',
     });
   }
 });

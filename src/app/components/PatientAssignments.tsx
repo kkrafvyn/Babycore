@@ -374,33 +374,61 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
     : selectedInviteForChat
       ? { babyId: selectedInviteForChat.baby_id, babyName: resolveInviteBabyName(selectedInviteForChat) }
       : null;
+  const assignedCount = isDoctor ? doctorPatients.length : assignedInvites.length;
+  const careTeamStats = [
+    { label: 'Assigned', value: assignedCount },
+    { label: 'Pending', value: pendingInvites.length },
+    {
+      label: isDoctor ? 'Profile' : 'Active baby',
+      value: isDoctor ? (doctorProfile ? 'Ready' : 'Needed') : currentBaby ? 'Set' : 'Choose',
+    },
+  ];
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <Card className="border border-border-gray dark:border-zinc-800">
-        <CardHeader className="space-y-3">
+      <Card className="relative overflow-hidden rounded-[2.75rem] border border-white/70 bg-white/85 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-sky-200/70 blur-3xl dark:bg-sky-500/10" />
+        <CardHeader className="relative space-y-5 p-6 sm:p-8">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack} className="w-fit px-0">
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
           )}
-          <div className="flex items-start justify-between gap-3">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr,0.9fr] lg:items-end">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
                 {isDoctor ? <Stethoscope className="h-5 w-5" /> : <Users className="h-5 w-5" />}
+                {isDoctor ? 'Doctor workspace' : 'Caregiver workspace'}
+              </div>
+              <CardTitle className="max-w-xl text-3xl font-headline font-black tracking-[-0.05em] text-foreground sm:text-4xl">
                 {heading}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
                 {isDoctor
                   ? 'Complete your doctor profile, accept doctor invites, and activate shared patients for the medical workspace.'
                   : 'Accept shared baby profiles to add them to your list.'}
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={loadAssignments}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
+            <div className="grid grid-cols-3 gap-2">
+              {careTeamStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[1.4rem] border border-slate-200/80 bg-white/75 px-3 py-4 text-center shadow-sm dark:border-white/10 dark:bg-white/5"
+                >
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-lg font-headline font-black text-foreground">
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={loadAssignments} className="col-span-3 h-11 rounded-2xl">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh assignments
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -629,10 +657,11 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
         <TabsContent value="assigned" className="mt-4 space-y-3">
           {isDoctor ? (
             doctorPatients.length === 0 ? (
-              <Card className="border border-dashed border-border-gray dark:border-zinc-800">
+              <Card className="rounded-[2rem] border border-dashed border-sky-300/70 bg-sky-50/70 dark:border-sky-400/20 dark:bg-sky-950/20">
                 <CardContent className="py-8 text-center">
-                  <p className="text-sm font-semibold text-text-light">No active patients yet.</p>
-                  <p className="mt-2 text-xs text-text-light">
+                  <Stethoscope className="mx-auto h-7 w-7 text-sky-600 dark:text-sky-300" />
+                  <p className="mt-3 text-sm font-headline font-black text-foreground">No active patients yet.</p>
+                  <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
                     Save your doctor profile, then accept a doctor invite to activate patients here.
                   </p>
                 </CardContent>
@@ -691,9 +720,13 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
               ))
             )
           ) : assignedInvites.length === 0 ? (
-            <Card className="border border-dashed border-border-gray dark:border-zinc-800">
+            <Card className="rounded-[2rem] border border-dashed border-emerald-300/70 bg-emerald-50/70 dark:border-emerald-400/20 dark:bg-emerald-950/20">
               <CardContent className="py-8 text-center">
-                <p className="text-sm font-semibold text-text-light">No assigned profiles yet.</p>
+                <Users className="mx-auto h-7 w-7 text-emerald-600 dark:text-emerald-300" />
+                <p className="mt-3 text-sm font-headline font-black text-foreground">No assigned profiles yet.</p>
+                <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+                  When a parent shares a baby profile with you, it will appear here as a simple care card.
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -748,9 +781,13 @@ export function PatientAssignments({ onBack }: PatientAssignmentsProps) {
 
         <TabsContent value="pending" className="mt-4 space-y-3">
           {pendingInvites.length === 0 ? (
-            <Card className="border border-dashed border-border-gray dark:border-zinc-800">
+            <Card className="rounded-[2rem] border border-dashed border-border-gray bg-surface/70 dark:border-zinc-800">
               <CardContent className="py-8 text-center">
-                <p className="text-sm font-semibold text-text-light">No pending shares.</p>
+                <UserPlus2 className="mx-auto h-7 w-7 text-text-light" />
+                <p className="mt-3 text-sm font-headline font-black text-foreground">No pending shares.</p>
+                <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+                  New invitations sent to this email will wait here for approval.
+                </p>
               </CardContent>
             </Card>
           ) : (

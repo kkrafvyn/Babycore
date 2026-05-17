@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   BarChart3,
   ChevronLeft,
+  CheckCircle2,
   CreditCard,
   Database,
   Power,
@@ -19,6 +21,7 @@ import {
   deleteAdminUser,
   exportAdminBillingEvents,
   fetchAdminBilling,
+  fetchAdminLaunchHealth,
   fetchAdminPaymentConfig,
   fetchAdminPricing,
   demoteAdminUser,
@@ -32,6 +35,7 @@ import {
   saveAdminPaymentConfig,
   saveAdminPricing,
   updateAdminUserRole,
+  type AdminLaunchHealthCheck,
   type AdminPricingPlan,
   type AdminUserRecord,
 } from "../../lib/admin-api";
@@ -50,6 +54,7 @@ const MotionDiv = motion.div as any;
 
 type AdminSectionId =
   | "overview"
+  | "launch"
   | "payments"
   | "users"
   | "activity"
@@ -73,6 +78,15 @@ const ADMIN_SECTIONS: Array<{
     description:
       "Review platform totals, profile mix, and high-level health in one place.",
     Icon: BarChart3,
+  },
+  {
+    id: "launch",
+    label: "Launch",
+    eyebrow: "Readiness",
+    title: "Launch Readiness",
+    description:
+      "Check payment gates, premium test access, migrations, errors, and operational blockers before marketing.",
+    Icon: CheckCircle2,
   },
   {
     id: "payments",
@@ -158,6 +172,31 @@ const getRecoveryClass = (status?: string | null): string => {
       return "border-border-gray bg-surface-gray text-text-dim dark:border-zinc-700 dark:bg-zinc-900";
   }
 };
+
+const EmptyStateCard = ({
+  Icon,
+  title,
+  description,
+  action,
+}: {
+  Icon: typeof ShieldCheck;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) => (
+  <div className="rounded-[2rem] border border-dashed border-slate-300/80 bg-white/60 p-6 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-zinc-200">
+      <Icon size={20} />
+    </div>
+    <p className="mt-4 text-sm font-headline font-black tracking-tight text-foreground">
+      {title}
+    </p>
+    <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+      {description}
+    </p>
+    {action ? <div className="mt-4">{action}</div> : null}
+  </div>
+);
 
 const ROLE_OPTIONS = [
   "admin",
@@ -245,6 +284,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [billingActingReference, setBillingActingReference] = useState<
     string | null
   >(null);
+  const [launchHealthChecks, setLaunchHealthChecks] = useState<
+    AdminLaunchHealthCheck[]
+  >([]);
+  const [launchHealthLoading, setLaunchHealthLoading] = useState(false);
+  const [launchHealthError, setLaunchHealthError] = useState<string | null>(
+    null,
+  );
+  const [launchHealthGeneratedAt, setLaunchHealthGeneratedAt] =
+    useState<string>("");
   const [activeSection, setActiveSection] =
     useState<AdminSectionId>("overview");
   const mainRef = React.useRef<HTMLElement | null>(null);
@@ -348,6 +396,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPaymentCollectionLoading(false);
   };
 
+  const loadLaunchHealth = async () => {
+    setLaunchHealthLoading(true);
+    const response = await fetchAdminLaunchHealth();
+    if (!response.success || !response.data) {
+      setLaunchHealthError(
+        response.error || "Unable to load live launch health checks.",
+      );
+      setLaunchHealthChecks([]);
+      setLaunchHealthGeneratedAt("");
+      setLaunchHealthLoading(false);
+      return;
+    }
+
+    setLaunchHealthError(null);
+    setLaunchHealthChecks(response.data.checks || []);
+    setLaunchHealthGeneratedAt(response.data.generatedAt || "");
+    setLaunchHealthLoading(false);
+  };
+
   const loadAdminLogs = async () => {
     const [actions, audit] = await Promise.all([
       fetchAdminLogs({ limit: 20, offset: 0 }),
@@ -398,6 +465,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       loadBilling(),
       loadPricing(),
       loadPaymentCollection(),
+      loadLaunchHealth(),
     ]);
   };
 
@@ -437,7 +505,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setPricingPlans(response.data.plans || []);
     toast.success(response.message || "Pricing updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs()]);
+    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
   };
 
   const handleSavePaymentCollection = async (enabled: boolean) => {
@@ -475,7 +543,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       );
     }
     toast.success(response.message || "Payment collection control updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs()]);
+    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
   };
 
   const handleSavePremiumAccess = async (enabled: boolean) => {
@@ -511,7 +579,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
     );
     toast.success(response.message || "Premium access mode updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs()]);
+    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
   };
 
   const handleCreateTeamMember = async () => {
@@ -764,6 +832,154 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     { label: "Managers", value: managerRoleCount },
     { label: "Failed billing", value: billingSummary.failed },
   ];
+  const launchReadinessItems = [
+    {
+      label: "Premium testing",
+      status: userPremiumAccessOpen ? "ready" : "blocked",
+      title: userPremiumAccessOpen
+        ? "Premium tools are open for QA"
+        : "Users still need an active plan",
+      description: userPremiumAccessReason,
+      action: "Open Payments",
+      section: "payments" as AdminSectionId,
+    },
+    {
+      label: "Payment collection",
+      status: !paymentCollectionEnabled ? "ready" : "warning",
+      title: !paymentCollectionEnabled
+        ? "Live checkout is paused"
+        : "Live checkout is enabled",
+      description: !paymentCollectionEnabled
+        ? "Safe for full-app testing before marketing."
+        : "Users can complete real checkout. Confirm this is intentional before launch QA.",
+      action: "Open Payments",
+      section: "payments" as AdminSectionId,
+    },
+    {
+      label: "Admin API",
+      status: error ? "blocked" : "ready",
+      title: error ? "Admin overview has an error" : "Admin overview is loading",
+      description: error || "Overview, counts, and role data loaded without a top-level error.",
+      action: "Open Overview",
+      section: "overview" as AdminSectionId,
+    },
+    {
+      label: "User directory",
+      status: usersError ? "blocked" : users.length > 0 ? "ready" : "warning",
+      title: usersError
+        ? "User directory failed"
+        : users.length > 0
+          ? "Users are visible"
+          : "No users loaded",
+      description:
+        usersError ||
+        (users.length > 0
+          ? `${users.length} user record${users.length === 1 ? "" : "s"} loaded for review.`
+          : "Confirm the admin users endpoint and production database are returning records."),
+      action: "Open Users",
+      section: "users" as AdminSectionId,
+    },
+    {
+      label: "Billing recovery",
+      status: billingError ? "blocked" : billingSummary.failed > 0 ? "warning" : "ready",
+      title: billingError
+        ? "Billing recovery failed"
+        : billingSummary.failed > 0
+          ? "Failed payments need review"
+          : "No failed payments blocking QA",
+      description:
+        billingError ||
+        (billingSummary.failed > 0
+          ? `${billingSummary.failed} failed payment event${billingSummary.failed === 1 ? "" : "s"} visible.`
+          : "Billing recovery view is clear for the current filters."),
+      action: "Open Billing",
+      section: "billing" as AdminSectionId,
+    },
+    {
+      label: "Pricing",
+      status: pricingError ? "blocked" : pricingPlans.length > 0 ? "ready" : "warning",
+      title: pricingError
+        ? "Pricing failed"
+        : pricingPlans.length > 0
+          ? "Pricing plans are configured"
+          : "No pricing plans loaded",
+      description:
+        pricingError ||
+        (pricingPlans.length > 0
+          ? `${pricingPlans.length} premium plan${pricingPlans.length === 1 ? "" : "s"} loaded.`
+          : "Confirm subscription tables and pricing seed data before marketing."),
+      action: "Open Payments",
+      section: "payments" as AdminSectionId,
+    },
+    {
+      label: "Care workspace migration",
+      status: recent.shared_care_workspaces ? "ready" : "warning",
+      title: recent.shared_care_workspaces
+        ? "Workspace sync table is visible"
+        : "Verify shared_care_workspaces migration",
+      description: recent.shared_care_workspaces
+        ? "Recent workspace rows are available to the admin overview."
+        : "If the console still warns about shared_care_workspaces, run the latest SQL migrations before launch QA.",
+      action: "Open Data",
+      section: "data" as AdminSectionId,
+    },
+  ];
+  const launchSectionBySource: Record<AdminLaunchHealthCheck["source"], AdminSectionId> = {
+    api: "overview",
+    database: "data",
+    vercel: "launch",
+    payments: "payments",
+    logs: "activity",
+  };
+  const launchActionBySection: Record<AdminSectionId, string> = {
+    overview: "Open Overview",
+    launch: "Refresh Launch",
+    payments: "Open Payments",
+    users: "Open Users",
+    activity: "Open Activity",
+    billing: "Open Billing",
+    data: "Open Data",
+    settings: "Open Settings",
+  };
+  const liveLaunchReadinessItems = launchHealthChecks.map((check) => {
+    const section = launchSectionBySource[check.source] || "launch";
+    return {
+      label: check.label,
+      status: check.status,
+      title: check.title,
+      description: check.description,
+      action: launchActionBySection[section],
+      section,
+      source: check.source,
+      checkedAt: check.checkedAt,
+    };
+  });
+  const launchHealthErrorItem = launchHealthError
+    ? [
+        {
+          label: "Live health",
+          status: "blocked",
+          title: "Live launch health failed",
+          description: launchHealthError,
+          action: "Refresh Launch",
+          section: "launch" as AdminSectionId,
+          source: "api",
+          checkedAt: "",
+        },
+      ]
+    : [];
+  const displayLaunchReadinessItems =
+    liveLaunchReadinessItems.length > 0
+      ? liveLaunchReadinessItems
+      : launchHealthErrorItem.length > 0
+        ? launchHealthErrorItem
+        : launchReadinessItems;
+  const launchReadyCount = displayLaunchReadinessItems.filter(
+    (item) => item.status === "ready",
+  ).length;
+  const launchBlockerCount = displayLaunchReadinessItems.filter(
+    (item) => item.status === "blocked",
+  ).length;
 
   return (
     <div className="fit-screen relative overflow-hidden bg-[#f6f7fb] dark:bg-[#050507]">
@@ -981,9 +1197,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 id="admin-overview"
                 className={activeSection === "overview" ? "space-y-4" : "hidden"}
               >
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Totals
-                </h3>
+                <div className="flex items-end justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Totals
+                    </p>
+                    <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
+                      Platform health at a glance
+                    </h3>
+                  </div>
+                </div>
+                {countEntries.length === 0 && (
+                  <EmptyStateCard
+                    Icon={BarChart3}
+                    title="No overview totals yet"
+                    description="Once users start creating records, platform totals will appear here automatically."
+                  />
+                )}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {countEntries.map(([label, value]) => (
                     <div
@@ -1002,14 +1232,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               </div>
 
               <div className={activeSection === "overview" ? "space-y-4" : "hidden"}>
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Role Distribution
-                </h3>
+                <div className="px-1">
+                  <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                    Role Distribution
+                  </p>
+                  <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
+                    Who is using Babycore
+                  </h3>
+                </div>
                 <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
                   {roleDistribution.length === 0 && (
-                    <p className="text-sm font-bold text-text-light">
-                      No role distribution data.
-                    </p>
+                    <div className="sm:col-span-2">
+                      <EmptyStateCard
+                        Icon={Users}
+                        title="No role mix to show yet"
+                        description="Role distribution will update after the admin API returns user records."
+                      />
+                    </div>
                   )}
                   {roleDistribution.map((item) => (
                     <div
@@ -1026,6 +1265,136 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   ))}
                 </div>
               </div>
+
+              <div
+                id="admin-launch"
+                className={activeSection === "launch" ? "space-y-4" : "hidden"}
+              >
+                <div className="rounded-[2.5rem] border border-white/70 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
+                        Launch QA
+                      </p>
+                      <h3 className="mt-2 text-3xl font-headline font-black tracking-[-0.05em] text-foreground">
+                        {launchBlockerCount > 0
+                          ? "Fix blockers before marketing"
+                          : "Ready for deeper production testing"}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
+                        This page checks the gates that matter before ads or public launch: premium access, payments,
+                        migrations, admin API health, Vercel deployment state, and recent runtime logs.
+                      </p>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={loadLaunchHealth}
+                          disabled={launchHealthLoading}
+                          className="rounded-2xl bg-slate-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60 dark:bg-white dark:text-zinc-950"
+                        >
+                          {launchHealthLoading ? "Checking..." : "Refresh Live Health"}
+                        </button>
+                        <span className="text-[11px] font-semibold text-text-light">
+                          {launchHealthGeneratedAt
+                            ? `Live check ${formatDateTime(launchHealthGeneratedAt)}`
+                            : liveLaunchReadinessItems.length > 0
+                              ? "Live backend checks loaded."
+                              : "Using app-loaded fallback checks until live health responds."}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:w-64">
+                      <div className="rounded-[1.35rem] bg-slate-950 px-4 py-4 text-white dark:bg-white dark:text-zinc-950">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">
+                          Ready
+                        </p>
+                        <p className="mt-2 text-2xl font-headline font-black">
+                          {launchReadyCount}/{displayLaunchReadinessItems.length}
+                        </p>
+                      </div>
+                      <div
+                        className={`rounded-[1.35rem] px-4 py-4 ${
+                          launchBlockerCount > 0
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        }`}
+                      >
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">
+                          Blockers
+                        </p>
+                        <p className="mt-2 text-2xl font-headline font-black">
+                          {launchBlockerCount}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {displayLaunchReadinessItems.map((item) => {
+                    const isReady = item.status === "ready";
+                    const isBlocked = item.status === "blocked";
+
+                    return (
+                      <div
+                        key={`${item.label}-${item.title}`}
+                        className={`rounded-[2rem] border p-5 shadow-sm backdrop-blur-xl ${
+                          isReady
+                            ? "border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-400/20 dark:bg-emerald-950/20"
+                            : isBlocked
+                              ? "border-rose-200/80 bg-rose-50/80 dark:border-rose-400/20 dark:bg-rose-950/20"
+                              : "border-amber-200/80 bg-amber-50/80 dark:border-amber-400/20 dark:bg-amber-950/20"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                              isReady
+                                ? "bg-emerald-500 text-white"
+                                : isBlocked
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-amber-500 text-white"
+                            }`}
+                          >
+                            {isReady ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
+                              {item.label}
+                            </p>
+                            <p className="mt-1 text-base font-headline font-black tracking-tight text-foreground">
+                              {item.title}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-text-dim">
+                              {item.description}
+                            </p>
+                            {"source" in item && item.source ? (
+                              <p className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
+                                Source: {String(item.source)}
+                                {"checkedAt" in item && item.checkedAt
+                                  ? ` | ${formatDateTime(String(item.checkedAt))}`
+                                  : ""}
+                              </p>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                item.section === "launch"
+                                  ? loadLaunchHealth()
+                                  : handleSectionChange(item.section)
+                              }
+                              className="mt-4 rounded-xl bg-white/80 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-foreground shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] dark:bg-white/10"
+                            >
+                              {item.action}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div
                 id="admin-payments"
                 className={activeSection === "payments" ? "space-y-4" : "hidden"}
@@ -1554,9 +1923,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   {!usersLoading &&
                     !usersError &&
                     filteredUsers.length === 0 && (
-                      <p className="text-sm font-bold text-text-light">
-                        No users found.
-                      </p>
+                      <EmptyStateCard
+                        Icon={Users}
+                        title={search.trim() ? "No users match that search" : "No users loaded yet"}
+                        description={
+                          search.trim()
+                            ? "Try a different name, email, profile type, or role."
+                            : "New accounts will appear here after they sign up or are created by an admin."
+                        }
+                      />
                     )}
 
                   {!usersLoading && !usersError && filteredUsers.length > 0 && (
@@ -1689,9 +2064,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     Action Logs
                   </p>
                   {(logs || []).length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">
-                      No admin actions logged yet.
-                    </p>
+                    <EmptyStateCard
+                      Icon={ScrollText}
+                      title="No admin actions yet"
+                      description="Sensitive actions such as role changes, pricing updates, and payment toggles will appear here."
+                    />
                   ) : (
                     <div className="space-y-2">
                       {logs.slice(0, 6).map((log, index) => (
@@ -1719,9 +2096,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     Role Audit Trail
                   </p>
                   {(auditLogs || []).length === 0 ? (
-                    <p className="text-sm font-bold text-text-light">
-                      No role assignment changes logged yet.
-                    </p>
+                    <EmptyStateCard
+                      Icon={ShieldCheck}
+                      title="No role changes recorded"
+                      description="When an admin promotes, demotes, or switches a user role, the audit trail will capture it here."
+                    />
                   ) : (
                     <div className="space-y-2">
                       {auditLogs.slice(0, 6).map((log, index) => (
@@ -1842,9 +2221,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   {!billingLoading &&
                     !billingError &&
                     billingEvents.length === 0 && (
-                      <p className="text-sm font-bold text-text-light">
-                        No billing events match these filters.
-                      </p>
+                      <EmptyStateCard
+                        Icon={Receipt}
+                        title="No billing events match"
+                        description="Clear the filters or wait for Paystack events to sync before retrying recovery actions."
+                      />
                     )}
 
                   {!billingLoading &&
@@ -1986,11 +2367,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </h3>
                 <div className="space-y-4">
                   {recentSections.length === 0 && (
-                    <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-6">
-                      <p className="text-sm font-bold text-text-light">
-                        No recent rows available.
-                      </p>
-                    </div>
+                    <EmptyStateCard
+                      Icon={Database}
+                      title="No recent rows available"
+                      description="The admin overview endpoint did not return recent table snapshots yet."
+                    />
                   )}
 
                   {recentSections.map(([table, rows]) => (

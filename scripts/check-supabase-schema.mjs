@@ -77,6 +77,7 @@ const requiredSchemaChecks = [
     select: 'user_id,care_workspace_data,care_profile_preferences',
   },
   { label: 'shared_care_workspaces', table: 'shared_care_workspaces', select: 'baby_id' },
+  { label: 'caregiver_shift_notes', table: 'caregiver_shift_notes', select: 'baby_id,author_id,note,status' },
 ];
 
 const probeTable = async ({ label, table, select }) => {
@@ -167,8 +168,10 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(`- ${failure}`);
   }
-  console.error('\nRun database/sql/36-user-settings-care-workspace-data.sql, database/sql/37-user-settings-care-profile-preferences.sql, and database/sql/38-shared-care-workspaces.sql against the target Supabase project, then rerun this check.');
+  console.error(
+    '\nSync the generated Supabase migrations with "npm run db:sync-migrations", apply the linked project migrations with "npm run db:migrate" (or run the specific SQL files manually if you are repairing an older project), then rerun this check.',
+  );
   process.exit(1);
 }
 
-console.log('\nRequired health/settings sync tables are present.');
+console.log('\nRequired health/settings sync and caregiver handoff tables are present.');

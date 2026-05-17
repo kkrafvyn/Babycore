@@ -51,6 +51,15 @@ const isInviteExpired = (invite: any): boolean => {
   return Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
 };
 
+const isMissingRelationError = (error: any): boolean =>
+  error?.code === '42P01' ||
+  /relation .* does not exist|schema cache|could not find the table/i.test(
+    String(error?.message || error?.details || error?.hint || ''),
+  );
+
+const isViewerOnlyAccess = (access: BabyAccessResult): boolean =>
+  access.role === 'shared' && String(access.sharedRole || '').toLowerCase() === 'viewer';
+
 const resolveBabyAccess = async (
   userId: string,
   userEmail: string | undefined,
@@ -815,6 +824,103 @@ router.get('/activity-log', requireAuth, async (req: AuthRequest, res: Response)
   } catch (error) {
     logger.error('Failed to fetch sharing activity log', error as Error, 'FAMILY');
     return res.status(500).json({ success: false, error: 'Failed to fetch sharing activity log' });
+  }
+});
+
+router.get('/shift-note', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const babyId = String(req.query.babyId || '').trim();
+
+    if (!babyId) {
+      return res.status(400).json({ success: false, error: 'babyId is required' });
+    }
+
+    const access = await ensureBabyAccess(req, res, babyId);
+    if (!access) return;
+
+    const { data, error } = await supabase
+      .from('caregiver_shift_notes')
+      .select('*')
+      .eq('baby_id', babyId)
+      .eq('status', 'saved')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingRelationError(error)) {
+        return res.json({
+          success: true,
+          data: null,
+          warning: 'caregiver_shift_notes table missing. Run latest SQL migrations to enable backend shift notes.',
+        });
+      }
+
+      throw error;
+    }
+
+    return res.json({ success: true, data: data || null });
+  } catch (error) {
+    logger.error('Failed to fetch caregiver shift note', error as Error, 'FAMILY');
+    return res.status(500).json({ success: false, error: 'Failed to fetch caregiver shift note' });
+  }
+});
+
+router.put('/shift-note', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const babyId = String(req.body?.babyId || '').trim();
+    const note = String(req.body?.note || '').trim();
+
+    if (!babyId) {
+      return res.status(400).json({ success: false, error: 'babyId is required' });
+    }
+
+    if (note.length > 5000) {
+      return res.status(400).json({ success: false, error: 'Shift note must be 5000 characters or less' });
+    }
+
+    const access = await ensureBabyAccess(req, res, babyId);
+    if (!access) return;
+
+    if (isViewerOnlyAccess(access)) {
+      return res.status(403).json({ success: false, error: 'Viewer access is read-only' });
+    }
+
+    const { data, error } = await supabase
+      .from('caregiver_shift_notes')
+      .insert({
+        baby_id: babyId,
+        author_id: req.user?.id,
+        note,
+        status: 'saved',
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      if (isMissingRelationError(error)) {
+        return res.status(503).json({
+          success: false,
+          error: 'caregiver_shift_notes table missing. Run latest SQL migrations to enable backend shift notes.',
+        });
+      }
+
+      throw error;
+    }
+
+    await supabase.from('sharing_activity_log').insert({
+      baby_id: babyId,
+      user_id: req.user?.id,
+      action: 'shift_note_saved',
+      details: {
+        noteLength: note.length,
+      },
+    });
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Failed to save caregiver shift note', error as Error, 'FAMILY');
+    return res.status(500).json({ success: false, error: 'Failed to save caregiver shift note' });
   }
 });
 

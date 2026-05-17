@@ -53,6 +53,12 @@ const hasValue = (value) => toStringValue(value).length > 0;
 const isTruthy = (value) => ['1', 'true', 'yes', 'on'].includes(toStringValue(value).toLowerCase());
 const nativeRemotePushEnabled =
   isTruthy(getEnv('VITE_NATIVE_REMOTE_PUSH_ENABLED')) || isTruthy(getEnv('NATIVE_REMOTE_PUSH_ENABLED'));
+const hasVercelApiToken =
+  (hasValue(getEnv('VERCEL_TOKEN')) && !isPlaceholder(getEnv('VERCEL_TOKEN'))) ||
+  (hasValue(getEnv('VERCEL_API_TOKEN')) && !isPlaceholder(getEnv('VERCEL_API_TOKEN')));
+const hasVercelDeploymentLookup =
+  (hasValue(getEnv('VERCEL_DEPLOYMENT_ID')) && !isPlaceholder(getEnv('VERCEL_DEPLOYMENT_ID'))) ||
+  (hasValue(getEnv('VERCEL_PROJECT_ID')) && !isPlaceholder(getEnv('VERCEL_PROJECT_ID')));
 
 const isPlaceholder = (value) => {
   const normalized = toStringValue(value).toLowerCase();
@@ -278,6 +284,20 @@ const checks = [
     critical: false,
     valid: hasValue(getEnv('VAPID_PRIVATE_KEY')) && !isPlaceholder(getEnv('VAPID_PRIVATE_KEY')),
     help: 'Required for server-side push sending.',
+  },
+  {
+    key: 'VERCEL_LAUNCH_HEALTH_TOKEN',
+    critical: false,
+    valid: hasVercelApiToken,
+    help:
+      'Recommended for the admin Launch Health page. Set VERCEL_TOKEN or VERCEL_API_TOKEN so it can inspect deployments and runtime logs.',
+  },
+  {
+    key: 'VERCEL_LAUNCH_HEALTH_TARGET',
+    critical: false,
+    valid: hasVercelDeploymentLookup,
+    help:
+      'Recommended for precise launch health checks. Set VERCEL_DEPLOYMENT_ID or VERCEL_PROJECT_ID.',
   },
 ];
 

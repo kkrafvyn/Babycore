@@ -111,6 +111,31 @@ export interface AdminPaymentConfigResponse {
   error?: string;
 }
 
+export interface AdminLaunchHealthCheck {
+  id: string;
+  label: string;
+  status: 'ready' | 'warning' | 'blocked';
+  title: string;
+  description: string;
+  source: 'api' | 'database' | 'vercel' | 'payments' | 'logs';
+  checkedAt: string;
+}
+
+export interface AdminLaunchHealthResponse {
+  success: boolean;
+  data?: {
+    checks: AdminLaunchHealthCheck[];
+    summary: {
+      ready: number;
+      warning: number;
+      blocked: number;
+      total: number;
+    };
+    generatedAt: string;
+  };
+  error?: string;
+}
+
 const getAdminAuthToken = async (): Promise<string | null> => {
   const auth = supabase.auth as any;
   const {
@@ -410,6 +435,11 @@ export const saveAdminPricing = async (
 
 export const fetchAdminPaymentConfig = async (): Promise<AdminPaymentConfigResponse> =>
   adminRequest<AdminPaymentConfigResponse>('/admin/payment-config', {
+    method: 'GET',
+  });
+
+export const fetchAdminLaunchHealth = async (): Promise<AdminLaunchHealthResponse> =>
+  adminRequest<AdminLaunchHealthResponse>('/admin/launch-health', {
     method: 'GET',
   });
 

@@ -95,6 +95,16 @@ type AppointmentFormState = {
   reason: string;
 };
 
+type DoctorSection = 'overview' | 'patients' | 'care' | 'appointments' | 'templates';
+
+const doctorSections: Array<{ id: DoctorSection; label: string; helper: string }> = [
+  { id: 'overview', label: 'Home', helper: 'Alerts' },
+  { id: 'patients', label: 'Patients', helper: 'Roster' },
+  { id: 'care', label: 'Care Plans', helper: 'Dx & meds' },
+  { id: 'appointments', label: 'Reviews', helper: 'Schedule' },
+  { id: 'templates', label: 'Reports', helper: 'Templates' },
+];
+
 const todayIsoDate = () => new Date().toISOString().slice(0, 10);
 
 const buildDiagnosisForm = (): DiagnosisFormState => ({
@@ -158,6 +168,7 @@ const diagnosisStatusLabel = (diagnosis: DoctorDiagnosis) =>
 
 export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   const { babies, currentBaby, setCurrentBaby } = useAuthStore();
+  const [activeSection, setActiveSection] = useState<DoctorSection>('overview');
   const [loading, setLoading] = useState(true);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(currentBaby?.id || null);
   const [selectedPatientDetails, setSelectedPatientDetails] = useState<DoctorBabyDetails | null>(null);
@@ -189,7 +200,79 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
   const selectedPatient = patients.find((patient) => patient.babyId === selectedPatientId) || null;
   const doctorTasks = careTasks.filter((task) => task.assignedRole === 'doctor' && task.status === 'open');
   const urgentDoctorTasks = doctorTasks.filter((task) => task.priority === 'urgent');
-  const activeDiagnosisCount = dashboard?.recentDiagnoses?.filter((diagnosis) => diagnosis.status === 'active').length || 0;
+  const activeDiagnoses = dashboard?.recentDiagnoses?.filter((diagnosis) => diagnosis.status === 'active') || [];
+  const selectedActiveMedications =
+    selectedPatientDetails?.medications?.filter((medication) => medication.status === 'active') || [];
+  const vaccineNeedsReview =
+    selectedPatient &&
+    (!selectedPatientDetails?.medicalHistory?.immunization_status ||
+      selectedPatientDetails.medicalHistory.immunization_status.toLowerCase().includes('unknown') ||
+      selectedPatientDetails.medicalHistory.immunization_status.toLowerCase().includes('not recorded'));
+  const activeDiagnosisCount = activeDiagnoses.length;
+  const doctorPriorityCards = [
+    {
+      label: 'Assigned patients',
+      value: dashboard?.patientCount || patients.length,
+      helper: patients.length === 0 ? 'Accept patient shares to begin.' : 'Ready for review.',
+      Icon: Users,
+    },
+    {
+      label: 'Upcoming reviews',
+      value: appointments.length,
+      helper: appointments.length === 0 ? 'No appointments in the next 14 days.' : 'Appointment reminders active.',
+      Icon: CalendarDays,
+    },
+    {
+      label: 'Open follow-ups',
+      value: doctorTasks.length,
+      helper:
+        urgentDoctorTasks.length > 0
+          ? `${urgentDoctorTasks.length} urgent task${urgentDoctorTasks.length === 1 ? '' : 's'} need attention.`
+          : 'No urgent follow-ups.',
+      Icon: AlertTriangle,
+    },
+  ];
+  const clinicalAlerts = [
+    ...urgentDoctorTasks.slice(0, 3).map((task) => ({
+      id: `task-${task.id}`,
+      label: 'Urgent follow-up',
+      title: task.title,
+      detail: task.dueDate ? `Due ${task.dueDate}` : task.details || 'Needs clinical review.',
+      tone: 'text-rose-600 dark:text-rose-300',
+    })),
+    ...appointments.slice(0, 3).map((appointment) => ({
+      id: `appointment-${appointment.appointment_id}`,
+      label: 'Upcoming review',
+      title: `${appointment.baby_name} - ${appointment.appointment_type}`,
+      detail: formatDateTime(appointment.scheduled_date, appointment.scheduled_time),
+      tone: 'text-sky-600 dark:text-sky-300',
+    })),
+    ...activeDiagnoses.slice(0, 3).map((diagnosis) => ({
+      id: `diagnosis-${diagnosis.id}`,
+      label: 'Active diagnosis',
+      title: diagnosis.diagnosis_text,
+      detail: `${diagnosis.severity || 'Unspecified'} severity - onset ${formatDate(diagnosis.onset_date)}`,
+      tone: 'text-amber-600 dark:text-amber-300',
+    })),
+    ...selectedActiveMedications.slice(0, 2).map((medication) => ({
+      id: `medication-${medication.medication_id}`,
+      label: 'Active medication',
+      title: medication.medication_name,
+      detail: `${medication.dosage} - ${medication.frequency}`,
+      tone: 'text-emerald-600 dark:text-emerald-300',
+    })),
+    ...(vaccineNeedsReview
+      ? [
+          {
+            id: 'vaccine-review',
+            label: 'Vaccine records',
+            title: `${selectedPatient.babyName} needs immunization review`,
+            detail: 'Medical history does not show a current vaccine status.',
+            tone: 'text-violet-600 dark:text-violet-300',
+          },
+        ]
+      : []),
+  ];
 
   const loadDoctorWorkspace = async (options?: { silent?: boolean; preferredPatientId?: string | null }) => {
     if (!options?.silent) {
@@ -494,29 +577,52 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <Card className="border border-border-gray dark:border-zinc-800">
-        <CardHeader className="space-y-3">
+      <Card className="relative overflow-hidden rounded-[2.75rem] border border-white/70 bg-white/85 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-blue-200/70 blur-3xl dark:bg-blue-500/10" />
+        <CardHeader className="relative space-y-6 p-6 sm:p-8">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack} className="w-fit px-0">
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
           )}
-          <div className="flex items-start justify-between gap-3">
+          <div className="grid gap-6 lg:grid-cols-[1.15fr,0.95fr] lg:items-end">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Stethoscope className="h-5 w-5" />
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
+                <Stethoscope className="h-4 w-4" />
+                Doctor home
+              </div>
+              <CardTitle className="max-w-2xl text-3xl font-headline font-black tracking-[-0.05em] text-foreground sm:text-4xl">
                 Clinic/Doctor Panel
               </CardTitle>
-              <p className="mt-1 text-sm text-text-light">
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
                 This workspace is wired to the dedicated doctor backend for assigned patients, diagnoses, medications,
                 and appointment reminders.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => loadDoctorWorkspace()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+              {doctorPriorityCards.map(({ Icon, ...item }) => (
+                <div
+                  key={item.label}
+                  className="rounded-[1.5rem] border border-slate-200/80 bg-white/75 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">{item.label}</p>
+                      <p className="mt-2 text-2xl font-headline font-black text-foreground">{item.value}</p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-text-dim">{item.helper}</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200">
+                      <Icon size={18} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => loadDoctorWorkspace()} className="rounded-2xl">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh clinic data
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -537,6 +643,28 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
         </Card>
       )}
 
+      <div className="rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
+        <div className="grid gap-2 sm:grid-cols-5">
+          {doctorSections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`rounded-[1.35rem] px-4 py-3 text-left transition-all ${
+                activeSection === section.id
+                  ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950'
+                  : 'text-text-dim hover:bg-surface-gray dark:hover:bg-white/5'
+              }`}
+            >
+              <span className="block text-[10px] font-black uppercase tracking-[0.18em]">{section.label}</span>
+              <span className="mt-1 block text-[11px] font-semibold opacity-70">{section.helper}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeSection === 'overview' && (
+      <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4 text-center">
@@ -568,6 +696,47 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
         </Card>
       </div>
 
+      <Card className="rounded-[2.35rem] border border-white/70 bg-white/80 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4" />
+            Clinical Alert Queue
+          </CardTitle>
+          <p className="text-sm font-semibold text-text-light">
+            Overdue care, active diagnoses, medications, urgent tasks, and upcoming reviews in one doctor-first queue.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {clinicalAlerts.length === 0 ? (
+            <div className="rounded-[2rem] border border-dashed border-border-gray bg-surface/70 p-6 text-center dark:border-zinc-800">
+              <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+              <p className="mt-3 text-sm font-headline font-black text-foreground">No clinical alerts right now.</p>
+              <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+                New urgent tasks, upcoming appointments, active medications, and diagnosis follow-ups will surface here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {clinicalAlerts.slice(0, 8).map((alert) => (
+                <div
+                  key={alert.id}
+                  className="rounded-[1.35rem] border border-border-gray bg-surface-gray p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${alert.tone}`}>
+                    {alert.label}
+                  </p>
+                  <p className="mt-2 text-sm font-headline font-black text-foreground">{alert.title}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-text-light">{alert.detail}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </>
+      )}
+
+      {activeSection === 'patients' && (
       <div className="grid gap-4 lg:grid-cols-[0.95fr,1.35fr]">
         <Card>
           <CardHeader>
@@ -575,7 +744,13 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             {patients.length === 0 ? (
-              <p className="py-6 text-center text-sm text-gray-500">No active patients assigned yet.</p>
+              <div className="rounded-[2rem] border border-dashed border-sky-300/70 bg-sky-50/70 p-6 text-center dark:border-sky-400/20 dark:bg-sky-950/20">
+                <Users className="mx-auto h-7 w-7 text-sky-600 dark:text-sky-300" />
+                <p className="mt-3 text-sm font-headline font-black text-foreground">No active patients assigned yet.</p>
+                <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+                  Accepted doctor shares will appear here as patient cards with parent context.
+                </p>
+              </div>
             ) : (
               patients.map((patient) => (
                 <button
@@ -625,7 +800,13 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardHeader>
           <CardContent>
             {!selectedPatient ? (
-              <p className="py-8 text-center text-sm text-gray-500">Select a patient to view the doctor record.</p>
+              <div className="rounded-[2rem] border border-dashed border-border-gray bg-surface/70 p-6 text-center dark:border-zinc-800">
+                <Stethoscope className="mx-auto h-7 w-7 text-text-light" />
+                <p className="mt-3 text-sm font-headline font-black text-foreground">Select a patient to begin.</p>
+                <p className="mx-auto mt-2 max-w-md text-xs font-semibold leading-5 text-text-light">
+                  Diagnoses, medications, history, and reminders appear after a patient is selected.
+                </p>
+              </div>
             ) : detailsLoading ? (
               <p className="py-8 text-center text-sm text-gray-500">Loading patient details...</p>
             ) : (
@@ -783,9 +964,11 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardContent>
         </Card>
       </div>
+      )}
 
+      {(activeSection === 'care' || activeSection === 'appointments') && (
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card>
+        <Card className={activeSection !== 'care' ? 'hidden' : ''}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-4 w-4" />
@@ -846,7 +1029,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={activeSection !== 'care' ? 'hidden' : ''}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Pill className="h-4 w-4" />
@@ -961,7 +1144,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={activeSection !== 'appointments' ? 'hidden' : ''}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock3 className="h-4 w-4" />
@@ -1007,7 +1190,9 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </CardContent>
         </Card>
       </div>
+      )}
 
+      {activeSection === 'appointments' && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Upcoming Appointments</CardTitle>
@@ -1059,7 +1244,9 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {activeSection === 'care' && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Doctor Follow-up Tasks</CardTitle>
@@ -1097,7 +1284,9 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {activeSection === 'templates' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -1163,6 +1352,7 @@ export function ClinicDoctorPanel({ onBack }: ClinicDoctorPanelProps) {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
