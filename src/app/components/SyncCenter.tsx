@@ -112,8 +112,8 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pt-20 sm:pt-24 px-3 sm:px-6 pb-24">
-        <div className="max-w-md mx-auto w-full space-y-4">
+      <main className="flex-1 overflow-y-auto no-scrollbar pt-20 sm:pt-24 px-3 sm:px-6 pb-28 sm:pb-24">
+        <div className="max-w-md mx-auto w-full space-y-5 sm:space-y-4">
           <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-5 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[10px] font-black uppercase tracking-widest text-text-light">Sync Health</p>
@@ -210,64 +210,66 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
             </div>
           )}
 
-          {!hasConflicts && (
-            <div className="rounded-[2rem] border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20 p-5">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5" />
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-                  No data conflicts detected. Cross-device changes will merge automatically.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {hasConflicts && (
-            <div className="space-y-3">
-              {syncState.conflicts.map((conflict) => (
-                <div key={conflict.id} className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                        {conflict.dataset || 'record'} conflict
-                      </p>
-                      <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                        Record: {conflict.recordId || conflict.id.slice(0, 8)}
-                      </p>
-                    </div>
-                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-1" />
-                  </div>
-
-                  <pre className="text-[10px] font-semibold whitespace-pre-wrap text-amber-900 dark:text-amber-100 max-h-32 overflow-y-auto bg-white/60 dark:bg-black/20 rounded-lg p-2 border border-amber-100 dark:border-amber-900/40">
-                    {summarizeConflict(conflict)}
-                  </pre>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => handleResolve(conflict, 'local')}
-                      disabled={resolvingId === conflict.id}
-                      className="h-9 rounded-lg bg-amber-600 text-white text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
-                    >
-                      Keep Local
-                    </button>
-                    <button
-                      onClick={() => handleResolve(conflict, 'remote')}
-                      disabled={resolvingId === conflict.id}
-                      className="h-9 rounded-lg bg-surface-gray dark:bg-zinc-900 text-foreground border border-border-gray dark:border-zinc-700 text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
-                    >
-                      Keep Cloud
-                    </button>
-                    <button
-                      onClick={() => handleResolve(conflict, 'merge')}
-                      disabled={resolvingId === conflict.id}
-                      className="h-9 rounded-lg bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
-                    >
-                      Merge
-                    </button>
-                  </div>
+          <div className="pt-5 sm:pt-0">
+            {!hasConflicts && (
+              <div className="rounded-[2rem] border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20 p-5">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5" />
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                    No data conflicts detected. Cross-device changes will merge automatically.
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+
+            {hasConflicts && (
+              <div className="space-y-3">
+                {syncState.conflicts.map((conflict) => (
+                  <div key={conflict.id} className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                          {conflict.dataset || 'record'} conflict
+                        </p>
+                        <p className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                          Record: {conflict.recordId || conflict.id.slice(0, 8)}
+                        </p>
+                      </div>
+                      <AlertTriangle className="h-4 w-4 text-amber-600 mt-1" />
+                    </div>
+
+                    <pre className="text-[10px] font-semibold whitespace-pre-wrap text-amber-900 dark:text-amber-100 max-h-32 overflow-y-auto bg-white/60 dark:bg-black/20 rounded-lg p-2 border border-amber-100 dark:border-amber-900/40">
+                      {summarizeConflict(conflict)}
+                    </pre>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => handleResolve(conflict, 'local')}
+                        disabled={resolvingId === conflict.id}
+                        className="h-9 rounded-lg bg-amber-600 text-white text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
+                      >
+                        Keep Local
+                      </button>
+                      <button
+                        onClick={() => handleResolve(conflict, 'remote')}
+                        disabled={resolvingId === conflict.id}
+                        className="h-9 rounded-lg bg-surface-gray dark:bg-zinc-900 text-foreground border border-border-gray dark:border-zinc-700 text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
+                      >
+                        Keep Cloud
+                      </button>
+                      <button
+                        onClick={() => handleResolve(conflict, 'merge')}
+                        disabled={resolvingId === conflict.id}
+                        className="h-9 rounded-lg bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
+                      >
+                        Merge
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="rounded-[2rem] border border-border-gray dark:border-zinc-800 bg-surface p-5">
             <div className="flex items-start gap-3">

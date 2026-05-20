@@ -36,6 +36,12 @@ export const isPlaceholder = (value: unknown): boolean => {
   return PLACEHOLDER_MARKERS.some((marker) => normalized.includes(marker));
 };
 
+const getFirstConfiguredValue = (...values: unknown[]): string => {
+  const normalizedValues = values.map(toStringValue).filter(Boolean);
+  const realValue = normalizedValues.find((value) => !isPlaceholder(value));
+  return realValue || normalizedValues[0] || '';
+};
+
 export const isLocalUrl = (value: unknown): boolean => {
   const raw = toStringValue(value);
   if (!raw) return false;
@@ -69,25 +75,25 @@ export const loadServerEnvironment = (): NodeJS.ProcessEnv => {
 
 export const getSupabaseServerUrl = (): string => {
   loadServerEnvironment();
-  return toStringValue(process.env.SUPABASE_URL) || toStringValue(process.env.VITE_SUPABASE_URL);
+  return getFirstConfiguredValue(process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL);
 };
 
 export const getSupabaseServiceKey = (): string => {
   loadServerEnvironment();
-  return (
-    toStringValue(process.env.SUPABASE_SERVICE_KEY) ||
-    toStringValue(process.env.SUPABASE_SERVICE_ROLE_KEY) ||
-    toStringValue(process.env.SUPABASE_SECRET_KEY)
+  return getFirstConfiguredValue(
+    process.env.SUPABASE_SERVICE_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SECRET_KEY,
   );
 };
 
 export const getSupabasePublicKey = (): string => {
   loadServerEnvironment();
-  return (
-    toStringValue(process.env.SUPABASE_ANON_KEY) ||
-    toStringValue(process.env.VITE_SUPABASE_ANON_KEY) ||
-    toStringValue(process.env.SUPABASE_PUBLISHABLE_KEY) ||
-    toStringValue(process.env.VITE_SUPABASE_PUBLISHABLE_KEY)
+  return getFirstConfiguredValue(
+    process.env.SUPABASE_ANON_KEY,
+    process.env.VITE_SUPABASE_ANON_KEY,
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
   );
 };
 

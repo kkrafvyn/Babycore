@@ -49,6 +49,7 @@ import {
   voiceTranscribeHandler,
 } from './handlers/system-handlers.js';
 import {
+  getSupabaseServerUrl,
   getRuntimeEnvironment,
   isProductionRuntime,
   loadServerEnvironment,
@@ -261,6 +262,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || 'localhost';
 const runtimeEnvironment = getRuntimeEnvironment();
+const resolvedSupabaseUrl = getSupabaseServerUrl();
+const redactedSupabaseHost = resolvedSupabaseUrl ? resolvedSupabaseUrl.replace(/^https?:\/\//, '').slice(0, 22) : 'not configured';
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`
@@ -271,7 +274,7 @@ const server = app.listen(PORT, HOST, () => {
 Environment: ${runtimeEnvironment}
 Server:     http://${HOST}:${PORT}
 Client:     ${process.env.CLIENT_URL || 'http://localhost:5173'}
-Database:   ${process.env.SUPABASE_URL?.substring(8, 30)}...
+Database:   ${redactedSupabaseHost}${resolvedSupabaseUrl ? '...' : ''}
 
 Routes:
   ✓ Health Alerts:     /api/health-alerts

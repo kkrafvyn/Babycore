@@ -1024,7 +1024,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
       <main
         ref={mainRef}
-        className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-32 pt-28 sm:px-6 lg:px-10 lg:pl-36"
+        className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-36 pt-28 sm:px-6 sm:pb-32 lg:px-10 lg:pl-36"
       >
         <nav
           className="fixed left-5 top-28 z-40 hidden lg:block"
@@ -1088,7 +1088,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           </div>
         </nav>
 
-        <div className="mx-auto w-full max-w-6xl space-y-8">
+        <div className="mx-auto w-full max-w-6xl space-y-10 sm:space-y-8">
           <div className="relative overflow-hidden rounded-[2.75rem] border border-white/75 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8 lg:p-10">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-slate-500 to-amber-300" />
             <div className="relative grid gap-8 lg:grid-cols-[1.25fr_0.95fr] lg:items-end">

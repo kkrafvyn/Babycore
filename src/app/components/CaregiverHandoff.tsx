@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { CheckCircle2, ClipboardList, Clock, LogOut, Plus, Save, Shield, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ClipboardList, Clock, LogOut, Plus, Save, Shield, Trash2 } from 'lucide-react';
 import {
   startCaregiverSession,
   endCaregiverSession,
@@ -27,6 +27,7 @@ import {
 interface CaregiverHandoffProps {
   babyId: string;
   babyName: string;
+  onBack?: () => void;
 }
 
 type CaregiverSection = 'overview' | 'session' | 'notes' | 'tasks' | 'activity';
@@ -39,7 +40,7 @@ const caregiverSections: Array<{ id: CaregiverSection; label: string; helper: st
   { id: 'activity', label: 'Timeline', helper: 'Completed care' },
 ];
 
-export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
+export function CaregiverHandoff({ babyId, babyName, onBack }: CaregiverHandoffProps) {
   const { user } = useAuthStore();
   const [activeSection, setActiveSection] = useState<CaregiverSection>('overview');
   const [newPin, setNewPin] = useState('');
@@ -258,11 +259,17 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
       <div className="relative overflow-hidden rounded-[2.75rem] border border-white/70 bg-white/85 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-emerald-200/70 blur-3xl dark:bg-emerald-500/10" />
         <div className="relative grid gap-6 lg:grid-cols-[1.1fr,1fr] lg:items-end">
           <div>
+            {onBack && (
+              <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 mb-4 w-fit rounded-full px-3">
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Dashboard
+              </Button>
+            )}
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
               <Shield className="h-4 w-4" />
               Caregiver daily home
@@ -290,14 +297,14 @@ export function CaregiverHandoff({ babyId, babyName }: CaregiverHandoffProps) {
         </div>
       </div>
 
-      <div className="rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
-        <div className="grid gap-2 sm:grid-cols-5">
+      <div className="mb-8 rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:mb-0">
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0">
           {caregiverSections.map((section) => (
             <button
               key={section.id}
               type="button"
               onClick={() => setActiveSection(section.id)}
-              className={`rounded-[1.35rem] px-4 py-3 text-left transition-all ${
+              className={`min-w-[10rem] shrink-0 rounded-[1.35rem] px-4 py-3 text-left transition-all sm:min-w-0 sm:shrink ${
                 activeSection === section.id
                   ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950'
                   : 'text-text-dim hover:bg-surface-gray dark:hover:bg-white/5'

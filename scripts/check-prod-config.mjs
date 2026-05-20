@@ -47,6 +47,7 @@ const APP_URL =
   getEnv('CLIENT_URL') ||
   getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL') ||
   'https://app.example.com';
+const SERVER_SUPABASE_URL = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');
 const hasValue = (value) => toStringValue(value).length > 0;
@@ -233,8 +234,8 @@ const checks = [
   {
     key: 'SUPABASE_URL',
     critical: true,
-    valid: hasValue(getEnv('SUPABASE_URL')) && !isPlaceholder(getEnv('SUPABASE_URL')),
-    help: 'Supabase project URL for server-side /api routes.',
+    valid: hasValue(SERVER_SUPABASE_URL) && !isPlaceholder(SERVER_SUPABASE_URL),
+    help: 'Supabase project URL for server-side /api routes. SUPABASE_URL is preferred, with VITE_SUPABASE_URL supported as a fallback.',
   },
   {
     key: 'SUPABASE_SERVICE_KEY_OR_ROLE',

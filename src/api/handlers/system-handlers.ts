@@ -8,6 +8,7 @@ import { getRoleDistribution } from '../utils/role-manager.js';
 import { ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
 import {
+  getSupabaseServerUrl,
   getRuntimeEnvironment,
   hasValue,
   isLocalUrl,
@@ -325,12 +326,12 @@ export function healthCheckHandler(_req: Request, res: Response): void {
 }
 
 export function healthConfigHandler(_req: Request, res: Response): void {
+  const supabaseServerUrl = getSupabaseServerUrl();
   const checks = {
     supabaseFrontendUrl:
       hasValue(process.env.VITE_SUPABASE_URL) && !isPlaceholder(process.env.VITE_SUPABASE_URL),
     supabaseFrontendKey: hasSupabasePublishableKey(),
-    supabaseServerUrl:
-      hasValue(process.env.SUPABASE_URL) && !isPlaceholder(process.env.SUPABASE_URL),
+    supabaseServerUrl: hasValue(supabaseServerUrl) && !isPlaceholder(supabaseServerUrl),
     supabaseServiceKey:
       (hasValue(process.env.SUPABASE_SERVICE_KEY) || hasValue(process.env.SUPABASE_SERVICE_ROLE_KEY)) &&
       !isPlaceholder(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),

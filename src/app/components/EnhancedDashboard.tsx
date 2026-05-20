@@ -194,7 +194,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     Record<ViewMode, 'home' | 'logs' | 'growth' | 'settings' | 'journal'>
   >;
   const viewsNeedingGlobalBack = new Set<ViewMode>([
-    'handoff',
     'health-alerts',
     'photo-gallery',
     'advanced-analytics',
@@ -204,14 +203,12 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'community',
     'content-library',
     'wearable',
-    'family-sharing',
     'patients',
     'voice-logging',
     'doctor-reports',
     'care-priority',
     'emergency-card',
     'clinic-panel',
-    'sync-center',
   ]);
   const viewsWithEmbeddedHeader = new Set<ViewMode>([
     'journal',
@@ -243,7 +240,15 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     'admin',
     'manager',
   ]);
+  const viewsWithEmbeddedBottomNav = new Set<ViewMode>([
+    'admin',
+    'manager',
+    'family-sharing',
+    'handoff',
+    'sync-center',
+  ]);
   const showShellHeader = !viewsWithEmbeddedHeader.has(activeView);
+  const showShellBottomNav = !viewsWithEmbeddedBottomNav.has(activeView);
 
   const changeView = React.useCallback(
     (view: ViewMode) => {
@@ -1593,7 +1598,9 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
       case 'report':
         return <PediatricianReport onBack={backToDashboard} />;
       case 'handoff':
-        return currentBaby ? <CaregiverHandoff babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
+        return currentBaby ? (
+          <CaregiverHandoff babyId={currentBaby.id} babyName={currentBaby.name} onBack={backToDashboard} />
+        ) : null;
       case 'baby-journal':
         return <BabyJournal onBack={backToDashboard} />;
       case 'sleep-training':
@@ -1630,7 +1637,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         return currentBaby ? <WearableDeviceManager babyId={currentBaby.id} babyName={currentBaby.name} /> : null;
       case 'family-sharing':
         return currentBaby ? (
-          <FamilySharing babyId={currentBaby.id} babyName={currentBaby.name} />
+          <FamilySharing babyId={currentBaby.id} babyName={currentBaby.name} onBack={backToDashboard} />
         ) : (
           <PatientAssignments onBack={backToDashboard} />
         );
@@ -1692,6 +1699,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         activeNav={viewToNav[activeView] ?? 'home'}
         onNavChange={handleNavChange}
         showTopHeader={showShellHeader}
+        showBottomNav={showShellBottomNav}
       >
         <React.Suspense fallback={<ViewLoader />}>{renderContent()}</React.Suspense>
       </AppLayout>
