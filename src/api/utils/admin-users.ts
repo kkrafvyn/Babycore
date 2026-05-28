@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { supabase as defaultSupabase } from './supabase.js';
 
 export type AdminCreatableRole = 'admin' | 'manager';
@@ -36,8 +38,7 @@ const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 const normalizeName = (value: string): string => value.trim();
 const normalizePassword = (value?: string): string => String(value || '').trim();
 
-const generateTemporaryPassword = (): string =>
-  `Babycore!${Math.random().toString(36).slice(2, 8)}${Date.now().toString().slice(-4)}`;
+const generateTemporaryPassword = (): string => `Babycore!${randomBytes(12).toString('base64url')}`;
 
 export const createAdminManagedUser = async (
   input: CreateAdminManagedUserInput,

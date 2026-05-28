@@ -4,7 +4,7 @@
  */
 
 import { Router, Response } from 'express';
-import { AuthRequest, requireAuth } from '../middleware/auth.js';
+import { AuthRequest, requireRole } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
 import { ensureBabyAccess, ensureRecordBabyAccess } from '../utils/baby-access.js';
 import { logger } from '../../utils/logger.js';
@@ -12,6 +12,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { syncAcceptedDoctorInvitesForDoctor } from '../utils/doctor-assignment.js';
 
 const router = Router();
+const requireDoctorPortalAccess = requireRole(['doctor', 'admin']);
+
+router.use(requireDoctorPortalAccess);
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 
@@ -154,7 +157,7 @@ const getBabyActiveMedications = async (babyId: string) => {
  * POST /api/doctor/profile
  * Create or update doctor profile
  */
-router.post('/profile', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/profile', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const {
@@ -259,7 +262,7 @@ router.get('/profile/:doctorId', async (req: AuthRequest, res: Response) => {
  * GET /api/doctor/profile
  * Get own doctor profile
  */
-router.get('/profile', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/profile', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
 
@@ -290,44 +293,112 @@ router.get('/profile', requireAuth, async (req: AuthRequest, res: Response) => {
  * POST /api/doctor/assign-baby
  * Doctor requests to be assigned to a baby (parent must approve)
  */
-router.post('/assign-baby', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/assign-baby', async (req: AuthRequest, res: Response) => {
   try {
-    const doctorId = req.user?.id;
-    const { babyId, parentId, reason } = req.body;
+    const doctorId = String(req.user?.id || '').trim();
+    const babyId = String(req.body?.babyId || '').trim();
+    const parentId = String(req.body?.parentId || '').trim();
+    const reason = String(req.body?.reason || '').trim();
 
-    if (!babyId || !parentId) {
+    if (!doctorId || !babyId || !parentId) {
       return res.status(400).json({
         success: false,
-        error: 'Baby ID and Parent ID are required',
+        error: 'Doctor ID, baby ID, and parent ID are required',
       });
     }
 
-    const { data: assignment, error } = await supabase
+    const [{ data: doctorProfile, error: doctorProfileError }, { data: baby, error: babyError }] =
+      await Promise.all([
+        supabase.from('doctor_profiles').select('user_id').eq('user_id', doctorId).maybeSingle(),
+        supabase.from('babies').select('id,user_id').eq('id', babyId).maybeSingle(),
+      ]);
+
+    if (doctorProfileError) throw doctorProfileError;
+    if (babyError) throw babyError;
+
+    if (!doctorProfile) {
+      return res.status(400).json({
+        success: false,
+        error: 'Doctor profile is required before requesting patient access',
+      });
+    }
+
+    if (!baby) {
+      return res.status(404).json({
+        success: false,
+        error: 'Baby not found',
+      });
+    }
+
+    if (String(baby.user_id || '').trim() !== parentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parent ID does not match the baby owner',
+      });
+    }
+
+    const { data: existingAssignment, error: existingAssignmentError } = await supabase
       .from('doctor_baby_assignments')
-      .insert({
-        id: uuidv4(),
-        doctor_id: doctorId,
-        baby_id: babyId,
-        parent_id: parentId,
-        assignment_reason: reason || 'Regular medical care',
-        parent_consent: true, // Assuming parent approved in frontend
-        consent_date: new Date().toISOString(),
-      })
-      .select()
-      .single();
+      .select('id,status,parent_consent')
+      .eq('doctor_id', doctorId)
+      .eq('baby_id', babyId)
+      .maybeSingle();
+
+    if (existingAssignmentError) throw existingAssignmentError;
+
+    if (
+      existingAssignment &&
+      String(existingAssignment.status || '').trim().toLowerCase() === 'active' &&
+      existingAssignment.parent_consent !== false
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: 'Doctor is already assigned to this baby',
+      });
+    }
+
+    const pendingAssignmentPayload = {
+      doctor_id: doctorId,
+      baby_id: babyId,
+      parent_id: parentId,
+      assignment_reason: reason || 'Doctor access request awaiting parent approval',
+      status: 'inactive',
+      parent_consent: false,
+      consent_date: null,
+      end_date: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const assignmentMutation = existingAssignment?.id
+      ? supabase
+          .from('doctor_baby_assignments')
+          .update(pendingAssignmentPayload)
+          .eq('id', existingAssignment.id)
+          .select()
+          .single()
+      : supabase
+          .from('doctor_baby_assignments')
+          .insert({
+            id: uuidv4(),
+            ...pendingAssignmentPayload,
+          })
+          .select()
+          .single();
+
+    const { data: assignment, error } = await assignmentMutation;
 
     if (error) throw error;
 
-    logger.info('Baby assigned to doctor', 'DOCTOR', { doctorId, babyId });
+    logger.info('Doctor assignment request created', 'DOCTOR', { doctorId, babyId, parentId });
 
     res.json({
       success: true,
       data: assignment,
-      message: 'Baby assigned successfully',
+      message: 'Assignment request created and is awaiting parent approval',
     });
   } catch (error) {
-    logger.error('Failed to assign baby', error as Error, 'DOCTOR');
-    res.status(500).json({ success: false, error: 'Failed to assign baby' });
+    logger.error('Failed to create doctor assignment request', error as Error, 'DOCTOR');
+    res.status(500).json({ success: false, error: 'Failed to create doctor assignment request' });
   }
 });
 
@@ -335,7 +406,7 @@ router.post('/assign-baby', requireAuth, async (req: AuthRequest, res: Response)
  * GET /api/doctor/babies
  * Get all babies assigned to this doctor
  */
-router.get('/babies', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/babies', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = String(req.user?.id || '');
     if (!doctorId) {
@@ -359,7 +430,7 @@ router.get('/babies', requireAuth, async (req: AuthRequest, res: Response) => {
  * GET /api/doctor/babies/:babyId/details
  * Get full details for a baby (diagnoses, medications, etc.)
  */
-router.get('/babies/:babyId/details', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/babies/:babyId/details', async (req: AuthRequest, res: Response) => {
   try {
     const { babyId } = req.params;
     const doctorId = req.user?.id;
@@ -428,7 +499,7 @@ router.get('/babies/:babyId/details', requireAuth, async (req: AuthRequest, res:
  * POST /api/doctor/diagnoses
  * Create diagnosis for a baby
  */
-router.post('/diagnoses', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/diagnoses', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
     const { babyId, diagnosisText, icd10Code, severity, onsetDate, notes } = req.body;
@@ -477,7 +548,7 @@ router.post('/diagnoses', requireAuth, async (req: AuthRequest, res: Response) =
  * GET /api/doctor/diagnoses/:babyId
  * Get all diagnoses for a baby
  */
-router.get('/diagnoses/:babyId', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/diagnoses/:babyId', async (req: AuthRequest, res: Response) => {
   try {
     const { babyId } = req.params;
 
@@ -504,7 +575,7 @@ router.get('/diagnoses/:babyId', requireAuth, async (req: AuthRequest, res: Resp
  * PUT /api/doctor/diagnoses/:diagnosisId
  * Update diagnosis
  */
-router.put('/diagnoses/:diagnosisId', requireAuth, async (req: AuthRequest, res: Response) => {
+router.put('/diagnoses/:diagnosisId', async (req: AuthRequest, res: Response) => {
   try {
     const { diagnosisId } = req.params;
     const { status, notes } = req.body;
@@ -552,7 +623,7 @@ router.put('/diagnoses/:diagnosisId', requireAuth, async (req: AuthRequest, res:
  * POST /api/doctor/medications
  * Prescribe medication for a baby
  */
-router.post('/medications', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/medications', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
     const {
@@ -618,7 +689,7 @@ router.post('/medications', requireAuth, async (req: AuthRequest, res: Response)
  * GET /api/doctor/medications/:babyId
  * Get active medications for a baby
  */
-router.get('/medications/:babyId', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/medications/:babyId', async (req: AuthRequest, res: Response) => {
   try {
     const { babyId } = req.params;
 
@@ -641,7 +712,6 @@ router.get('/medications/:babyId', requireAuth, async (req: AuthRequest, res: Re
  */
 router.post(
   '/medications/:medicationId/track-adherence',
-  requireAuth,
   async (req: AuthRequest, res: Response) => {
     try {
       const { medicationId } = req.params;
@@ -690,7 +760,7 @@ router.post(
  * PUT /api/doctor/medications/:medicationId/stop
  * Stop medication (mark as discontinued)
  */
-router.put('/medications/:medicationId/stop', requireAuth, async (req: AuthRequest, res: Response) => {
+router.put('/medications/:medicationId/stop', async (req: AuthRequest, res: Response) => {
   try {
     const { medicationId } = req.params;
     const { reason } = req.body;
@@ -737,7 +807,7 @@ router.put('/medications/:medicationId/stop', requireAuth, async (req: AuthReque
  * POST /api/doctor/appointments/reminders
  * Create appointment reminder for parent/baby
  */
-router.post('/appointments/reminders', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/appointments/reminders', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
     const { babyId, parentId, appointmentType, scheduledDate, scheduledTime, reason } = req.body;
@@ -786,7 +856,7 @@ router.post('/appointments/reminders', requireAuth, async (req: AuthRequest, res
  * GET /api/doctor/appointments/upcoming
  * Get upcoming appointments for doctor
  */
-router.get('/appointments/upcoming', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/appointments/upcoming', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
     const daysAhead = req.query.days ? parseInt(req.query.days as string) : 7;
@@ -813,7 +883,6 @@ router.get('/appointments/upcoming', requireAuth, async (req: AuthRequest, res: 
  */
 router.put(
   '/appointments/reminders/:reminderId/status',
-  requireAuth,
   async (req: AuthRequest, res: Response) => {
     try {
       const { reminderId } = req.params;
@@ -864,7 +933,6 @@ router.put(
  */
 router.post(
   '/appointments/reminders/:reminderId/send-notification',
-  requireAuth,
   async (req: AuthRequest, res: Response) => {
     try {
       const { reminderId } = req.params;
@@ -935,7 +1003,7 @@ router.post(
  * GET /api/doctor/dashboard
  * Doctor dashboard with statistics
  */
-router.get('/dashboard', requireAuth, async (req: AuthRequest, res: Response) => {
+router.get('/dashboard', async (req: AuthRequest, res: Response) => {
   try {
     const doctorId = req.user?.id;
 

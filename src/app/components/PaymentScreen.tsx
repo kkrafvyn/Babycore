@@ -297,21 +297,6 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
         subscriptionStartDate: new Date().toISOString(),
       });
 
-      await savePaymentEvent({
-        reference: paymentResult.reference,
-        provider: paymentResult.provider,
-        eventType: 'client_finalize_success',
-        status: 'success',
-        amount: paymentResult.amount,
-        currency: paymentResult.currency,
-        planId: paymentResult.planId,
-        planName: paymentResult.planName,
-        countryCode: paymentResult.countryCode,
-        customerEmail: user.email,
-        verifiedAt: new Date().toISOString(),
-        recoveryStatus: 'not_needed',
-      });
-
       onSuccess?.();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Payment failed. Please try again.';
@@ -333,7 +318,6 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             customerEmail: user.email,
             errorMessage,
             failureSource: 'client_finalize',
-            recoveryStatus: 'eligible',
           });
         } catch (saveErr) {
           console.warn('Failed to persist failed payment event:', saveErr);

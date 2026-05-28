@@ -691,7 +691,7 @@ router.post('/caregiver-sessions/start', requireAuth, async (req: AuthRequest, r
   try {
     const babyId = String(req.body?.babyId || '').trim();
     const accessType = String(req.body?.accessType || 'read_only').trim();
-    const durationMinutes = Math.max(5, Number(req.body?.durationMinutes || 480));
+    const durationMinutes = Math.max(5, Math.min(480, Number(req.body?.durationMinutes || 480)));
     const pinCodeOverride = String(req.body?.pinCodeOverride || '').trim() || null;
 
     if (!babyId) {
@@ -702,11 +702,15 @@ router.post('/caregiver-sessions/start', requireAuth, async (req: AuthRequest, r
       return res.status(400).json({ success: false, error: 'Invalid caregiver session access type' });
     }
 
+    if (pinCodeOverride && !/^\d{4}$/.test(pinCodeOverride)) {
+      return res.status(400).json({ success: false, error: 'PIN override must be exactly 4 digits' });
+    }
+
     const access = await ensureBabyAccess(req, res, babyId, { requireSharingManager: true });
     if (!access) return;
 
-    const pinCode = pinCodeOverride || Math.floor(1000 + Math.random() * 9000).toString();
-    const sessionToken = `${babyId}_${Math.random().toString(36).substring(7)}`;
+    const pinCode = pinCodeOverride || crypto.randomInt(1000, 10000).toString();
+    const sessionToken = crypto.randomBytes(24).toString('base64url');
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + durationMinutes);
 

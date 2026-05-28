@@ -122,7 +122,7 @@ export const savePaymentEvent = async (payload: {
   reference: string;
   provider?: string;
   eventType?: string;
-  status: 'pending' | 'success' | 'failed' | 'reconciled' | 'cancelled';
+  status: 'pending' | 'failed';
   amount?: number;
   currency?: Currency;
   planId?: string;
@@ -135,12 +135,6 @@ export const savePaymentEvent = async (payload: {
   failureCode?: string;
   failureSource?: string;
   gatewayPayload?: Record<string, any>;
-  providerEventId?: string;
-  verifiedAt?: string;
-  webhookReceivedAt?: string;
-  reconciliationNotes?: string;
-  nextRetryAt?: string | null;
-  recoveryStatus?: PaymentRecoveryStatus;
 }): Promise<void> => {
   const apiBaseUrl = getApiBaseUrl();
   const endpoint = `${apiBaseUrl}/payments/payment-event`;

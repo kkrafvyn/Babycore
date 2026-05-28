@@ -109,8 +109,6 @@ const getPaystackSecretKey = (): string =>
   process.env.PAYSTACK_SECRET_KEY ||
   process.env.PAYSTACK_SERVICE_KEY ||
   process.env.PAYSTACK_SECRET ||
-  process.env.VITE_PAYSTACK_LIVE_SECRET_KEY ||
-  process.env.VITE_PAYSTACK_SECRET_KEY ||
   '';
 
 const buildRetryAt = (minutes = 30): string => new Date(Date.now() + minutes * 60 * 1000).toISOString();
@@ -1110,19 +1108,14 @@ export async function savePaymentEvent(req: Request, res: Response) {
       failureCode,
       failureSource,
       gatewayPayload,
-      providerEventId,
-      verifiedAt,
-      webhookReceivedAt,
-      reconciliationNotes,
-      nextRetryAt,
-      recoveryStatus,
     } = req.body || {};
+    const normalizedStatus = String(status || '').trim().toLowerCase();
 
     if (!reference) {
       return res.status(400).json({ success: false, message: 'reference is required' });
     }
 
-    if (!['pending', 'success', 'failed', 'reconciled', 'cancelled'].includes(String(status))) {
+    if (!['pending', 'failed'].includes(normalizedStatus)) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
@@ -1131,7 +1124,7 @@ export async function savePaymentEvent(req: Request, res: Response) {
       reference: String(reference),
       provider: String(provider || 'paystack'),
       eventType: String(eventType || 'client_attempt'),
-      status: status as PaymentEventStatus,
+      status: normalizedStatus as PaymentEventStatus,
       amount: Number.isFinite(Number(amount)) ? Number(amount) : null,
       currency: currency ? String(currency) : null,
       planId: planId ? String(planId) : null,
@@ -1144,12 +1137,6 @@ export async function savePaymentEvent(req: Request, res: Response) {
       failureCode: failureCode ? String(failureCode) : null,
       failureSource: failureSource ? String(failureSource) : null,
       gatewayPayload: gatewayPayload || null,
-      providerEventId: providerEventId ? String(providerEventId) : null,
-      verifiedAt: verifiedAt ? String(verifiedAt) : null,
-      webhookReceivedAt: webhookReceivedAt ? String(webhookReceivedAt) : null,
-      reconciliationNotes: reconciliationNotes ? String(reconciliationNotes) : null,
-      nextRetryAt: nextRetryAt ? String(nextRetryAt) : null,
-      recoveryStatus: recoveryStatus ? (String(recoveryStatus) as PaymentRecoveryStatus) : undefined,
     });
 
     return res.json({ success: true });
@@ -1612,7 +1599,7 @@ export async function recordPaymentEvent(payload: PaymentEventPayload): Promise<
 export async function verifyPaystackTransaction(reference: string): Promise<any> {
   const secret = getPaystackSecretKey();
   if (!secret) {
-    throw new Error('PAYSTACK_SECRET_KEY is not configured (set PAYSTACK_SECRET_KEY or VITE_PAYSTACK_LIVE_SECRET_KEY)');
+    throw new Error('PAYSTACK_SECRET_KEY is not configured (set PAYSTACK_SECRET_KEY or PAYSTACK_SERVICE_KEY)');
   }
 
   const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {

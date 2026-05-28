@@ -18,45 +18,7 @@ interface EmailOptions {
  */
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    // Option 1: Use SendGrid (commented out)
-    // Uncomment and add your SendGrid API key to environment variables
-    /*
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: options.to }],
-        }],
-        from: { email: options.from || 'noreply@babylog.app' },
-        subject: options.subject,
-        content: [{
-          type: 'text/html',
-          value: options.html,
-        }],
-      }),
-    });
-    */
-
-    // Option 2: Use Resend (commented out)
-    /*
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: options.from || 'noreply@babylog.app',
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-      }),
-    });
-    */
+    // Provider API keys must stay server-side. Route all email sends through the backend.
 
     const auth = supabase.auth as any;
     const {
