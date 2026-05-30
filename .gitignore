@@ -21,6 +21,7 @@ pnpm-debug.log*
 .env.*
 !.env.example
 !.env.production.example
+!.env.docker.example
 !.env.vercel.example
 
 # OS / editor

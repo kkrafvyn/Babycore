@@ -4,11 +4,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { config as loadEnv } from 'dotenv';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const poolerUrlPath = path.join(repoRoot, 'supabase', '.temp', 'pooler-url');
 const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== '--linked');
+
+for (const envFile of ['.env', '.env.local', '.env.production.local']) {
+  loadEnv({ path: path.join(repoRoot, envFile), override: false });
+}
 
 if (forwardedArgs.length === 0) {
   console.error('Usage: node scripts/run-supabase-linked.mjs <supabase arguments...>');

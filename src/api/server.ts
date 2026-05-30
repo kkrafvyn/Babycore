@@ -5,6 +5,9 @@
 
 import express, { Express, Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import authMiddleware, { rateLimit } from './middleware/auth.js';
 import babiesRoutes from './routes/babies.js';
 import feedingRoutes from './routes/feeding.js';
@@ -58,6 +61,10 @@ import {
 loadServerEnvironment();
 
 const app: Express = express();
+const serverDirectory = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(serverDirectory, '..');
+const clientIndexPath = path.join(clientDistPath, 'index.html');
+const hasClientBuild = fs.existsSync(clientIndexPath);
 const genericEmailRateLimit = rateLimit(3, '1m');
 const inviteEmailRateLimit = rateLimit(6, '1m');
 const reportEmailRateLimit = rateLimit(4, '1m');
@@ -101,6 +108,38 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
   next();
 });
+
+// ==================== FRONTEND STATIC ASSETS ====================
+
+if (hasClientBuild) {
+  app.use(
+    '/assets',
+    express.static(path.join(clientDistPath, 'assets'), {
+      immutable: true,
+      maxAge: '1y',
+    }),
+  );
+
+  app.use(
+    express.static(clientDistPath, {
+      index: false,
+      maxAge: 0,
+    }),
+  );
+
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.path === '/health' ||
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/webhooks')
+    ) {
+      next();
+      return;
+    }
+
+    res.sendFile(clientIndexPath);
+  });
+}
 
 // Authentication middleware
 app.use(authMiddleware);
