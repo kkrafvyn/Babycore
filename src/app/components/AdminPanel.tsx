@@ -300,6 +300,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const handleSectionChange = (sectionId: AdminSectionId) => {
     setActiveSection(sectionId);
     window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
       mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
   };
@@ -505,7 +506,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setPricingPlans(response.data.plans || []);
     toast.success(response.message || "Pricing updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
+    await Promise.all([
+      loadOverview(true),
+      loadAdminLogs(),
+      loadLaunchHealth(),
+    ]);
   };
 
   const handleSavePaymentCollection = async (enabled: boolean) => {
@@ -543,7 +548,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       );
     }
     toast.success(response.message || "Payment collection control updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
+    await Promise.all([
+      loadOverview(true),
+      loadAdminLogs(),
+      loadLaunchHealth(),
+    ]);
   };
 
   const handleSavePremiumAccess = async (enabled: boolean) => {
@@ -579,7 +588,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       response.data.premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
     );
     toast.success(response.message || "Premium access mode updated.");
-    await Promise.all([loadOverview(true), loadAdminLogs(), loadLaunchHealth()]);
+    await Promise.all([
+      loadOverview(true),
+      loadAdminLogs(),
+      loadLaunchHealth(),
+    ]);
   };
 
   const handleCreateTeamMember = async () => {
@@ -798,7 +811,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       : "Open";
   const paymentControlsReady = Boolean(paymentCollection && premiumAccess);
   const userPremiumAccessOpen =
-    paymentControlsReady && (!paymentCollectionEnabled || !premiumAccessEnabled);
+    paymentControlsReady &&
+    (!paymentCollectionEnabled || !premiumAccessEnabled);
   const userPremiumAccessStatusLabel =
     paymentCollectionLoading || !paymentControlsReady
       ? "Checking"
@@ -858,8 +872,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     {
       label: "Admin API",
       status: error ? "blocked" : "ready",
-      title: error ? "Admin overview has an error" : "Admin overview is loading",
-      description: error || "Overview, counts, and role data loaded without a top-level error.",
+      title: error
+        ? "Admin overview has an error"
+        : "Admin overview is loading",
+      description:
+        error ||
+        "Overview, counts, and role data loaded without a top-level error.",
       action: "Open Overview",
       section: "overview" as AdminSectionId,
     },
@@ -881,7 +899,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     },
     {
       label: "Billing recovery",
-      status: billingError ? "blocked" : billingSummary.failed > 0 ? "warning" : "ready",
+      status: billingError
+        ? "blocked"
+        : billingSummary.failed > 0
+          ? "warning"
+          : "ready",
       title: billingError
         ? "Billing recovery failed"
         : billingSummary.failed > 0
@@ -897,7 +919,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     },
     {
       label: "Pricing",
-      status: pricingError ? "blocked" : pricingPlans.length > 0 ? "ready" : "warning",
+      status: pricingError
+        ? "blocked"
+        : pricingPlans.length > 0
+          ? "ready"
+          : "warning",
       title: pricingError
         ? "Pricing failed"
         : pricingPlans.length > 0
@@ -924,7 +950,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       section: "data" as AdminSectionId,
     },
   ];
-  const launchSectionBySource: Record<AdminLaunchHealthCheck["source"], AdminSectionId> = {
+  const launchSectionBySource: Record<
+    AdminLaunchHealthCheck["source"],
+    AdminSectionId
+  > = {
     api: "overview",
     database: "data",
     vercel: "launch",
@@ -982,29 +1011,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   ).length;
 
   return (
-    <div className="fit-screen relative overflow-hidden bg-[#f6f7fb] dark:bg-[#050507]">
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute -left-28 top-0 h-72 w-72 rounded-full bg-cyan-200/40 blur-3xl dark:bg-cyan-500/10" />
-        <div className="absolute right-[-8rem] top-24 h-96 w-96 rounded-full bg-slate-300/50 blur-3xl dark:bg-blue-500/10" />
-        <div className="absolute bottom-[-10rem] left-1/3 h-96 w-96 rounded-full bg-amber-100/60 blur-3xl dark:bg-amber-500/10" />
-      </div>
-
-      <header className="fixed left-0 right-0 top-0 z-50 px-4 pt-4">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/80 px-4 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+    <div className="admin-panel min-h-[100dvh] overflow-x-hidden bg-[#f5f7fa] text-foreground dark:bg-[#050507]">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90">
+        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-[1180px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition-all hover:scale-105 active:scale-95 dark:bg-white/10 dark:text-zinc-200"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-all hover:bg-slate-100 active:scale-95 dark:border-white/10 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
               aria-label="Go back"
             >
-              <ChevronLeft size={22} />
+              <ChevronLeft size={20} />
             </button>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-light">
                 Babycore Command
               </p>
-              <h1 className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">
+              <h1 className="truncate text-base font-headline font-black text-foreground sm:text-lg">
                 Admin Console
               </h1>
             </div>
@@ -1013,7 +1036,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           <button
             onClick={() => refreshAll(true)}
             disabled={refreshing || loading}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-lg shadow-slate-950/15 transition-all active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-sm shadow-slate-950/10 transition-all hover:bg-slate-700 active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
             title="Refresh admin data"
             aria-label="Refresh admin data"
           >
@@ -1022,1410 +1045,1460 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         </div>
       </header>
 
-      <main
-        ref={mainRef}
-        className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-36 pt-28 sm:px-6 sm:pb-32 lg:px-10 lg:pl-36"
+      <nav
+        className="sticky top-[4.75rem] z-30 border-b border-slate-200/80 bg-[#f5f7fa]/95 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050507]/95 lg:hidden"
+        aria-label="Admin sections"
       >
-        <nav
-          className="fixed left-5 top-28 z-40 hidden lg:block"
-          aria-label="Admin sections"
-        >
-          <div className="flex w-[6.25rem] flex-col gap-2 rounded-[2rem] border border-white/70 bg-white/80 p-2 shadow-2xl shadow-slate-950/10 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
-            <p className="px-2 pb-1 pt-2 text-center text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
-              Admin
-            </p>
-            {ADMIN_SECTIONS.map((section) => {
-              const isActive = section.id === activeSection;
-              const SectionIcon = section.Icon;
+        <div className="mx-auto flex max-w-[1180px] gap-1 overflow-x-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-sm no-scrollbar dark:border-white/10 dark:bg-zinc-950">
+          {ADMIN_SECTIONS.map((section) => {
+            const isActive = section.id === activeSection;
+            const SectionIcon = section.Icon;
 
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  aria-pressed={isActive}
-                  title={section.label}
-                  onClick={() => handleSectionChange(section.id)}
-                  className={`flex flex-col items-center gap-1 rounded-[1.45rem] px-2 py-3 text-[8px] font-black uppercase tracking-[0.14em] transition-all ${
-                    isActive
-                      ? "bg-[#111827] text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-zinc-950"
-                      : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
-                  }`}
-                >
-                  <SectionIcon size={17} />
-                  <span>{section.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+            return (
+              <button
+                key={section.id}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => handleSectionChange(section.id)}
+                className={`flex h-12 min-w-[5rem] flex-col items-center justify-center gap-1 rounded-[8px] text-[7px] font-black uppercase tracking-[0.08em] transition-all ${
+                  isActive
+                    ? "bg-[#111827] text-white dark:bg-white dark:text-zinc-950"
+                    : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
+                }`}
+              >
+                <SectionIcon size={15} />
+                <span>{section.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
-        <nav
-          className="pointer-events-none fixed bottom-0 left-0 right-0 z-50 px-4 pb-5 lg:hidden"
-          aria-label="Admin sections"
-        >
-          <div className="pointer-events-auto mx-auto flex max-w-md gap-1 overflow-x-auto rounded-[2rem] border border-white/10 bg-[#1c1c1e]/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-2xl no-scrollbar">
-            {ADMIN_SECTIONS.map((section) => {
-              const isActive = section.id === activeSection;
-              const SectionIcon = section.Icon;
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 sm:py-6 lg:grid-cols-[7.5rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
+        <aside className="hidden lg:block">
+          <nav className="sticky top-[6.25rem]" aria-label="Admin sections">
+            <div className="flex w-full flex-col gap-1 rounded-[8px] border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-zinc-950">
+              <p className="px-2 pb-2 pt-1 text-center text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
+                Admin
+              </p>
+              {ADMIN_SECTIONS.map((section) => {
+                const isActive = section.id === activeSection;
+                const SectionIcon = section.Icon;
 
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => handleSectionChange(section.id)}
-                  className={`flex h-14 min-w-[4rem] flex-col items-center justify-center gap-1 rounded-[1.35rem] text-[7px] font-black uppercase tracking-[0.12em] transition-all ${
-                    isActive
-                      ? "bg-white text-[#1c1c1e]"
-                      : "text-white/55 hover:text-white"
-                  }`}
-                >
-                  <SectionIcon size={15} />
-                  <span>{section.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-
-        <div className="mx-auto w-full max-w-6xl space-y-10 sm:space-y-8">
-          <div className="relative overflow-hidden rounded-[2.75rem] border border-white/75 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75 sm:p-8 lg:p-10">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-slate-500 to-amber-300" />
-            <div className="relative grid gap-8 lg:grid-cols-[1.25fr_0.95fr] lg:items-end">
-              <div>
-                <div className="mb-5 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
-                    Full admin
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      premiumAccessEnabled
-                        ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-pressed={isActive}
+                    title={section.label}
+                    onClick={() => handleSectionChange(section.id)}
+                    className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-[8px] px-2 py-2 text-[8px] font-black uppercase tracking-[0.08em] transition-all ${
+                      isActive
+                        ? "bg-[#111827] text-white shadow-sm shadow-slate-950/10 dark:bg-white dark:text-zinc-950"
+                        : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
                     }`}
                   >
-                    Premium {premiumAccessStatusLabel}
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      paymentCollectionEnabled
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                    }`}
-                  >
-                    Payments {paymentCollectionStatusLabel}
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      paymentCollectionLoading || !paymentControlsReady
-                        ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                        : userPremiumAccessOpen
+                    <SectionIcon size={17} />
+                    <span className="max-w-full truncate">{section.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        </aside>
+
+        <main ref={mainRef} className="min-w-0 space-y-6">
+          <div className="min-w-0 space-y-6">
+            <section className="overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950">
+              <div className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-end">
+                <div>
+                  <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
+                      Full admin
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                        premiumAccessEnabled
+                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      }`}
+                    >
+                      Premium {premiumAccessStatusLabel}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                        paymentCollectionEnabled
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-                    }`}
-                  >
-                    User Premium {userPremiumAccessStatusLabel}
-                  </span>
-                </div>
-
-                <p className="text-[10px] font-black uppercase tracking-[0.32em] text-text-light">
-                  {activeSectionMeta.eyebrow}
-                </p>
-                <h2 className="mt-3 max-w-2xl text-4xl font-headline font-black tracking-[-0.06em] text-foreground sm:text-5xl">
-                  {activeSectionMeta.title}
-                </h2>
-                <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-text-dim sm:text-base">
-                  {activeSectionMeta.description}
-                </p>
-                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-light">
-                  Generated {generatedAt ? formatDateTime(generatedAt) : "-"}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 flex items-center justify-between rounded-[1.75rem] border border-slate-200 bg-slate-950 p-4 text-white shadow-xl shadow-slate-950/10 dark:border-white/10 dark:bg-white dark:text-zinc-950">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.24em] opacity-60">
-                      Viewing
-                    </p>
-                    <p className="mt-1 text-lg font-headline font-black tracking-tight">
-                      {activeSectionMeta.label}
-                    </p>
-                  </div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 dark:bg-zinc-950/10">
-                    <ActiveSectionIcon size={20} />
-                  </div>
-                </div>
-                {heroStats.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[1.55rem] border border-slate-200/80 bg-white/75 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
-                  >
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
-                      {item.label}
-                    </p>
-                    <p className="mt-2 text-2xl font-headline font-black tracking-tight text-foreground">
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {error && (
-            <MotionDiv
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-[2rem] p-6"
-            >
-              <p className="text-sm font-black text-red-600 dark:text-red-300">
-                {error}
-              </p>
-            </MotionDiv>
-          )}
-
-          {loading ? (
-            <div className="rounded-[2rem] border border-white/70 bg-white/80 p-8 text-center shadow-xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
-              <p className="text-sm font-bold text-text-light">
-                Loading admin data...
-              </p>
-            </div>
-          ) : (
-            <>
-              <div
-                id="admin-overview"
-                className={activeSection === "overview" ? "space-y-4" : "hidden"}
-              >
-                <div className="flex items-end justify-between gap-3 px-1">
-                  <div>
-                    <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                      Totals
-                    </p>
-                    <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
-                      Platform health at a glance
-                    </h3>
-                  </div>
-                </div>
-                {countEntries.length === 0 && (
-                  <EmptyStateCard
-                    Icon={BarChart3}
-                    title="No overview totals yet"
-                    description="Once users start creating records, platform totals will appear here automatically."
-                  />
-                )}
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {countEntries.map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                      }`}
                     >
-                      <p className="text-[9px] font-black text-text-light uppercase tracking-widest">
-                        {label}
-                      </p>
-                      <p className="text-2xl font-headline font-black text-foreground mt-2">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      Payments {paymentCollectionStatusLabel}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                        paymentCollectionLoading || !paymentControlsReady
+                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                          : userPremiumAccessOpen
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                      }`}
+                    >
+                      User Premium {userPremiumAccessStatusLabel}
+                    </span>
+                  </div>
 
-              <div className={activeSection === "overview" ? "space-y-4" : "hidden"}>
-                <div className="px-1">
-                  <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Role Distribution
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-text-light">
+                    {activeSectionMeta.eyebrow}
                   </p>
-                  <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
-                    Who is using Babycore
-                  </h3>
+                  <h2 className="mt-2 max-w-3xl text-3xl font-headline font-black text-foreground sm:text-4xl">
+                    {activeSectionMeta.title}
+                  </h2>
+                  <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-text-dim sm:text-base">
+                    {activeSectionMeta.description}
+                  </p>
+                  <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.12em] text-text-light">
+                    Generated {generatedAt ? formatDateTime(generatedAt) : "-"}
+                  </p>
                 </div>
-                <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
-                  {roleDistribution.length === 0 && (
-                    <div className="sm:col-span-2">
-                      <EmptyStateCard
-                        Icon={Users}
-                        title="No role mix to show yet"
-                        description="Role distribution will update after the admin API returns user records."
-                      />
-                    </div>
-                  )}
-                  {roleDistribution.map((item) => (
-                    <div
-                      key={item.role}
-                      className="flex items-center justify-between rounded-[1.25rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
-                    >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                        {item.role}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 flex min-w-0 items-center justify-between gap-4 rounded-[8px] border border-slate-200 bg-slate-950 p-4 text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-zinc-950">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">
+                        Viewing
                       </p>
-                      <p className="text-lg font-headline font-black text-foreground">
-                        {item.count}
+                      <p className="mt-1 truncate text-lg font-headline font-black">
+                        {activeSectionMeta.label}
+                      </p>
+                    </div>
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/10 dark:bg-zinc-950/10">
+                      <ActiveSectionIcon size={20} />
+                    </div>
+                  </div>
+                  {heroStats.map((item) => (
+                    <div
+                      key={item.label}
+                      className="min-w-0 rounded-[8px] border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                    >
+                      <p className="break-words text-[9px] font-black uppercase leading-4 tracking-[0.14em] text-text-light">
+                        {item.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-headline font-black text-foreground">
+                        {item.value}
                       </p>
                     </div>
                   ))}
                 </div>
               </div>
+            </section>
 
-              <div
-                id="admin-launch"
-                className={activeSection === "launch" ? "space-y-4" : "hidden"}
+            {error && (
+              <MotionDiv
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-[2rem] p-6"
               >
-                <div className="rounded-[2.5rem] border border-white/70 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-black text-red-600 dark:text-red-300">
+                  {error}
+                </p>
+              </MotionDiv>
+            )}
+
+            {loading ? (
+              <div className="rounded-[2rem] border border-white/70 bg-white/80 p-8 text-center shadow-xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+                <p className="text-sm font-bold text-text-light">
+                  Loading admin data...
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  id="admin-overview"
+                  className={
+                    activeSection === "overview" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-end justify-between gap-3 px-1">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
-                        Launch QA
+                      <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                        Totals
                       </p>
-                      <h3 className="mt-2 text-3xl font-headline font-black tracking-[-0.05em] text-foreground">
-                        {launchBlockerCount > 0
-                          ? "Fix blockers before marketing"
-                          : "Ready for deeper production testing"}
+                      <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
+                        Platform health at a glance
                       </h3>
-                      <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
-                        This page checks the gates that matter before ads or public launch: premium access, payments,
-                        migrations, admin API health, Vercel deployment state, and recent runtime logs.
-                      </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={loadLaunchHealth}
-                          disabled={launchHealthLoading}
-                          className="rounded-2xl bg-slate-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60 dark:bg-white dark:text-zinc-950"
-                        >
-                          {launchHealthLoading ? "Checking..." : "Refresh Live Health"}
-                        </button>
-                        <span className="text-[11px] font-semibold text-text-light">
-                          {launchHealthGeneratedAt
-                            ? `Live check ${formatDateTime(launchHealthGeneratedAt)}`
-                            : liveLaunchReadinessItems.length > 0
-                              ? "Live backend checks loaded."
-                              : "Using app-loaded fallback checks until live health responds."}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:w-64">
-                      <div className="rounded-[1.35rem] bg-slate-950 px-4 py-4 text-white dark:bg-white dark:text-zinc-950">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">
-                          Ready
-                        </p>
-                        <p className="mt-2 text-2xl font-headline font-black">
-                          {launchReadyCount}/{displayLaunchReadinessItems.length}
-                        </p>
-                      </div>
-                      <div
-                        className={`rounded-[1.35rem] px-4 py-4 ${
-                          launchBlockerCount > 0
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        }`}
-                      >
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">
-                          Blockers
-                        </p>
-                        <p className="mt-2 text-2xl font-headline font-black">
-                          {launchBlockerCount}
-                        </p>
-                      </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {displayLaunchReadinessItems.map((item) => {
-                    const isReady = item.status === "ready";
-                    const isBlocked = item.status === "blocked";
-
-                    return (
+                  {countEntries.length === 0 && (
+                    <EmptyStateCard
+                      Icon={BarChart3}
+                      title="No overview totals yet"
+                      description="Once users start creating records, platform totals will appear here automatically."
+                    />
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {countEntries.map(([label, value]) => (
                       <div
-                        key={`${item.label}-${item.title}`}
-                        className={`rounded-[2rem] border p-5 shadow-sm backdrop-blur-xl ${
-                          isReady
-                            ? "border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-400/20 dark:bg-emerald-950/20"
-                            : isBlocked
-                              ? "border-rose-200/80 bg-rose-50/80 dark:border-rose-400/20 dark:bg-rose-950/20"
-                              : "border-amber-200/80 bg-amber-50/80 dark:border-amber-400/20 dark:bg-amber-950/20"
-                        }`}
+                        key={label}
+                        className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
                       >
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                              isReady
-                                ? "bg-emerald-500 text-white"
-                                : isBlocked
-                                  ? "bg-rose-500 text-white"
-                                  : "bg-amber-500 text-white"
-                            }`}
-                          >
-                            {isReady ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
-                              {item.label}
-                            </p>
-                            <p className="mt-1 text-base font-headline font-black tracking-tight text-foreground">
-                              {item.title}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold leading-5 text-text-dim">
-                              {item.description}
-                            </p>
-                            {"source" in item && item.source ? (
-                              <p className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
-                                Source: {String(item.source)}
-                                {"checkedAt" in item && item.checkedAt
-                                  ? ` | ${formatDateTime(String(item.checkedAt))}`
-                                  : ""}
-                              </p>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                item.section === "launch"
-                                  ? loadLaunchHealth()
-                                  : handleSectionChange(item.section)
-                              }
-                              className="mt-4 rounded-xl bg-white/80 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-foreground shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] dark:bg-white/10"
-                            >
-                              {item.action}
-                            </button>
-                          </div>
-                        </div>
+                        <p className="text-[9px] font-black text-text-light uppercase tracking-widest">
+                          {label}
+                        </p>
+                        <p className="text-2xl font-headline font-black text-foreground mt-2">
+                          {value}
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div
-                id="admin-payments"
-                className={activeSection === "payments" ? "space-y-4" : "hidden"}
-              >
-                <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Payment Collection
-                  </h3>
-                  <span
-                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-                      paymentCollectionEnabled
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                    }`}
-                  >
-                    {paymentCollectionStatusLabel}
-                  </span>
+                    ))}
+                  </div>
                 </div>
 
                 <div
-                  className={`relative overflow-hidden rounded-[2.35rem] border p-5 shadow-xl backdrop-blur-xl ${
-                    paymentCollectionLoading || !paymentControlsReady
-                      ? "border-white/70 bg-white/80 shadow-slate-950/5 dark:border-white/10 dark:bg-zinc-950/70"
-                      : userPremiumAccessOpen
-                        ? "border-emerald-200/80 bg-emerald-50/85 shadow-emerald-950/5 dark:border-emerald-400/20 dark:bg-emerald-950/20"
-                        : "border-rose-200/80 bg-rose-50/85 shadow-rose-950/5 dark:border-rose-400/20 dark:bg-rose-950/20"
-                  }`}
+                  className={
+                    activeSection === "overview" ? "space-y-4" : "hidden"
+                  }
                 >
-                  <div className="absolute right-[-2rem] top-[-3rem] h-28 w-28 rounded-full bg-white/50 blur-2xl dark:bg-white/10" />
-                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-4">
+                  <div className="px-1">
+                    <p className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Role Distribution
+                    </p>
+                    <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
+                      Who is using Babycore
+                    </h3>
+                  </div>
+                  <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
+                    {roleDistribution.length === 0 && (
+                      <div className="sm:col-span-2">
+                        <EmptyStateCard
+                          Icon={Users}
+                          title="No role mix to show yet"
+                          description="Role distribution will update after the admin API returns user records."
+                        />
+                      </div>
+                    )}
+                    {roleDistribution.map((item) => (
                       <div
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                          userPremiumAccessOpen
-                            ? "bg-emerald-500 text-white"
-                            : "bg-slate-950 text-white dark:bg-white dark:text-zinc-950"
-                        }`}
+                        key={item.role}
+                        className="flex items-center justify-between rounded-[1.25rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
                       >
-                        <ShieldCheck size={20} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
-                          Effective user access
+                        <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                          {item.role}
                         </p>
-                        <p className="mt-1 text-lg font-headline font-black tracking-tight text-foreground">
-                          {userPremiumAccessOpen
-                            ? "Users can open premium tools"
-                            : paymentCollectionLoading || !paymentControlsReady
-                              ? "Checking premium access"
-                              : "Users need an active plan"}
-                        </p>
-                        <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-text-dim">
-                          {userPremiumAccessReason}
+                        <p className="text-lg font-headline font-black text-foreground">
+                          {item.count}
                         </p>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center sm:w-80">
-                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
-                          Payments
-                        </p>
-                        <p className="mt-1 text-xs font-black text-foreground">
-                          {paymentCollectionStatusLabel}
-                        </p>
-                      </div>
-                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
-                          Premium
-                        </p>
-                        <p className="mt-1 text-xs font-black text-foreground">
-                          {premiumAccessStatusLabel}
-                        </p>
-                      </div>
-                      <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
-                          Result
-                        </p>
-                        <p className="mt-1 text-xs font-black text-foreground">
-                          {userPremiumAccessStatusLabel}
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                <div
+                  id="admin-launch"
+                  className={
+                    activeSection === "launch" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="rounded-[2.5rem] border border-white/70 bg-white/80 p-6 shadow-2xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-text-light">
+                          Launch QA
+                        </p>
+                        <h3 className="mt-2 text-3xl font-headline font-black tracking-[-0.05em] text-foreground">
+                          {launchBlockerCount > 0
+                            ? "Fix blockers before marketing"
+                            : "Ready for deeper production testing"}
+                        </h3>
+                        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
+                          This page checks the gates that matter before ads or
+                          public launch: premium access, payments, migrations,
+                          admin API health, Vercel deployment state, and recent
+                          runtime logs.
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={loadLaunchHealth}
+                            disabled={launchHealthLoading}
+                            className="rounded-2xl bg-slate-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60 dark:bg-white dark:text-zinc-950"
+                          >
+                            {launchHealthLoading
+                              ? "Checking..."
+                              : "Refresh Live Health"}
+                          </button>
+                          <span className="text-[11px] font-semibold text-text-light">
+                            {launchHealthGeneratedAt
+                              ? `Live check ${formatDateTime(launchHealthGeneratedAt)}`
+                              : liveLaunchReadinessItems.length > 0
+                                ? "Live backend checks loaded."
+                                : "Using app-loaded fallback checks until live health responds."}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:w-64">
+                        <div className="rounded-[1.35rem] bg-slate-950 px-4 py-4 text-white dark:bg-white dark:text-zinc-950">
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">
+                            Ready
+                          </p>
+                          <p className="mt-2 text-2xl font-headline font-black">
+                            {launchReadyCount}/
+                            {displayLaunchReadinessItems.length}
+                          </p>
+                        </div>
+                        <div
+                          className={`rounded-[1.35rem] px-4 py-4 ${
+                            launchBlockerCount > 0
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          }`}
+                        >
+                          <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">
+                            Blockers
+                          </p>
+                          <p className="mt-2 text-2xl font-headline font-black">
+                            {launchBlockerCount}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {displayLaunchReadinessItems.map((item) => {
+                      const isReady = item.status === "ready";
+                      const isBlocked = item.status === "blocked";
+
+                      return (
+                        <div
+                          key={`${item.label}-${item.title}`}
+                          className={`rounded-[2rem] border p-5 shadow-sm backdrop-blur-xl ${
+                            isReady
+                              ? "border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-400/20 dark:bg-emerald-950/20"
+                              : isBlocked
+                                ? "border-rose-200/80 bg-rose-50/80 dark:border-rose-400/20 dark:bg-rose-950/20"
+                                : "border-amber-200/80 bg-amber-50/80 dark:border-amber-400/20 dark:bg-amber-950/20"
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div
+                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                                isReady
+                                  ? "bg-emerald-500 text-white"
+                                  : isBlocked
+                                    ? "bg-rose-500 text-white"
+                                    : "bg-amber-500 text-white"
+                              }`}
+                            >
+                              {isReady ? (
+                                <CheckCircle2 size={18} />
+                              ) : (
+                                <AlertTriangle size={18} />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-text-light">
+                                {item.label}
+                              </p>
+                              <p className="mt-1 text-base font-headline font-black tracking-tight text-foreground">
+                                {item.title}
+                              </p>
+                              <p className="mt-1 text-xs font-semibold leading-5 text-text-dim">
+                                {item.description}
+                              </p>
+                              {"source" in item && item.source ? (
+                                <p className="mt-2 text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
+                                  Source: {String(item.source)}
+                                  {"checkedAt" in item && item.checkedAt
+                                    ? ` | ${formatDateTime(String(item.checkedAt))}`
+                                    : ""}
+                                </p>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  item.section === "launch"
+                                    ? loadLaunchHealth()
+                                    : handleSectionChange(item.section)
+                                }
+                                className="mt-4 rounded-xl bg-white/80 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-foreground shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] dark:bg-white/10"
+                              >
+                                {item.action}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  id="admin-payments"
+                  className={
+                    activeSection === "payments" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Payment Collection
+                    </h3>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                         paymentCollectionEnabled
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
                           : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                       }`}
                     >
-                      <Power size={20} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-foreground">
-                        {paymentCollectionEnabled
-                          ? "Live checkout is enabled"
-                          : "Live checkout is paused"}
-                      </p>
-                      <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                        Keep this off while we finish full-app QA. Turning it on
-                        lets users complete real checkout.
-                      </p>
-                    </div>
-                  </div>
-
-                  {paymentCollectionError && (
-                    <p className="text-sm font-bold text-red-500">
-                      {paymentCollectionError}
-                    </p>
-                  )}
-
-                  <label className="block space-y-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                      Customer-facing pause note
+                      {paymentCollectionStatusLabel}
                     </span>
-                    <textarea
-                      value={paymentCollectionReason}
-                      onChange={(event) =>
-                        setPaymentCollectionReason(event.target.value)
-                      }
-                      className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() =>
-                        void handleSavePaymentCollection(
-                          !paymentCollectionEnabled,
-                        )
-                      }
-                      disabled={
-                        paymentCollectionSaving || paymentCollectionLoading
-                      }
-                      className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
-                        paymentCollectionEnabled ? "bg-red-500" : "bg-secondary"
-                      }`}
-                    >
-                      {paymentCollectionSaving
-                        ? "Saving..."
-                        : paymentCollectionEnabled
-                          ? "Turn Payments Off"
-                          : "Turn Payments On"}
-                    </button>
-                    <button
-                      onClick={() =>
-                        void handleSavePaymentCollection(
-                          paymentCollectionEnabled,
-                        )
-                      }
-                      disabled={
-                        paymentCollectionSaving || paymentCollectionLoading
-                      }
-                      className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
-                    >
-                      Save Note
-                    </button>
                   </div>
-                </div>
 
-                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
-                  <div className="flex items-start justify-between gap-4">
+                  <div
+                    className={`relative overflow-hidden rounded-[2.35rem] border p-5 shadow-xl backdrop-blur-xl ${
+                      paymentCollectionLoading || !paymentControlsReady
+                        ? "border-white/70 bg-white/80 shadow-slate-950/5 dark:border-white/10 dark:bg-zinc-950/70"
+                        : userPremiumAccessOpen
+                          ? "border-emerald-200/80 bg-emerald-50/85 shadow-emerald-950/5 dark:border-emerald-400/20 dark:bg-emerald-950/20"
+                          : "border-rose-200/80 bg-rose-50/85 shadow-rose-950/5 dark:border-rose-400/20 dark:bg-rose-950/20"
+                    }`}
+                  >
+                    <div className="absolute right-[-2rem] top-[-3rem] h-28 w-28 rounded-full bg-white/50 blur-2xl dark:bg-white/10" />
+                    <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                            userPremiumAccessOpen
+                              ? "bg-emerald-500 text-white"
+                              : "bg-slate-950 text-white dark:bg-white dark:text-zinc-950"
+                          }`}
+                        >
+                          <ShieldCheck size={20} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
+                            Effective user access
+                          </p>
+                          <p className="mt-1 text-lg font-headline font-black tracking-tight text-foreground">
+                            {userPremiumAccessOpen
+                              ? "Users can open premium tools"
+                              : paymentCollectionLoading ||
+                                  !paymentControlsReady
+                                ? "Checking premium access"
+                                : "Users need an active plan"}
+                          </p>
+                          <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-text-dim">
+                            {userPremiumAccessReason}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center sm:w-80">
+                        <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                            Payments
+                          </p>
+                          <p className="mt-1 text-xs font-black text-foreground">
+                            {paymentCollectionStatusLabel}
+                          </p>
+                        </div>
+                        <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                            Premium
+                          </p>
+                          <p className="mt-1 text-xs font-black text-foreground">
+                            {premiumAccessStatusLabel}
+                          </p>
+                        </div>
+                        <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
+                            Result
+                          </p>
+                          <p className="mt-1 text-xs font-black text-foreground">
+                            {userPremiumAccessStatusLabel}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
                     <div className="flex items-start gap-4">
                       <div
-                        className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-2xl ${
-                          premiumAccessEnabled
-                            ? "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                          paymentCollectionEnabled
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                         }`}
                       >
-                        <ShieldCheck size={20} />
+                        <Power size={20} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-foreground">
-                          {premiumAccessEnabled
-                            ? "Premium requires a plan"
-                            : "Premium is open for user testing"}
+                          {paymentCollectionEnabled
+                            ? "Live checkout is enabled"
+                            : "Live checkout is paused"}
                         </p>
                         <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                          Open access lets normal users enter premium tools
-                          during QA without paying. Payment pause also opens
-                          premium automatically so users are not trapped behind
-                          checkout.
+                          Keep this off while we finish full-app QA. Turning it
+                          on lets users complete real checkout.
                         </p>
                       </div>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-                        premiumAccessEnabled
-                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      }`}
-                    >
-                      {premiumAccessStatusLabel}
-                    </span>
-                  </div>
 
-                  <label className="block space-y-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                      Premium access note
-                    </span>
-                    <textarea
-                      value={premiumAccessReason}
-                      onChange={(event) =>
-                        setPremiumAccessReason(event.target.value)
-                      }
-                      className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() =>
-                        void handleSavePremiumAccess(!premiumAccessEnabled)
-                      }
-                      disabled={premiumAccessSaving || paymentCollectionLoading}
-                      className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
-                        premiumAccessEnabled ? "bg-secondary" : "bg-slate-950"
-                      }`}
-                    >
-                      {premiumAccessSaving
-                        ? "Saving..."
-                        : premiumAccessEnabled
-                          ? "Open Access"
-                          : "Require Premium"}
-                    </button>
-                    <button
-                      onClick={() =>
-                        void handleSavePremiumAccess(premiumAccessEnabled)
-                      }
-                      disabled={premiumAccessSaving || paymentCollectionLoading}
-                      className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
-                    >
-                      Save Note
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className={activeSection === "payments" ? "space-y-4" : "hidden"}>
-                <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Premium Pricing
-                  </h3>
-                  <button
-                    onClick={() => void handleSavePricing()}
-                    disabled={
-                      pricingSaving ||
-                      pricingLoading ||
-                      pricingPlans.length === 0
-                    }
-                    className="rounded-full bg-secondary px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                  >
-                    {pricingSaving ? "Saving..." : "Save Pricing"}
-                  </button>
-                </div>
-
-                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
-                  {pricingLoading && (
-                    <p className="text-sm font-bold text-text-light">
-                      Loading pricing...
-                    </p>
-                  )}
-
-                  {!pricingLoading && pricingError && (
-                    <p className="text-sm font-bold text-red-500">
-                      {pricingError}
-                    </p>
-                  )}
-
-                  {!pricingLoading &&
-                    !pricingError &&
-                    pricingPlans.length === 0 && (
-                      <p className="text-sm font-bold text-text-light">
-                        No pricing plans found.
+                    {paymentCollectionError && (
+                      <p className="text-sm font-bold text-red-500">
+                        {paymentCollectionError}
                       </p>
                     )}
 
-                  {!pricingLoading &&
-                    !pricingError &&
-                    pricingPlans.length > 0 && (
-                      <div className="space-y-3">
-                        {pricingPlans.map((plan) => (
-                          <div
-                            key={plan.id}
-                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-black text-foreground">
-                                  {plan.name}
-                                </p>
-                                <p className="text-[10px] font-semibold text-text-light mt-1">
-                                  {plan.description}
-                                </p>
-                              </div>
-                              <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
-                                {plan.billingPeriod}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                              <label className="space-y-1">
-                                <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
-                                  Ghana (GHS)
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={plan.ghanaAmount}
-                                  onChange={(event) =>
-                                    handlePricingDraftChange(
-                                      plan.id,
-                                      "ghanaAmount",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                                />
-                              </label>
-                              <label className="space-y-1">
-                                <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
-                                  Outside Ghana (USD)
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={plan.internationalAmount}
-                                  onChange={(event) =>
-                                    handlePricingDraftChange(
-                                      plan.id,
-                                      "internationalAmount",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                </div>
-              </div>
-
-              <div
-                id="admin-settings"
-                className={activeSection === "settings" ? "space-y-4" : "hidden"}
-              >
-                <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Admin Team
-                  </h3>
-                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                    manager = limited admin
-                  </span>
-                </div>
-
-                <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
-                  <p className="text-[10px] font-semibold text-text-light leading-relaxed">
-                    Create full admins or limited admins. Use{" "}
-                    <span className="font-black text-secondary">manager</span>{" "}
-                    when you want a restricted admin account.
-                  </p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <input
-                      value={teamMemberDraft.name}
-                      onChange={(event) =>
-                        setTeamMemberDraft((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      placeholder="Admin name"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                    <input
-                      value={teamMemberDraft.email}
-                      onChange={(event) =>
-                        setTeamMemberDraft((current) => ({
-                          ...current,
-                          email: event.target.value,
-                        }))
-                      }
-                      placeholder="Admin email"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                    <input
-                      value={teamMemberDraft.password}
-                      onChange={(event) =>
-                        setTeamMemberDraft((current) => ({
-                          ...current,
-                          password: event.target.value,
-                        }))
-                      }
-                      placeholder="Temporary password (optional)"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={teamMemberDraft.role}
+                    <label className="block space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                        Customer-facing pause note
+                      </span>
+                      <textarea
+                        value={paymentCollectionReason}
                         onChange={(event) =>
-                          setTeamMemberDraft((current) => ({
-                            ...current,
-                            role: event.target
-                              .value as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
-                          }))
+                          setPaymentCollectionReason(event.target.value)
                         }
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                      >
-                        {LIMITED_ADMIN_ROLE_OPTIONS.map((role) => (
-                          <option key={role} value={role}>
-                            {LIMITED_ADMIN_ROLE_LABELS[role]}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={teamMemberDraft.profileType}
-                        onChange={(event) =>
-                          setTeamMemberDraft((current) => ({
-                            ...current,
-                            profileType: event.target
-                              .value as (typeof PROFILE_TYPE_OPTIONS)[number],
-                          }))
-                        }
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                      >
-                        {PROFILE_TYPE_OPTIONS.map((profileType) => (
-                          <option key={profileType} value={profileType}>
-                            {profileType}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => void handleCreateTeamMember()}
-                      disabled={creatingTeamMember}
-                      className="rounded-xl bg-secondary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
-                    >
-                      {creatingTeamMember
-                        ? "Creating..."
-                        : "Create Admin Account"}
-                    </button>
-                  </div>
-
-                  {temporaryPassword && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-800 dark:bg-amber-950/20">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                        Generated Temporary Password
-                      </p>
-                      <p className="mt-2 break-all font-mono text-sm font-semibold text-foreground">
-                        {temporaryPassword}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div
-                id="admin-users"
-                className={
-                  activeSection === "users" || activeSection === "settings"
-                    ? "space-y-4"
-                    : "hidden"
-                }
-              >
-                <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    {activeSection === "settings"
-                      ? "Role Switcher"
-                      : "User Directory"}
-                  </h3>
-                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                    {filteredUsers.length}/{usersTotal}
-                  </span>
-                </div>
-
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  {activeSection === "users" && (
-                    <div className="rounded-[1.4rem] border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-cyan-900 dark:border-cyan-400/20 dark:bg-cyan-950/20 dark:text-cyan-100">
-                      <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">
-                        Read-only page
-                      </p>
-                      <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-bold leading-relaxed">
-                          Role switching now lives only in Admin Settings so
-                          permission changes happen in one deliberate place.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleSectionChange("settings")}
-                          className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-900/10"
-                        >
-                          Open Settings
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search users by name or email"
-                    className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                  />
-
-                  {usersLoading && (
-                    <p className="text-sm font-bold text-text-light">
-                      Loading users...
-                    </p>
-                  )}
-
-                  {!usersLoading && usersError && (
-                    <p className="text-sm font-bold text-red-500">
-                      {usersError}
-                    </p>
-                  )}
-
-                  {!usersLoading &&
-                    !usersError &&
-                    filteredUsers.length === 0 && (
-                      <EmptyStateCard
-                        Icon={Users}
-                        title={search.trim() ? "No users match that search" : "No users loaded yet"}
-                        description={
-                          search.trim()
-                            ? "Try a different name, email, profile type, or role."
-                            : "New accounts will appear here after they sign up or are created by an admin."
-                        }
+                        className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                       />
-                    )}
+                    </label>
 
-                  {!usersLoading && !usersError && filteredUsers.length > 0 && (
-                    <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                      {filteredUsers.map((user) => {
-                        const selectedRole = roleDrafts[user.id] || user.role;
-                        const isActing = actingUserId === user.id;
-                        const canPromoteManager = user.role !== "manager";
-                        const canPromoteAdmin = user.role !== "admin";
-                        const canDemote = user.role !== "user";
-
-                        return (
-                          <div
-                            key={user.id}
-                            className="bg-surface-gray dark:bg-zinc-900 rounded-xl border border-border-gray dark:border-zinc-800 p-3 space-y-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-black text-foreground truncate">
-                                  {user.name}
-                                </p>
-                                <p className="text-[10px] font-semibold text-text-light truncate">
-                                  {user.email}
-                                </p>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
-                                  {user.role} | {user.profileType || "baby"} |
-                                  Babies {user.babiesCount || 0}
-                                </p>
-                              </div>
-                              <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
-                                {formatDateTime(
-                                  user.lastSignInAt ||
-                                    user.createdAt ||
-                                    undefined,
-                                )}
-                              </span>
-                            </div>
-
-                            {activeSection === "settings" ? (
-                              <>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <select
-                                    value={selectedRole}
-                                    onChange={(event) =>
-                                      setRoleDrafts((prev) => ({
-                                        ...prev,
-                                        [user.id]: event.target.value,
-                                      }))
-                                    }
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                                    disabled={isActing}
-                                  >
-                                    {ROLE_OPTIONS.map((role) => (
-                                      <option key={role} value={role}>
-                                        {role}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => handleApplyRole(user)}
-                                    disabled={
-                                      isActing || selectedRole === user.role
-                                    }
-                                    className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                                  >
-                                    Apply Role
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handlePromote(user, "manager")
-                                    }
-                                    disabled={isActing || !canPromoteManager}
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Promote Manager
-                                  </button>
-                                  <button
-                                    onClick={() => handlePromote(user, "admin")}
-                                    disabled={isActing || !canPromoteAdmin}
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Promote Admin
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() => handleDemote(user)}
-                                    disabled={isActing || !canDemote}
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Demote User
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUser(user)}
-                                    disabled={isActing}
-                                    className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                                  >
-                                    Delete User
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3 text-[10px] font-bold leading-relaxed text-text-light dark:border-white/10 dark:bg-white/5">
-                                Role controls are available from Admin Settings
-                                only.
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div
-                id="admin-activity"
-                className={activeSection === "activity" ? "space-y-4" : "hidden"}
-              >
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Admin Activity
-                </h3>
-
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
-                    Action Logs
-                  </p>
-                  {(logs || []).length === 0 ? (
-                    <EmptyStateCard
-                      Icon={ScrollText}
-                      title="No admin actions yet"
-                      description="Sensitive actions such as role changes, pricing updates, and payment toggles will appear here."
-                    />
-                  ) : (
-                    <div className="space-y-2">
-                      {logs.slice(0, 6).map((log, index) => (
-                        <div
-                          key={`${log.id || index}`}
-                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
-                        >
-                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                            {String(log.action || "action")}
-                          </p>
-                          <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
-                            target: {String(log.target_user_id || "-")}
-                          </p>
-                          <p className="text-[10px] font-semibold text-text-light mt-1">
-                            {formatDateTime(String(log.created_at || ""))}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                  <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
-                    Role Audit Trail
-                  </p>
-                  {(auditLogs || []).length === 0 ? (
-                    <EmptyStateCard
-                      Icon={ShieldCheck}
-                      title="No role changes recorded"
-                      description="When an admin promotes, demotes, or switches a user role, the audit trail will capture it here."
-                    />
-                  ) : (
-                    <div className="space-y-2">
-                      {auditLogs.slice(0, 6).map((log, index) => (
-                        <div
-                          key={`${log.id || index}`}
-                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
-                        >
-                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
-                            {String(log.previous_role || "user")}
-                            {" -> "}
-                            {String(log.new_role || "user")}
-                          </p>
-                          <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
-                            user: {String(log.user_id || "-")}
-                          </p>
-                          <p className="text-[10px] font-semibold text-text-light mt-1">
-                            {formatDateTime(String(log.created_at || ""))}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div
-                id="admin-billing"
-                className={activeSection === "billing" ? "space-y-4" : "hidden"}
-              >
-                <div className="flex items-center justify-between px-1 gap-3">
-                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                    Billing Ops
-                  </h3>
-                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                    {billingEvents.length}/{billingTotal}
-                  </span>
-                </div>
-
-                <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                    {[
-                      { label: "Failed", value: billingSummary.failed },
-                      { label: "Retrying", value: billingSummary.retrying },
-                      { label: "Recovered", value: billingSummary.recovered },
-                      { label: "Abandoned", value: billingSummary.abandoned },
-                      { label: "Visible", value: billingSummary.total },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
-                      >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
-                          {item.label}
-                        </p>
-                        <p className="mt-1 text-lg font-headline font-black text-foreground">
-                          {item.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                      value={billingSearch}
-                      onChange={(event) => setBillingSearch(event.target.value)}
-                      placeholder="Search reference, email, or plan"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-                    <div className="grid grid-cols-3 gap-2">
-                      <select
-                        value={billingStatusFilter}
-                        onChange={(event) =>
-                          setBillingStatusFilter(event.target.value)
-                        }
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                      >
-                        <option value="">All status</option>
-                        <option value="failed">Failed</option>
-                        <option value="reconciled">Reconciled</option>
-                        <option value="pending">Pending</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                      <select
-                        value={billingRecoveryFilter}
-                        onChange={(event) =>
-                          setBillingRecoveryFilter(event.target.value)
-                        }
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                      >
-                        <option value="">All recovery</option>
-                        <option value="eligible">Eligible</option>
-                        <option value="retry_scheduled">Retry scheduled</option>
-                        <option value="retrying">Retrying</option>
-                        <option value="recovered">Recovered</option>
-                        <option value="abandoned">Abandoned</option>
-                      </select>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={() => void handleExportBilling()}
-                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-foreground"
+                        onClick={() =>
+                          void handleSavePaymentCollection(
+                            !paymentCollectionEnabled,
+                          )
+                        }
+                        disabled={
+                          paymentCollectionSaving || paymentCollectionLoading
+                        }
+                        className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
+                          paymentCollectionEnabled
+                            ? "bg-red-500"
+                            : "bg-secondary"
+                        }`}
                       >
-                        Export CSV
+                        {paymentCollectionSaving
+                          ? "Saving..."
+                          : paymentCollectionEnabled
+                            ? "Turn Payments Off"
+                            : "Turn Payments On"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleSavePaymentCollection(
+                            paymentCollectionEnabled,
+                          )
+                        }
+                        disabled={
+                          paymentCollectionSaving || paymentCollectionLoading
+                        }
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
+                      >
+                        Save Note
                       </button>
                     </div>
                   </div>
 
-                  {billingLoading && (
-                    <p className="text-sm font-bold text-text-light">
-                      Loading billing operations data...
-                    </p>
-                  )}
+                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div
+                          className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-2xl ${
+                            premiumAccessEnabled
+                              ? "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          }`}
+                        >
+                          <ShieldCheck size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-foreground">
+                            {premiumAccessEnabled
+                              ? "Premium requires a plan"
+                              : "Premium is open for user testing"}
+                          </p>
+                          <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
+                            Open access lets normal users enter premium tools
+                            during QA without paying. Payment pause also opens
+                            premium automatically so users are not trapped
+                            behind checkout.
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                          premiumAccessEnabled
+                            ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        }`}
+                      >
+                        {premiumAccessStatusLabel}
+                      </span>
+                    </div>
 
-                  {!billingLoading && billingError && (
-                    <p className="text-sm font-bold text-red-500">
-                      {billingError}
-                    </p>
-                  )}
-
-                  {!billingLoading &&
-                    !billingError &&
-                    billingEvents.length === 0 && (
-                      <EmptyStateCard
-                        Icon={Receipt}
-                        title="No billing events match"
-                        description="Clear the filters or wait for Paystack events to sync before retrying recovery actions."
+                    <label className="block space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                        Premium access note
+                      </span>
+                      <textarea
+                        value={premiumAccessReason}
+                        onChange={(event) =>
+                          setPremiumAccessReason(event.target.value)
+                        }
+                        className="min-h-24 w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
                       />
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() =>
+                          void handleSavePremiumAccess(!premiumAccessEnabled)
+                        }
+                        disabled={
+                          premiumAccessSaving || paymentCollectionLoading
+                        }
+                        className={`rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 ${
+                          premiumAccessEnabled ? "bg-secondary" : "bg-slate-950"
+                        }`}
+                      >
+                        {premiumAccessSaving
+                          ? "Saving..."
+                          : premiumAccessEnabled
+                            ? "Open Access"
+                            : "Require Premium"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleSavePremiumAccess(premiumAccessEnabled)
+                        }
+                        disabled={
+                          premiumAccessSaving || paymentCollectionLoading
+                        }
+                        className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground disabled:opacity-50"
+                      >
+                        Save Note
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className={
+                    activeSection === "payments" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Premium Pricing
+                    </h3>
+                    <button
+                      onClick={() => void handleSavePricing()}
+                      disabled={
+                        pricingSaving ||
+                        pricingLoading ||
+                        pricingPlans.length === 0
+                      }
+                      className="rounded-full bg-secondary px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                    >
+                      {pricingSaving ? "Saving..." : "Save Pricing"}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
+                    {pricingLoading && (
+                      <p className="text-sm font-bold text-text-light">
+                        Loading pricing...
+                      </p>
                     )}
 
-                  {!billingLoading &&
-                    !billingError &&
-                    billingEvents.length > 0 && (
-                      <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
-                        {billingEvents.map((entry) => {
-                          const isActing =
-                            billingActingReference === entry.reference;
+                    {!pricingLoading && pricingError && (
+                      <p className="text-sm font-bold text-red-500">
+                        {pricingError}
+                      </p>
+                    )}
 
-                          return (
+                    {!pricingLoading &&
+                      !pricingError &&
+                      pricingPlans.length === 0 && (
+                        <p className="text-sm font-bold text-text-light">
+                          No pricing plans found.
+                        </p>
+                      )}
+
+                    {!pricingLoading &&
+                      !pricingError &&
+                      pricingPlans.length > 0 && (
+                        <div className="space-y-3">
+                          {pricingPlans.map((plan) => (
                             <div
-                              key={entry.id}
+                              key={plan.id}
                               className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-black text-foreground truncate">
-                                    {entry.plan_name || "Premium Access"}
+                                <div>
+                                  <p className="text-sm font-black text-foreground">
+                                    {plan.name}
                                   </p>
-                                  <p className="text-[10px] font-semibold text-text-light break-all">
-                                    {entry.reference}
-                                  </p>
-                                  <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
-                                    {entry.status} | {entry.currency || "USD"}{" "}
-                                    {Number(entry.amount || 0).toFixed(2)}
+                                  <p className="text-[10px] font-semibold text-text-light mt-1">
+                                    {plan.description}
                                   </p>
                                 </div>
-                                <span
-                                  className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryClass(
-                                    entry.recovery_status,
-                                  )}`}
-                                >
-                                  {entry.recovery_status || "not_needed"}
+                                <span className="text-[9px] font-black uppercase tracking-widest text-secondary">
+                                  {plan.billingPeriod}
                                 </span>
                               </div>
 
-                              <div className="space-y-1 text-[10px] font-semibold text-text-dim">
-                                <p>Email: {entry.customer_email || "-"}</p>
-                                <p>
-                                  Attempted:{" "}
-                                  {formatDateTime(
-                                    entry.attempted_at || undefined,
-                                  )}
-                                </p>
-                                <p>
-                                  Retries: {entry.retry_count || 0}
-                                  {entry.next_retry_at
-                                    ? ` | Next ${formatDateTime(entry.next_retry_at)}`
-                                    : ""}
-                                </p>
-                                {(entry.failure_code ||
-                                  entry.failure_source) && (
-                                  <p>
-                                    Failure: {entry.failure_code || "-"} |{" "}
-                                    {entry.failure_source || "-"}
-                                  </p>
-                                )}
-                                {entry.error_message && (
-                                  <p className="text-rose-500">
-                                    {entry.error_message}
-                                  </p>
-                                )}
-                              </div>
-
-                              {entry.payment_event_transitions?.length ? (
-                                <div className="rounded-lg border border-border-gray dark:border-zinc-800 bg-background dark:bg-zinc-950 px-3 py-2">
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                                    Recent Timeline
-                                  </p>
-                                  {entry.payment_event_transitions
-                                    .slice(0, 3)
-                                    .map((transition) => (
-                                      <p
-                                        key={transition.id}
-                                        className="mt-1 text-[10px] font-semibold text-text-dim"
-                                      >
-                                        {transition.event_type}
-                                        {" -> "}
-                                        {transition.new_status}
-                                        {" | "}
-                                        {formatDateTime(transition.created_at)}
-                                      </p>
-                                    ))}
-                                </div>
-                              ) : null}
-
-                              <div className="grid grid-cols-3 gap-2">
-                                <button
-                                  onClick={() =>
-                                    void handleRetryBilling(entry.reference)
-                                  }
-                                  disabled={
-                                    isActing || entry.provider !== "paystack"
-                                  }
-                                  className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                                >
-                                  Retry Now
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    void handleResolveBilling(
-                                      entry.reference,
-                                      "reconciled",
-                                    )
-                                  }
-                                  disabled={isActing}
-                                  className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                >
-                                  Mark Reconciled
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    void handleResolveBilling(
-                                      entry.reference,
-                                      "cancelled",
-                                    )
-                                  }
-                                  disabled={isActing}
-                                  className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                                >
-                                  Mark Cancelled
-                                </button>
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="space-y-1">
+                                  <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                    Ghana (GHS)
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={plan.ghanaAmount}
+                                    onChange={(event) =>
+                                      handlePricingDraftChange(
+                                        plan.id,
+                                        "ghanaAmount",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                                  />
+                                </label>
+                                <label className="space-y-1">
+                                  <span className="block text-[10px] font-black uppercase tracking-widest text-text-light">
+                                    Outside Ghana (USD)
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={plan.internationalAmount}
+                                    onChange={(event) =>
+                                      handlePricingDraftChange(
+                                        plan.id,
+                                        "internationalAmount",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                                  />
+                                </label>
                               </div>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                <div
+                  id="admin-settings"
+                  className={
+                    activeSection === "settings" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Admin Team
+                    </h3>
+                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                      manager = limited admin
+                    </span>
+                  </div>
+
+                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
+                    <p className="text-[10px] font-semibold text-text-light leading-relaxed">
+                      Create full admins or limited admins. Use{" "}
+                      <span className="font-black text-secondary">manager</span>{" "}
+                      when you want a restricted admin account.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3">
+                      <input
+                        value={teamMemberDraft.name}
+                        onChange={(event) =>
+                          setTeamMemberDraft((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Admin name"
+                        className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                      />
+                      <input
+                        value={teamMemberDraft.email}
+                        onChange={(event) =>
+                          setTeamMemberDraft((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                        placeholder="Admin email"
+                        className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                      />
+                      <input
+                        value={teamMemberDraft.password}
+                        onChange={(event) =>
+                          setTeamMemberDraft((current) => ({
+                            ...current,
+                            password: event.target.value,
+                          }))
+                        }
+                        placeholder="Temporary password (optional)"
+                        className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={teamMemberDraft.role}
+                          onChange={(event) =>
+                            setTeamMemberDraft((current) => ({
+                              ...current,
+                              role: event.target
+                                .value as (typeof LIMITED_ADMIN_ROLE_OPTIONS)[number],
+                            }))
+                          }
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                        >
+                          {LIMITED_ADMIN_ROLE_OPTIONS.map((role) => (
+                            <option key={role} value={role}>
+                              {LIMITED_ADMIN_ROLE_LABELS[role]}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={teamMemberDraft.profileType}
+                          onChange={(event) =>
+                            setTeamMemberDraft((current) => ({
+                              ...current,
+                              profileType: event.target
+                                .value as (typeof PROFILE_TYPE_OPTIONS)[number],
+                            }))
+                          }
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                        >
+                          {PROFILE_TYPE_OPTIONS.map((profileType) => (
+                            <option key={profileType} value={profileType}>
+                              {profileType}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => void handleCreateTeamMember()}
+                        disabled={creatingTeamMember}
+                        className="rounded-xl bg-secondary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50"
+                      >
+                        {creatingTeamMember
+                          ? "Creating..."
+                          : "Create Admin Account"}
+                      </button>
+                    </div>
+
+                    {temporaryPassword && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-800 dark:bg-amber-950/20">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                          Generated Temporary Password
+                        </p>
+                        <p className="mt-2 break-all font-mono text-sm font-semibold text-foreground">
+                          {temporaryPassword}
+                        </p>
                       </div>
                     )}
+                  </div>
                 </div>
-              </div>
 
-              <div
-                id="admin-data"
-                className={activeSection === "data" ? "space-y-4" : "hidden"}
-              >
-                <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Recent Data
-                </h3>
-                <div className="space-y-4">
-                  {recentSections.length === 0 && (
-                    <EmptyStateCard
-                      Icon={Database}
-                      title="No recent rows available"
-                      description="The admin overview endpoint did not return recent table snapshots yet."
-                    />
-                  )}
+                <div
+                  id="admin-users"
+                  className={
+                    activeSection === "users" || activeSection === "settings"
+                      ? "space-y-4"
+                      : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      {activeSection === "settings"
+                        ? "Role Switcher"
+                        : "User Directory"}
+                    </h3>
+                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                      {filteredUsers.length}/{usersTotal}
+                    </span>
+                  </div>
 
-                  {recentSections.map(([table, rows]) => (
-                    <details
-                      key={table}
-                      className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4"
-                    >
-                      <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-                        <span className="text-sm font-headline font-black text-foreground tracking-tight">
-                          {table}
-                        </span>
-                        <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                          {rows.length} rows
-                        </span>
-                      </summary>
-
-                      <div className="mt-3 space-y-2">
-                        {rows.map((row, index) => (
-                          <div
-                            key={`${table}-${index}`}
-                            className="bg-surface-gray dark:bg-zinc-900 rounded-xl p-3 border border-border-gray dark:border-zinc-800"
+                  <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                    {activeSection === "users" && (
+                      <div className="rounded-[1.4rem] border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-cyan-900 dark:border-cyan-400/20 dark:bg-cyan-950/20 dark:text-cyan-100">
+                        <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">
+                          Read-only page
+                        </p>
+                        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs font-bold leading-relaxed">
+                            Role switching now lives only in Admin Settings so
+                            permission changes happen in one deliberate place.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleSectionChange("settings")}
+                            className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-900/10"
                           >
-                            {Object.entries(row).map(([key, value]) => (
+                            Open Settings
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search users by name or email"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+
+                    {usersLoading && (
+                      <p className="text-sm font-bold text-text-light">
+                        Loading users...
+                      </p>
+                    )}
+
+                    {!usersLoading && usersError && (
+                      <p className="text-sm font-bold text-red-500">
+                        {usersError}
+                      </p>
+                    )}
+
+                    {!usersLoading &&
+                      !usersError &&
+                      filteredUsers.length === 0 && (
+                        <EmptyStateCard
+                          Icon={Users}
+                          title={
+                            search.trim()
+                              ? "No users match that search"
+                              : "No users loaded yet"
+                          }
+                          description={
+                            search.trim()
+                              ? "Try a different name, email, profile type, or role."
+                              : "New accounts will appear here after they sign up or are created by an admin."
+                          }
+                        />
+                      )}
+
+                    {!usersLoading &&
+                      !usersError &&
+                      filteredUsers.length > 0 && (
+                        <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                          {filteredUsers.map((user) => {
+                            const selectedRole =
+                              roleDrafts[user.id] || user.role;
+                            const isActing = actingUserId === user.id;
+                            const canPromoteManager = user.role !== "manager";
+                            const canPromoteAdmin = user.role !== "admin";
+                            const canDemote = user.role !== "user";
+
+                            return (
                               <div
-                                key={key}
-                                className="flex items-start justify-between gap-3 py-0.5"
+                                key={user.id}
+                                className="bg-surface-gray dark:bg-zinc-900 rounded-xl border border-border-gray dark:border-zinc-800 p-3 space-y-3"
                               >
-                                <span className="text-[9px] font-black uppercase tracking-widest text-text-light">
-                                  {key}
-                                </span>
-                                <span className="text-[10px] font-bold text-foreground text-right break-all">
-                                  {key.includes("date") ||
-                                  key.includes("time") ||
-                                  key.endsWith("_at")
-                                    ? formatDateTime(
-                                        typeof value === "string"
-                                          ? value
-                                          : undefined,
-                                      )
-                                    : formatAny(value)}
-                                </span>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-black text-foreground truncate">
+                                      {user.name}
+                                    </p>
+                                    <p className="text-[10px] font-semibold text-text-light truncate">
+                                      {user.email}
+                                    </p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
+                                      {user.role} | {user.profileType || "baby"}{" "}
+                                      | Babies {user.babiesCount || 0}
+                                    </p>
+                                  </div>
+                                  <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
+                                    {formatDateTime(
+                                      user.lastSignInAt ||
+                                        user.createdAt ||
+                                        undefined,
+                                    )}
+                                  </span>
+                                </div>
+
+                                {activeSection === "settings" ? (
+                                  <>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <select
+                                        value={selectedRole}
+                                        onChange={(event) =>
+                                          setRoleDrafts((prev) => ({
+                                            ...prev,
+                                            [user.id]: event.target.value,
+                                          }))
+                                        }
+                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                                        disabled={isActing}
+                                      >
+                                        {ROLE_OPTIONS.map((role) => (
+                                          <option key={role} value={role}>
+                                            {role}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => handleApplyRole(user)}
+                                        disabled={
+                                          isActing || selectedRole === user.role
+                                        }
+                                        className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                                      >
+                                        Apply Role
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <button
+                                        onClick={() =>
+                                          handlePromote(user, "manager")
+                                        }
+                                        disabled={
+                                          isActing || !canPromoteManager
+                                        }
+                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                      >
+                                        Promote Manager
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handlePromote(user, "admin")
+                                        }
+                                        disabled={isActing || !canPromoteAdmin}
+                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                      >
+                                        Promote Admin
+                                      </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <button
+                                        onClick={() => handleDemote(user)}
+                                        disabled={isActing || !canDemote}
+                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                      >
+                                        Demote User
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteUser(user)}
+                                        disabled={isActing}
+                                        className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                                      >
+                                        Delete User
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3 text-[10px] font-bold leading-relaxed text-text-light dark:border-white/10 dark:bg-white/5">
+                                    Role controls are available from Admin
+                                    Settings only.
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                            );
+                          })}
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                <div
+                  id="admin-activity"
+                  className={
+                    activeSection === "activity" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
+                    Admin Activity
+                  </h3>
+
+                  <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                    <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
+                      Action Logs
+                    </p>
+                    {(logs || []).length === 0 ? (
+                      <EmptyStateCard
+                        Icon={ScrollText}
+                        title="No admin actions yet"
+                        description="Sensitive actions such as role changes, pricing updates, and payment toggles will appear here."
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {logs.slice(0, 6).map((log, index) => (
+                          <div
+                            key={`${log.id || index}`}
+                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                              {String(log.action || "action")}
+                            </p>
+                            <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
+                              target: {String(log.target_user_id || "-")}
+                            </p>
+                            <p className="text-[10px] font-semibold text-text-light mt-1">
+                              {formatDateTime(String(log.created_at || ""))}
+                            </p>
                           </div>
                         ))}
                       </div>
-                    </details>
-                  ))}
+                    )}
+                  </div>
+
+                  <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
+                    <p className="text-[10px] font-black text-text-light uppercase tracking-widest">
+                      Role Audit Trail
+                    </p>
+                    {(auditLogs || []).length === 0 ? (
+                      <EmptyStateCard
+                        Icon={ShieldCheck}
+                        title="No role changes recorded"
+                        description="When an admin promotes, demotes, or switches a user role, the audit trail will capture it here."
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {auditLogs.slice(0, 6).map((log, index) => (
+                          <div
+                            key={`${log.id || index}`}
+                            className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3"
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                              {String(log.previous_role || "user")}
+                              {" -> "}
+                              {String(log.new_role || "user")}
+                            </p>
+                            <p className="text-[10px] font-semibold text-text-light mt-1 break-all">
+                              user: {String(log.user_id || "-")}
+                            </p>
+                            <p className="text-[10px] font-semibold text-text-light mt-1">
+                              {formatDateTime(String(log.created_at || ""))}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      </main>
+
+                <div
+                  id="admin-billing"
+                  className={
+                    activeSection === "billing" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      Billing Ops
+                    </h3>
+                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                      {billingEvents.length}/{billingTotal}
+                    </span>
+                  </div>
+
+                  <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {[
+                        { label: "Failed", value: billingSummary.failed },
+                        { label: "Retrying", value: billingSummary.retrying },
+                        { label: "Recovered", value: billingSummary.recovered },
+                        { label: "Abandoned", value: billingSummary.abandoned },
+                        { label: "Visible", value: billingSummary.total },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 px-3 py-3"
+                        >
+                          <p className="text-[9px] font-black uppercase tracking-widest text-text-light">
+                            {item.label}
+                          </p>
+                          <p className="mt-1 text-lg font-headline font-black text-foreground">
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        value={billingSearch}
+                        onChange={(event) =>
+                          setBillingSearch(event.target.value)
+                        }
+                        placeholder="Search reference, email, or plan"
+                        className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <select
+                          value={billingStatusFilter}
+                          onChange={(event) =>
+                            setBillingStatusFilter(event.target.value)
+                          }
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                        >
+                          <option value="">All status</option>
+                          <option value="failed">Failed</option>
+                          <option value="reconciled">Reconciled</option>
+                          <option value="pending">Pending</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                        <select
+                          value={billingRecoveryFilter}
+                          onChange={(event) =>
+                            setBillingRecoveryFilter(event.target.value)
+                          }
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                        >
+                          <option value="">All recovery</option>
+                          <option value="eligible">Eligible</option>
+                          <option value="retry_scheduled">
+                            Retry scheduled
+                          </option>
+                          <option value="retrying">Retrying</option>
+                          <option value="recovered">Recovered</option>
+                          <option value="abandoned">Abandoned</option>
+                        </select>
+                        <button
+                          onClick={() => void handleExportBilling()}
+                          className="rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-foreground"
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+                    </div>
+
+                    {billingLoading && (
+                      <p className="text-sm font-bold text-text-light">
+                        Loading billing operations data...
+                      </p>
+                    )}
+
+                    {!billingLoading && billingError && (
+                      <p className="text-sm font-bold text-red-500">
+                        {billingError}
+                      </p>
+                    )}
+
+                    {!billingLoading &&
+                      !billingError &&
+                      billingEvents.length === 0 && (
+                        <EmptyStateCard
+                          Icon={Receipt}
+                          title="No billing events match"
+                          description="Clear the filters or wait for Paystack events to sync before retrying recovery actions."
+                        />
+                      )}
+
+                    {!billingLoading &&
+                      !billingError &&
+                      billingEvents.length > 0 && (
+                        <div className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
+                          {billingEvents.map((entry) => {
+                            const isActing =
+                              billingActingReference === entry.reference;
+
+                            return (
+                              <div
+                                key={entry.id}
+                                className="rounded-xl border border-border-gray dark:border-zinc-700 bg-surface-gray dark:bg-zinc-900 p-3 space-y-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-black text-foreground truncate">
+                                      {entry.plan_name || "Premium Access"}
+                                    </p>
+                                    <p className="text-[10px] font-semibold text-text-light break-all">
+                                      {entry.reference}
+                                    </p>
+                                    <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                                      {entry.status} | {entry.currency || "USD"}{" "}
+                                      {Number(entry.amount || 0).toFixed(2)}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${getRecoveryClass(
+                                      entry.recovery_status,
+                                    )}`}
+                                  >
+                                    {entry.recovery_status || "not_needed"}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1 text-[10px] font-semibold text-text-dim">
+                                  <p>Email: {entry.customer_email || "-"}</p>
+                                  <p>
+                                    Attempted:{" "}
+                                    {formatDateTime(
+                                      entry.attempted_at || undefined,
+                                    )}
+                                  </p>
+                                  <p>
+                                    Retries: {entry.retry_count || 0}
+                                    {entry.next_retry_at
+                                      ? ` | Next ${formatDateTime(entry.next_retry_at)}`
+                                      : ""}
+                                  </p>
+                                  {(entry.failure_code ||
+                                    entry.failure_source) && (
+                                    <p>
+                                      Failure: {entry.failure_code || "-"} |{" "}
+                                      {entry.failure_source || "-"}
+                                    </p>
+                                  )}
+                                  {entry.error_message && (
+                                    <p className="text-rose-500">
+                                      {entry.error_message}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {entry.payment_event_transitions?.length ? (
+                                  <div className="rounded-lg border border-border-gray dark:border-zinc-800 bg-background dark:bg-zinc-950 px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                                      Recent Timeline
+                                    </p>
+                                    {entry.payment_event_transitions
+                                      .slice(0, 3)
+                                      .map((transition) => (
+                                        <p
+                                          key={transition.id}
+                                          className="mt-1 text-[10px] font-semibold text-text-dim"
+                                        >
+                                          {transition.event_type}
+                                          {" -> "}
+                                          {transition.new_status}
+                                          {" | "}
+                                          {formatDateTime(
+                                            transition.created_at,
+                                          )}
+                                        </p>
+                                      ))}
+                                  </div>
+                                ) : null}
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <button
+                                    onClick={() =>
+                                      void handleRetryBilling(entry.reference)
+                                    }
+                                    disabled={
+                                      isActing || entry.provider !== "paystack"
+                                    }
+                                    className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                                  >
+                                    Retry Now
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      void handleResolveBilling(
+                                        entry.reference,
+                                        "reconciled",
+                                      )
+                                    }
+                                    disabled={isActing}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Mark Reconciled
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      void handleResolveBilling(
+                                        entry.reference,
+                                        "cancelled",
+                                      )
+                                    }
+                                    disabled={isActing}
+                                    className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                                  >
+                                    Mark Cancelled
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                <div
+                  id="admin-data"
+                  className={activeSection === "data" ? "space-y-4" : "hidden"}
+                >
+                  <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
+                    Recent Data
+                  </h3>
+                  <div className="space-y-4">
+                    {recentSections.length === 0 && (
+                      <EmptyStateCard
+                        Icon={Database}
+                        title="No recent rows available"
+                        description="The admin overview endpoint did not return recent table snapshots yet."
+                      />
+                    )}
+
+                    {recentSections.map(([table, rows]) => (
+                      <details
+                        key={table}
+                        className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4"
+                      >
+                        <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
+                          <span className="text-sm font-headline font-black text-foreground tracking-tight">
+                            {table}
+                          </span>
+                          <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                            {rows.length} rows
+                          </span>
+                        </summary>
+
+                        <div className="mt-3 space-y-2">
+                          {rows.map((row, index) => (
+                            <div
+                              key={`${table}-${index}`}
+                              className="bg-surface-gray dark:bg-zinc-900 rounded-xl p-3 border border-border-gray dark:border-zinc-800"
+                            >
+                              {Object.entries(row).map(([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-3 py-0.5"
+                                >
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-text-light">
+                                    {key}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-foreground text-right break-all">
+                                    {key.includes("date") ||
+                                    key.includes("time") ||
+                                    key.endsWith("_at")
+                                      ? formatDateTime(
+                                          typeof value === "string"
+                                            ? value
+                                            : undefined,
+                                        )
+                                      : formatAny(value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

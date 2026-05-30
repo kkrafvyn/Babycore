@@ -67,7 +67,9 @@
     min-height: 100vh;
     min-height: 100dvh;
     padding: 0;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
 
   body,
@@ -147,7 +149,10 @@
   }
 
   .theme-transition {
-    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease,
+      border-color 0.25s ease;
   }
 
   .bg-surface {
@@ -273,15 +278,31 @@
 @media (min-width: 1024px) {
   .fit-screen {
     background-image:
-      radial-gradient(1200px 520px at 8% -10%, rgba(69, 98, 125, 0.12), transparent 58%),
-      radial-gradient(900px 420px at 100% -5%, rgba(94, 95, 97, 0.08), transparent 62%);
+      radial-gradient(
+        1200px 520px at 8% -10%,
+        rgba(69, 98, 125, 0.12),
+        transparent 58%
+      ),
+      radial-gradient(
+        900px 420px at 100% -5%,
+        rgba(94, 95, 97, 0.08),
+        transparent 62%
+      );
     background-attachment: fixed;
   }
 
   .dark .fit-screen {
     background-image:
-      radial-gradient(1200px 520px at 8% -10%, rgba(69, 98, 125, 0.22), transparent 58%),
-      radial-gradient(900px 420px at 100% -5%, rgba(255, 255, 255, 0.04), transparent 62%);
+      radial-gradient(
+        1200px 520px at 8% -10%,
+        rgba(69, 98, 125, 0.22),
+        transparent 58%
+      ),
+      radial-gradient(
+        900px 420px at 100% -5%,
+        rgba(255, 255, 255, 0.04),
+        transparent 62%
+      );
   }
 
   .fit-screen > main {
@@ -320,4 +341,78 @@
   .fit-screen > main .rounded-\[3rem\] {
     border-radius: 2rem !important;
   }
+}
+
+.admin-panel,
+.manager-panel {
+  overflow-wrap: anywhere;
+}
+
+.admin-panel h1,
+.admin-panel h2,
+.admin-panel h3,
+.admin-panel h4,
+.admin-panel h5,
+.admin-panel h6,
+.manager-panel h1,
+.manager-panel h2,
+.manager-panel h3,
+.manager-panel h4,
+.manager-panel h5,
+.manager-panel h6 {
+  letter-spacing: 0;
+}
+
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea,
+.manager-panel input,
+.manager-panel select,
+.manager-panel textarea {
+  min-width: 0;
+}
+
+.admin-panel .grid > *,
+.manager-panel .grid > * {
+  min-width: 0;
+}
+
+.admin-panel
+  :where(
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-\[1\.25rem\],
+    .rounded-\[1\.35rem\],
+    .rounded-\[1\.45rem\],
+    .rounded-\[1\.55rem\],
+    .rounded-\[1\.75rem\],
+    .rounded-\[2rem\],
+    .rounded-\[2\.25rem\],
+    .rounded-\[2\.35rem\],
+    .rounded-\[2\.5rem\],
+    .rounded-\[2\.75rem\]
+  ),
+.manager-panel
+  :where(
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-\[1\.25rem\],
+    .rounded-\[1\.35rem\],
+    .rounded-\[1\.45rem\],
+    .rounded-\[1\.55rem\],
+    .rounded-\[1\.75rem\],
+    .rounded-\[2rem\],
+    .rounded-\[2\.25rem\],
+    .rounded-\[2\.35rem\],
+    .rounded-\[2\.5rem\],
+    .rounded-\[2\.75rem\]
+  ) {
+  border-radius: 0.5rem !important;
+}
+
+.admin-panel .rounded-full,
+.manager-panel .rounded-full {
+  border-radius: 9999px !important;
 }
