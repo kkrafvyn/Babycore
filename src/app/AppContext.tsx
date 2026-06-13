@@ -29,6 +29,7 @@ import {
   updateJournalEntry,
 } from '../lib/supabase-storage';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase';
+import { requestWelcomeEmail } from '../lib/welcome-email';
 import {
   getOnboardingCache,
   clearOnboardingCache,
@@ -520,6 +521,8 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         syncInterval = setInterval(async () => {
           await syncLocalSnapshotToCloud(user.id);
         }, 60000);
+
+        void requestWelcomeEmail();
         
         setError(null);
       } catch (err) {

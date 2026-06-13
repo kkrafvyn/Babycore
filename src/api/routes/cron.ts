@@ -1,6 +1,10 @@
 import { Router, type Request, type Response } from 'express';
 
 import { supabase } from '../utils/supabase.js';
+import {
+  processDueEmailReports,
+  processSubscriptionBillingEmails,
+} from '../utils/process-scheduled-emails.js';
 import { processDueScheduledNotifications } from './notifications.js';
 import { processScheduledPaymentRetries } from './payments.js';
 
@@ -47,6 +51,7 @@ router.get('/maintenance', async (req: Request, res: Response) => {
       pruneShareLogResult,
       prunePaymentTransitionResult,
       scheduledNotificationResult,
+      scheduledEmailReportsResult,
     ] = await Promise.all([
       supabase.rpc('cleanup_expired_emergency_share_links'),
       supabase.rpc('prune_old_emergency_share_link_access_logs', {
@@ -56,6 +61,7 @@ router.get('/maintenance', async (req: Request, res: Response) => {
         retention_days: 365,
       }),
       processDueScheduledNotifications(200),
+      processDueEmailReports(50),
     ]);
 
     if (cleanupExpiredLinksResult.error) throw cleanupExpiredLinksResult.error;
@@ -71,6 +77,9 @@ router.get('/maintenance', async (req: Request, res: Response) => {
         notificationsProcessed: scheduledNotificationResult.processed,
         notificationsSent: scheduledNotificationResult.sent,
         notificationsFailed: scheduledNotificationResult.failed,
+        emailReportsProcessed: scheduledEmailReportsResult.processed,
+        emailReportsSent: scheduledEmailReportsResult.sent,
+        emailReportsFailed: scheduledEmailReportsResult.failed,
         ranAt: new Date().toISOString(),
       },
     });
@@ -89,12 +98,16 @@ router.get('/payment-retries', async (req: Request, res: Response) => {
 
   try {
     const limit = Math.max(1, Math.min(100, Number(req.query.limit || 25)));
-    const result = await processScheduledPaymentRetries(limit);
+    const [result, subscriptionEmails] = await Promise.all([
+      processScheduledPaymentRetries(limit),
+      processSubscriptionBillingEmails(limit),
+    ]);
 
     return res.json({
       success: true,
       data: {
         ...result,
+        subscriptionEmails,
         ranAt: new Date().toISOString(),
         limit,
       },

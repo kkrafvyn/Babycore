@@ -40,12 +40,14 @@ import {
   syncSnapshotHandler,
   voiceTranscribeHandler,
 } from '../src/api/handlers/system-handlers.js';
+import { sendWelcomeEmailHandler } from '../src/api/handlers/auth-handlers.js';
 import { runExpressRouter } from './_shared/router-proxy.js';
 import type { ApiAdapterRequest, ApiAdapterResponse } from './_shared/http.js';
 
 const router = Router();
 const genericEmailRateLimit = rateLimit(3, '1m');
 const inviteEmailRateLimit = rateLimit(6, '1m');
+const welcomeEmailRateLimit = rateLimit(3, '1m');
 const reportEmailRateLimit = rateLimit(4, '1m');
 const syncRateLimit = rateLimit(8, '1m');
 const voiceTranscriptionRateLimit = rateLimit(12, '1m');
@@ -56,6 +58,7 @@ router.get('/health/config', healthConfigHandler);
 router.use(authMiddleware);
 
 router.post('/send-email', genericEmailRateLimit, sendEmailHandler);
+router.post('/auth/welcome-email', welcomeEmailRateLimit, sendWelcomeEmailHandler);
 router.post('/email/send-invite', inviteEmailRateLimit, sendInviteEmailHandler);
 router.post('/email/send-report', reportEmailRateLimit, sendReportEmailHandler);
 router.get('/admin/current-role', currentRoleHandler);

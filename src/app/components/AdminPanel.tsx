@@ -1109,7 +1109,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
         <main ref={mainRef} className="min-w-0 space-y-6">
           <div className="min-w-0 space-y-6">
-            <section className="overflow-hidden rounded-[8px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950">
+            <section className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950">
               <div className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-end">
                 <div>
                   <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -1811,7 +1811,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     </span>
                   </div>
 
-                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 space-y-3">
+                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950 space-y-3">
                     <p className="text-[10px] font-semibold text-text-light leading-relaxed">
                       Create full admins or limited admins. Use{" "}
                       <span className="font-black text-secondary">manager</span>{" "}
@@ -1909,49 +1909,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       </div>
                     )}
                   </div>
-                </div>
 
-                <div
-                  id="admin-users"
-                  className={
-                    activeSection === "users" || activeSection === "settings"
-                      ? "space-y-4"
-                      : "hidden"
-                  }
-                >
                   <div className="flex items-center justify-between px-1 gap-3">
                     <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                      {activeSection === "settings"
-                        ? "Role Switcher"
-                        : "User Directory"}
+                      Role Switcher
                     </h3>
                     <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
                       {filteredUsers.length}/{usersTotal}
                     </span>
                   </div>
 
-                  <div className="bg-surface rounded-[2rem] border border-border-gray dark:border-zinc-800 p-4 space-y-3">
-                    {activeSection === "users" && (
-                      <div className="rounded-[1.4rem] border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-cyan-900 dark:border-cyan-400/20 dark:bg-cyan-950/20 dark:text-cyan-100">
-                        <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">
-                          Read-only page
-                        </p>
-                        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-xs font-bold leading-relaxed">
-                            Role switching now lives only in Admin Settings so
-                            permission changes happen in one deliberate place.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => handleSectionChange("settings")}
-                            className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-cyan-900/10"
-                          >
-                            Open Settings
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
+                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-zinc-950">
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
@@ -2004,7 +1972,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                             return (
                               <div
                                 key={user.id}
-                                className="bg-surface-gray dark:bg-zinc-900 rounded-xl border border-border-gray dark:border-zinc-800 p-3 space-y-3"
+                                className="rounded-xl border border-border-gray dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 p-3 space-y-3"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
@@ -2028,88 +1996,177 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                                   </span>
                                 </div>
 
-                                {activeSection === "settings" ? (
-                                  <>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <select
-                                        value={selectedRole}
-                                        onChange={(event) =>
-                                          setRoleDrafts((prev) => ({
-                                            ...prev,
-                                            [user.id]: event.target.value,
-                                          }))
-                                        }
-                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                                        disabled={isActing}
-                                      >
-                                        {ROLE_OPTIONS.map((role) => (
-                                          <option key={role} value={role}>
-                                            {role}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        onClick={() => handleApplyRole(user)}
-                                        disabled={
-                                          isActing || selectedRole === user.role
-                                        }
-                                        className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                                      >
-                                        Apply Role
-                                      </button>
-                                    </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <select
+                                    value={selectedRole}
+                                    onChange={(event) =>
+                                      setRoleDrafts((prev) => ({
+                                        ...prev,
+                                        [user.id]: event.target.value,
+                                      }))
+                                    }
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
+                                    disabled={isActing}
+                                  >
+                                    {ROLE_OPTIONS.map((role) => (
+                                      <option key={role} value={role}>
+                                        {role}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleApplyRole(user)}
+                                    disabled={
+                                      isActing || selectedRole === user.role
+                                    }
+                                    className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
+                                  >
+                                    Apply Role
+                                  </button>
+                                </div>
 
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <button
-                                        onClick={() =>
-                                          handlePromote(user, "manager")
-                                        }
-                                        disabled={
-                                          isActing || !canPromoteManager
-                                        }
-                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                      >
-                                        Promote Manager
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          handlePromote(user, "admin")
-                                        }
-                                        disabled={isActing || !canPromoteAdmin}
-                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                      >
-                                        Promote Admin
-                                      </button>
-                                    </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() =>
+                                      handlePromote(user, "manager")
+                                    }
+                                    disabled={
+                                      isActing || !canPromoteManager
+                                    }
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Promote Manager
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handlePromote(user, "admin")
+                                    }
+                                    disabled={isActing || !canPromoteAdmin}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Promote Admin
+                                  </button>
+                                </div>
 
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <button
-                                        onClick={() => handleDemote(user)}
-                                        disabled={isActing || !canDemote}
-                                        className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                      >
-                                        Demote User
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteUser(user)}
-                                        disabled={isActing}
-                                        className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                                      >
-                                        Delete User
-                                      </button>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-3 text-[10px] font-bold leading-relaxed text-text-light dark:border-white/10 dark:bg-white/5">
-                                    Role controls are available from Admin
-                                    Settings only.
-                                  </div>
-                                )}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => handleDemote(user)}
+                                    disabled={isActing || !canDemote}
+                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
+                                  >
+                                    Demote User
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(user)}
+                                    disabled={isActing}
+                                    className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
+                                  >
+                                    Delete User
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
                         </div>
                       )}
+                  </div>
+                </div>
+
+                <div
+                  id="admin-users"
+                  className={
+                    activeSection === "users" ? "space-y-4" : "hidden"
+                  }
+                >
+                  <div className="flex items-center justify-between px-1 gap-3">
+                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                      User Directory
+                    </h3>
+                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                      {filteredUsers.length}/{usersTotal}
+                    </span>
+                  </div>
+
+                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-zinc-950">
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search users by name or email"
+                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
+                    />
+
+                    {usersLoading && (
+                      <p className="text-sm font-bold text-text-light">
+                        Loading users...
+                      </p>
+                    )}
+
+                    {!usersLoading && usersError && (
+                      <p className="text-sm font-bold text-red-500">
+                        {usersError}
+                      </p>
+                    )}
+
+                    {!usersLoading &&
+                      !usersError &&
+                      filteredUsers.length === 0 && (
+                        <EmptyStateCard
+                          Icon={Users}
+                          title={
+                            search.trim()
+                              ? "No users match that search"
+                              : "No users loaded yet"
+                          }
+                          description={
+                            search.trim()
+                              ? "Try a different name, email, profile type, or role."
+                              : "New accounts will appear here after they sign up or are created by an admin."
+                          }
+                        />
+                      )}
+
+                    {!usersLoading &&
+                      !usersError &&
+                      filteredUsers.length > 0 && (
+                        <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                          {filteredUsers.map((user) => (
+                            <div
+                              key={user.id}
+                              className="rounded-xl border border-border-gray dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 p-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black text-foreground truncate">
+                                    {user.name}
+                                  </p>
+                                  <p className="text-[10px] font-semibold text-text-light truncate">
+                                    {user.email}
+                                  </p>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
+                                    {user.role} | {user.profileType || "baby"}{" "}
+                                    | Babies {user.babiesCount || 0}
+                                  </p>
+                                </div>
+                                <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
+                                  {formatDateTime(
+                                    user.lastSignInAt ||
+                                      user.createdAt ||
+                                      undefined,
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleSectionChange("settings")}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    >
+                      Manage roles in Settings
+                    </button>
                   </div>
                 </div>
 

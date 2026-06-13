@@ -7,6 +7,8 @@ import { Router, Request, Response } from 'express';
 import { createRequestSupabaseClient, hasServiceConfig, supabase } from '../utils/supabase.js';
 import axios from 'axios';
 import crypto from 'crypto';
+import { appPath, resolveEmailBranding } from '../utils/app-branding.js';
+import { renderPaymentConfirmationEmail } from '../utils/email-templates.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { MAX_AUTOMATED_PAYMENT_RETRIES, planNextPaymentRetry } from '../../lib/billing-retry.js';
 import {
@@ -1700,32 +1702,22 @@ async function sendPaymentConfirmationEmail(userId: string, addon: any, subscrip
   const amount = Number(subscription?.amount_paid ?? addon?.price ?? 0);
   const currency = String(addon?.currency || 'USD');
   const addonName = String(addon?.name || addon?.addon_name || 'Premium Access');
+  const branding = resolveEmailBranding();
   const renewalDate = subscription?.renewal_date ? new Date(subscription.renewal_date).toLocaleDateString() : 'N/A';
-
-  const html = `
-    <h2>Payment Confirmed</h2>
-    <p>Your BabyCore premium subscription is active.</p>
-    <p><strong>Plan:</strong> ${addonName}</p>
-    <p><strong>Amount:</strong> ${amount} ${currency}</p>
-    <p><strong>Status:</strong> Active</p>
-    <p><strong>Next renewal:</strong> ${renewalDate}</p>
-    <p>Thank you for trusting BabyCore with your family care workflow.</p>
-  `;
-
-  const text = [
-    'Payment Confirmed',
-    `Plan: ${addonName}`,
-    `Amount: ${amount} ${currency}`,
-    `Status: Active`,
-    `Next renewal: ${renewalDate}`,
-    'Thank you for using BabyCore.',
-  ].join('\n');
+  const email = renderPaymentConfirmationEmail({
+    amount,
+    currency,
+    planName: addonName,
+    renewalDate,
+    dashboardUrl: appPath(branding.baseUrl, '/dashboard'),
+    branding,
+  });
 
   await sendTransactionalEmail({
     to: recipientEmail,
-    subject: 'BabyCore Premium Payment Confirmation',
-    html,
-    text,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
   });
 }
 

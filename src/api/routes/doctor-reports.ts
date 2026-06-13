@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuid } from 'uuid';
+import { renderDoctorReportEmail } from '../utils/email-templates.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { buildStorageReference, createSignedStorageUrl, ensureBabyAccess } from '../utils/baby-access.js';
 import type { AuthRequest } from '../middleware/auth.js';
@@ -426,22 +427,17 @@ export async function emailReportToDoctor(req: AuthRequest, res: Response) {
       .maybeSingle();
 
     const babyName = baby?.name || 'Baby';
-    const subject = `Medical Report for ${babyName}`;
-    const html = `
-      <h2>${subject}</h2>
-      <p>A parent shared a BabyCore medical report with you.</p>
-      <p><strong>Report type:</strong> ${report.report_type || 'General'}</p>
-      <p><a href="${reportUrl}">Open report</a></p>
-      <p>This link follows the report token expiration policy configured by the parent.</p>
-    `;
-
-    const text = [subject, `Report type: ${report.report_type || 'General'}`, `Open report: ${reportUrl}`].join('\n');
+    const email = renderDoctorReportEmail({
+      babyName,
+      reportType: report.report_type || 'General',
+      reportUrl,
+    });
 
     await sendTransactionalEmail({
       to: doctorEmail,
-      subject,
-      html,
-      text,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
     });
 
     const existingRecipients = Array.isArray(report.shared_with) ? report.shared_with : [];

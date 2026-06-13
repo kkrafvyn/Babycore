@@ -6,6 +6,12 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../utils/supabase.js';
 import { v4 as uuidv4 } from 'uuid';
+import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
+import {
+  buildMilestoneEmailContent,
+  buildMonthlyNewsletterContent,
+  buildWeeklyDigestContent,
+} from '../utils/email-report-content.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { ensureBabyAccess } from '../utils/baby-access.js';
 import type { AuthRequest } from '../middleware/auth.js';
@@ -111,19 +117,22 @@ export async function generateWeeklyDigest(req: AuthRequest, res: Response) {
     ]);
 
     // Generate email content
-    const emailContent = generateWeeklyDigestContent(
+    const dashboardUrl = `${resolveClientAppBaseUrl(req)}/dashboard`;
+    const emailContent = buildWeeklyDigestContent(
       baby,
       feedingLogs.data || [],
       sleepLogs.data || [],
       diaperLogs.data || [],
-      vaccinations.data || []
+      vaccinations.data || [],
+      dashboardUrl,
     );
 
     // Send email
     await sendTransactionalEmail({
       to: userEmail,
-      subject: `Weekly Update: ${baby.name}'s Progress`,
+      subject: emailContent.subject,
       html: emailContent.html,
+      text: emailContent.text,
       from: process.env.EMAIL_FROM || 'noreply@babylog.app',
     });
 
@@ -180,15 +189,21 @@ export async function sendMilestoneAnnouncement(req: AuthRequest, res: Response)
     }
 
     // Generate milestone announcement
-    const emailContent = generateMilestoneEmail(baby, milestone, details);
+    const emailContent = buildMilestoneEmailContent(
+      baby,
+      milestone,
+      details,
+      `${resolveClientAppBaseUrl(req)}/dashboard`,
+    );
 
     // Send email
     const transporter = await getEmailTransporter();
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'noreply@babylog.app',
       to: userEmail,
-      subject: `🎉 ${baby.name} reached a milestone!`,
+      subject: emailContent.subject,
       html: emailContent.html,
+      text: emailContent.text,
     });
 
     // Record milestone announcement
@@ -270,6 +285,9 @@ export async function getReportPreview(req: AuthRequest, res: Response) {
 
     // Get report data for the selected preview window.
     const baby = access.baby;
+    if (!baby) {
+      return res.status(404).json({ error: 'Baby not found' });
+    }
 
     const startDate = new Date();
     if (reportType === 'weekly') {
@@ -278,34 +296,48 @@ export async function getReportPreview(req: AuthRequest, res: Response) {
       startDate.setMonth(startDate.getMonth() - 1);
     }
 
-    const [feeding, sleep, diapers] = await Promise.all([
+    const dashboardUrl = `${resolveClientAppBaseUrl(req)}/dashboard`;
+    const [feeding, sleep, diapers, vaccinations] = await Promise.all([
       supabase
         .from('feed_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('timestamp', startDate.toISOString())
-        .limit(10),
+        .gte('timestamp', startDate.toISOString()),
       supabase
         .from('sleep_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('start_time', startDate.toISOString())
-        .limit(10),
+        .gte('start_time', startDate.toISOString()),
       supabase
         .from('diaper_logs')
         .select('*')
         .eq('baby_id', babyId)
-        .gte('created_at', startDate.toISOString())
-        .limit(10),
+        .gte('created_at', startDate.toISOString()),
+      supabase
+        .from('vaccination_records')
+        .select('*')
+        .eq('baby_id', babyId)
+        .gte('due_date', startDate.toISOString()),
     ]);
 
-    const content = generateWeeklyDigestContent(
-      baby,
-      feeding.data || [],
-      sleep.data || [],
-      diapers.data || [],
-      []
-    );
+    const content =
+      reportType === 'monthly'
+        ? buildMonthlyNewsletterContent(
+            baby,
+            feeding.data || [],
+            sleep.data || [],
+            diapers.data || [],
+            vaccinations.data || [],
+            dashboardUrl,
+          )
+        : buildWeeklyDigestContent(
+            baby,
+            feeding.data || [],
+            sleep.data || [],
+            diapers.data || [],
+            vaccinations.data || [],
+            dashboardUrl,
+          );
 
     return res.json({
       success: true,
@@ -317,125 +349,9 @@ export async function getReportPreview(req: AuthRequest, res: Response) {
   }
 }
 
-// Helper functions
-
-function generateWeeklyDigestContent(
-  baby: any,
-  feeding: any[],
-  sleep: any[],
-  diapers: any[],
-  vaccinations: any[]
-) {
-  const avgFeedingsPerDay = feeding.length / 7;
-  const totalSleepHours = sleep.reduce((sum, s) => sum + Number(s.duration || 0), 0) / 60;
-  const avgDiaperChanges = diapers.length / 7;
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-          .stat-card { background: #f5f7fa; padding: 15px; margin: 10px 0; border-left: 4px solid #667eea; border-radius: 4px; }
-          .stat-label { font-size: 12px; color: #7c8493; text-transform: uppercase; }
-          .stat-value { font-size: 24px; font-weight: bold; color: #2d3748; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h2>Weekly Update for ${baby.name}</h2>
-            <p>Last 7 days summary</p>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-label">Average Feedings Per Day</div>
-            <div class="stat-value">${avgFeedingsPerDay.toFixed(1)}</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-label">Total Sleep Hours</div>
-            <div class="stat-value">${totalSleepHours.toFixed(1)} hrs</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-label">Diaper Changes</div>
-            <div class="stat-value">${avgDiaperChanges.toFixed(1)}/day</div>
-          </div>
-
-          ${vaccinations.length > 0 ? `
-            <div class="stat-card">
-              <div class="stat-label">New Vaccinations</div>
-              <div class="stat-value">${vaccinations.length}</div>
-            </div>
-          ` : ''}
-
-          <p style="text-align: center; color: #7c8493; margin-top: 30px; font-size: 12px;">
-            For more details, visit your BabyLog dashboard
-          </p>
-        </div>
-      </body>
-    </html>
-  `;
-
-  return {
-    html,
-    stats: {
-      feedings: avgFeedingsPerDay,
-      sleep: totalSleepHours,
-      diapers: avgDiaperChanges,
-      vaccinations: vaccinations.length,
-    },
-  };
-}
-
-function generateMilestoneEmail(baby: any, milestone: string, details: any) {
-  const milestoneNames: { [key: string]: string } = {
-    rolling: 'Started Rolling Over',
-    sitting: 'Started Sitting Up',
-    crawling: 'Started Crawling',
-    walking: 'First Steps',
-    talking: 'First Words',
-    smiling: 'First Smile',
-  };
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .milestone-card { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 40px; border-radius: 8px; text-align: center; }
-          .milestone-icon { font-size: 48px; margin-bottom: 20px; }
-          .milestone-title { font-size: 28px; font-weight: bold; margin: 10px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="milestone-card">
-            <div class="milestone-icon">🎉</div>
-            <div class="milestone-title">${baby.name} achieved a milestone!</div>
-            <h2>${milestoneNames[milestone] || milestone}</h2>
-            ${details?.date ? `<p>Date: ${details.date}</p>` : ''}
-            ${details?.notes ? `<p>${details.notes}</p>` : ''}
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            Celebrate this achievement in your BabyLog dashboard! 🎊
-          </p>
-        </div>
-      </body>
-    </html>
-  `;
-
-  return { html };
-}
-
 function calculateNextSendDate(frequency: string): string {
   const date = new Date();
-  
+
   if (frequency === 'daily') {
     date.setDate(date.getDate() + 1);
   } else if (frequency === 'weekly') {
@@ -443,8 +359,8 @@ function calculateNextSendDate(frequency: string): string {
   } else if (frequency === 'monthly') {
     date.setMonth(date.getMonth() + 1);
   }
-  
-  date.setHours(9, 0, 0, 0); // Set to 9 AM
+
+  date.setHours(9, 0, 0, 0);
   return date.toISOString();
 }
 

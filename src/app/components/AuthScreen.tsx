@@ -153,56 +153,92 @@ export function AuthScreen({
   };
 
   return (
-    <div className="fit-screen overflow-x-hidden bg-background">
-      <MotionDiv
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 2 }}
-        className="fixed inset-0 pointer-events-none"
-      >
-        <div className="absolute top-[-10%] right-[-10%] h-[60%] w-[60%] rounded-full bg-accent-blue/10 blur-[120px] dark:bg-blue-900/10" />
-        <div className="absolute bottom-[-10%] left-[-10%] h-[60%] w-[60%] rounded-full bg-accent-pink/10 blur-[120px] dark:bg-rose-900/10" />
-      </MotionDiv>
-
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-start px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:justify-center sm:px-8 sm:py-10">
-        <MotionDiv
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-6 sm:mb-10"
-        >
-          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] border border-border-gray bg-white p-5 shadow-2xl shadow-primary/5 dark:border-zinc-700/50 dark:bg-zinc-800 sm:h-24 sm:w-24 sm:rounded-[2.5rem] sm:p-6">
-            <img src="/logo.png" alt="BabyLog" className="h-full w-full object-contain" />
-          </div>
-        </MotionDiv>
-
-        <div className="mb-8 space-y-2 text-center sm:mb-12 sm:space-y-3">
-          <h1 className="text-3xl font-headline font-black leading-none tracking-tighter text-foreground sm:text-4xl">
-            {mode === 'signin'
-              ? i18nT('auth.welcomeBack', 'Welcome Back')
-              : i18nT('auth.joinBabyLog', 'Join BabyLog')}
-          </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light sm:text-[11px] sm:tracking-[0.3em]">
-            {mode === 'signin'
-              ? i18nT('auth.identityVerification', 'Identity Verification')
-              : i18nT('auth.provisionAccess', 'Provision Access')}
-          </p>
-          {postAuthDestinationLabel && (
-            <div className="mx-auto max-w-sm rounded-3xl border border-secondary/20 bg-secondary/10 px-5 py-4 text-[10px] font-black uppercase tracking-widest text-secondary">
-              {continueAfterSignInLabel}
+    <div className="fit-screen overflow-x-hidden bg-[#f8f7fb] text-[#242932]">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8 sm:py-8">
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5f8ff] text-[#45697d]">
+              <Fingerprint size={18} />
             </div>
-          )}
-        </div>
+            <span className="text-xl font-black tracking-[-0.02em] text-[#55575c]">BabyLog</span>
+          </div>
+          <button
+            type="button"
+            onClick={onViewPolicies}
+            disabled={isAuthBusy}
+            className="rounded-full bg-[#5f6062] px-5 py-2.5 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(33,37,41,0.16)] transition-transform active:scale-95 disabled:opacity-60"
+          >
+            Policies
+          </button>
+        </header>
 
+        <main className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-10">
+          <section className="mx-auto w-full max-w-xl lg:max-w-none">
+            <MotionDiv
+              initial={{ y: 18, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-[2.5rem] border border-[#ebeaf0] bg-[#eef0f5] px-7 py-10 text-center sm:rounded-[3.25rem] sm:px-10 sm:py-14"
+            >
+              <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2.25rem] bg-white shadow-[0_18px_44px_rgba(37,43,54,0.08)] sm:h-32 sm:w-32 sm:rounded-[2.75rem]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#dff8ff] text-[#45697d] sm:h-20 sm:w-20">
+                  <img src="/logo.png" alt="BabyLog" className="h-9 w-9 object-contain sm:h-11 sm:w-11" />
+                </div>
+              </div>
+              <p className="mt-8 text-[10px] font-black uppercase tracking-[0.24em] text-[#49697a] sm:text-[11px]">
+                {mode === 'signin'
+                  ? i18nT('auth.identityVerification', 'Identity Verification')
+                  : i18nT('auth.provisionAccess', 'Provision Access')}
+              </p>
+              <h1 className="mx-auto mt-4 max-w-lg text-5xl font-black leading-[0.98] tracking-[0] text-[#242932] [text-shadow:0_3px_0_rgba(0,0,0,0.09)] sm:text-6xl">
+                {mode === 'signin'
+                  ? i18nT('auth.welcomeBack', 'Welcome Back')
+                  : i18nT('auth.joinBabyLog', 'Join BabyLog')}
+              </h1>
+              <p className="mx-auto mt-6 max-w-md text-lg leading-8 text-[#5f646d]">
+                A calm space for tracking every milestone, feeding, and nap with professional clarity.
+              </p>
+              {postAuthDestinationLabel && (
+                <div className="mx-auto mt-7 max-w-sm rounded-[1.75rem] border border-[#dbeef6] bg-white/70 px-5 py-4 text-[10px] font-black uppercase tracking-widest text-[#45697d]">
+                  {continueAfterSignInLabel}
+                </div>
+              )}
+            </MotionDiv>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[2rem] bg-white p-6 shadow-[0_18px_48px_rgba(37,43,54,0.04)]">
+                <ShieldCheck className="mb-5 text-[#45697d]" size={26} />
+                <h2 className="text-xl font-black tracking-[0] text-[#242932]">Private by design</h2>
+                <p className="mt-2 text-sm leading-6 text-[#686d76]">
+                  Secure access for families, caregivers, and care teams.
+                </p>
+              </div>
+              <div className="rounded-[2rem] bg-[#eef0f5] p-6">
+                <Fingerprint className="mb-5 text-[#45697d]" size={26} />
+                <h2 className="text-xl font-black tracking-[0] text-[#242932]">Quick return</h2>
+                <p className="mt-2 text-sm leading-6 text-[#686d76]">
+                  Sign in and continue exactly where care left off.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mx-auto w-full max-w-md">
+            <MotionDiv
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="rounded-[2.5rem] border border-[#ebeaf0] bg-white p-6 shadow-[0_24px_64px_rgba(37,43,54,0.06)] sm:p-8"
+            >
         <AnimatePresence>
           {error && (
             <MotionDiv
               initial={{ y: 10, opacity: 0, height: 0 }}
               animate={{ y: 0, opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-8 w-full max-w-sm overflow-hidden"
+              className="mb-5 w-full overflow-hidden"
             >
-              <div className="rounded-3xl border border-error/20 bg-error/10 p-5 text-center text-[10px] font-black uppercase tracking-widest text-error">
+              <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-center text-xs font-extrabold uppercase tracking-widest text-red-600">
                 {error}
               </div>
             </MotionDiv>
@@ -215,22 +251,22 @@ export function AuthScreen({
               initial={{ y: 10, opacity: 0, height: 0 }}
               animate={{ y: 0, opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-8 w-full max-w-sm overflow-hidden"
+              className="mb-5 w-full overflow-hidden"
             >
-              <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5 text-center text-[10px] font-black uppercase tracking-widest text-primary">
+              <div className="rounded-[1.5rem] border border-[#dbeef6] bg-[#e5f8ff] p-4 text-center text-xs font-extrabold uppercase tracking-widest text-[#45697d]">
                 {notice}
               </div>
             </MotionDiv>
           )}
         </AnimatePresence>
 
-        <form onSubmit={handleAuth} className="w-full max-w-sm space-y-4 sm:space-y-6">
+        <form onSubmit={handleAuth} className="w-full space-y-5">
           <div className="space-y-2.5 sm:space-y-3">
-            <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
+            <span className="ml-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8a909a]">
               {i18nT('auth.registryEmail', 'Registry Email')}
             </span>
             <div className="group relative">
-              <div className="absolute left-6 top-1/2 -translate-y-1/2 text-text-light transition-colors group-focus-within:text-primary">
+              <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[#45697d] transition-colors">
                 <Mail size={18} />
               </div>
               <input
@@ -239,18 +275,18 @@ export function AuthScreen({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isAuthBusy}
-                className="h-16 w-full rounded-[1.75rem] border border-border-gray bg-surface-gray pl-16 pr-8 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900 sm:h-20 sm:rounded-3xl"
+                className="h-16 w-full rounded-[1.75rem] border border-[#e7e9ef] bg-[#f4f5f9] pl-16 pr-8 font-bold text-[#242932] outline-none transition-all placeholder:text-[#9aa3b2] focus:border-[#dbeef6] focus:bg-white focus:ring-4 focus:ring-[#dff8ff] sm:h-[4.5rem] sm:rounded-[2rem]"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2.5 sm:space-y-3">
-            <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-text-light">
+            <span className="ml-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8a909a]">
               {i18nT('auth.accessKey', 'Access Key')}
             </span>
             <div className="group relative">
-              <div className="absolute left-6 top-1/2 -translate-y-1/2 text-text-light transition-colors group-focus-within:text-primary">
+              <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[#45697d] transition-colors">
                 <Lock size={18} />
               </div>
               <input
@@ -259,14 +295,14 @@ export function AuthScreen({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isAuthBusy}
-                className="h-16 w-full rounded-[1.75rem] border border-border-gray bg-surface-gray pl-16 pr-14 font-bold text-foreground outline-none transition-all placeholder:text-text-light/50 focus:border-primary focus:ring-4 focus:ring-primary/5 dark:border-zinc-800 dark:bg-zinc-900 sm:h-20 sm:rounded-3xl"
+                className="h-16 w-full rounded-[1.75rem] border border-[#e7e9ef] bg-[#f4f5f9] pl-16 pr-14 font-bold text-[#242932] outline-none transition-all placeholder:text-[#9aa3b2] focus:border-[#dbeef6] focus:bg-white focus:ring-4 focus:ring-[#dff8ff] sm:h-[4.5rem] sm:rounded-[2rem]"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isAuthBusy}
-                className="absolute right-6 top-1/2 -translate-y-1/2 text-text-light transition-colors hover:text-foreground"
+                className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8a909a] transition-colors hover:text-[#242932]"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -276,7 +312,7 @@ export function AuthScreen({
           <button
             type="submit"
             disabled={isAuthBusy}
-            className="btn-primary mt-4 h-16 w-full text-lg shadow-2xl shadow-primary/20 active:scale-95 disabled:opacity-70 sm:mt-6 sm:h-20 sm:text-xl"
+            className="mt-5 flex h-16 w-full items-center justify-center rounded-full bg-[#5f6062] px-6 text-lg font-black text-white shadow-[0_18px_34px_rgba(33,37,41,0.18)] transition-transform active:scale-95 disabled:opacity-70 sm:h-[4.5rem]"
           >
             {loading ? (
                 <div className="flex items-center gap-3">
@@ -296,7 +332,7 @@ export function AuthScreen({
           </button>
         </form>
 
-        <div className="mt-5 w-full max-w-sm space-y-3 text-center sm:hidden">
+        <div className="mt-5 w-full space-y-3 text-center sm:hidden">
           <button
             type="button"
             onClick={() => {
@@ -305,10 +341,10 @@ export function AuthScreen({
               setNotice(null);
             }}
             disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
+            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
             {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
-            <span className="ml-1 font-black uppercase tracking-widest text-primary underline">
+            <span className="ml-1 font-black uppercase tracking-widest text-[#45697d] underline">
               {mode === 'signin' ? 'Create Account' : 'Sign In Portal'}
             </span>
           </button>
@@ -317,9 +353,9 @@ export function AuthScreen({
             type="button"
             onClick={onGuestMode}
             disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
+            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
-            <span className="font-black uppercase tracking-widest text-secondary underline">
+            <span className="font-black uppercase tracking-widest text-[#45697d] underline">
               {i18nT('auth.continueAsGuest', 'Continue as Guest')}
             </span>
           </button>
@@ -328,21 +364,21 @@ export function AuthScreen({
             type="button"
             onClick={onViewPolicies}
             disabled={isAuthBusy}
-            className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
+            className="block w-full text-[11px] font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
-            <span className="font-black uppercase tracking-[0.22em] text-primary underline">
+            <span className="font-black uppercase tracking-[0.22em] text-[#45697d] underline">
               {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
             </span>
           </button>
         </div>
 
-        <div className="mt-6 w-full max-w-sm space-y-3 sm:mt-8">
+        <div className="mt-7 w-full space-y-3">
           <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
-            <span className="text-[9px] font-black uppercase tracking-[0.28em] text-text-light">
+            <div className="h-px flex-1 bg-[#e7e9ef]" />
+            <span className="text-[9px] font-black uppercase tracking-[0.28em] text-[#9aa3b2]">
               {i18nT('auth.continueWith', 'Continue with {provider}').replace('{provider}', '').trim()}
             </span>
-            <div className="h-px flex-1 bg-border-gray dark:bg-zinc-800" />
+            <div className="h-px flex-1 bg-[#e7e9ef]" />
           </div>
 
           <div className="space-y-3">
@@ -352,7 +388,7 @@ export function AuthScreen({
                 type="button"
                 onClick={() => handleSocialAuth(provider)}
                 disabled={isAuthBusy}
-                className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border-gray bg-surface-gray px-5 font-bold text-foreground transition-all hover:border-primary/40 hover:bg-white active:scale-[0.99] disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 sm:h-14"
+                className="flex h-14 w-full items-center justify-center gap-3 rounded-[1.5rem] border border-[#e7e9ef] bg-[#f4f5f9] px-5 font-bold text-[#242932] transition-all hover:border-[#dbeef6] hover:bg-white active:scale-[0.99] disabled:opacity-60"
               >
                 {socialLoadingProvider === provider ? (
                   <>
@@ -370,7 +406,7 @@ export function AuthScreen({
           </div>
         </div>
 
-        <div className="mt-8 hidden w-full max-w-sm space-y-3 text-center sm:block sm:mt-12 sm:space-y-4">
+        <div className="mt-8 hidden w-full space-y-3 text-center sm:block">
           <button
             type="button"
             onClick={() => {
@@ -379,10 +415,10 @@ export function AuthScreen({
               setNotice(null);
             }}
             disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-primary"
+            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
             {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
-            <span className="ml-1 font-black uppercase tracking-widest text-primary underline">
+            <span className="ml-1 font-black uppercase tracking-widest text-[#45697d] underline">
               {mode === 'signin' ? 'Create Account' : 'Sign In Portal'}
             </span>
           </button>
@@ -391,9 +427,9 @@ export function AuthScreen({
             type="button"
             onClick={onGuestMode}
             disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-text-dim transition-colors hover:text-secondary"
+            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
-            <span className="font-black uppercase tracking-widest text-secondary underline">
+            <span className="font-black uppercase tracking-widest text-[#45697d] underline">
               {i18nT('auth.continueAsGuest', 'Continue as Guest')}
             </span>
           </button>
@@ -402,20 +438,23 @@ export function AuthScreen({
             type="button"
             onClick={onViewPolicies}
             disabled={isAuthBusy}
-            className="block w-full text-[11px] font-bold text-text-dim transition-colors hover:text-primary"
+            className="block w-full text-[11px] font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
           >
-            <span className="font-black uppercase tracking-[0.22em] text-primary underline">
+            <span className="font-black uppercase tracking-[0.22em] text-[#45697d] underline">
               {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
             </span>
           </button>
 
           <div className="flex flex-col items-center gap-2 pt-4 sm:pt-6">
-            <div className="h-1 w-8 rounded-full bg-border-gray dark:bg-zinc-800" />
-            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-text-light">
-              BABYLOG BIOMETRIC ACCESS - V3.0
+            <div className="h-1 w-8 rounded-full bg-[#e7e9ef]" />
+            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#9aa3b2]">
+              BABYLOG SECURE ACCESS
             </p>
           </div>
         </div>
+            </MotionDiv>
+          </section>
+        </main>
       </div>
     </div>
   );

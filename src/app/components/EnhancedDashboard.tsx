@@ -872,63 +872,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
         )}
 
-        {effectiveUserRole === 'admin' && (
-          <div className="overflow-hidden rounded-[2rem] border border-cyan-400/25 bg-gradient-to-br from-cyan-500/15 via-surface to-blue-500/10 p-5 shadow-sm dark:border-cyan-300/20 sm:rounded-[2.75rem] sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-500 text-white shadow-lg shadow-cyan-500/20">
-                  <Shield size={22} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-600 dark:text-cyan-300">
-                    Main Admin
-                  </p>
-                  <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground sm:text-2xl">
-                    Admin Console
-                  </h3>
-                  <p className="mt-1 text-sm font-semibold leading-relaxed text-text-dim">
-                    Manage users, roles, platform activity, and operational reports from here.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => openView('admin')}
-                className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
-              >
-                Open Admin
-              </button>
-            </div>
-          </div>
-        )}
-
-        {effectiveUserRole === 'manager' && (
-          <div className="overflow-hidden rounded-[2rem] border border-slate-400/25 bg-gradient-to-br from-slate-500/15 via-surface to-sky-500/10 p-5 shadow-sm dark:border-slate-300/20 sm:rounded-[2.75rem] sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-slate-100 dark:text-slate-950">
-                  <Shield size={22} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600 dark:text-slate-300">
-                    Manager
-                  </p>
-                  <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground sm:text-2xl">
-                    Limited Admin Workspace
-                  </h3>
-                  <p className="mt-1 text-sm font-semibold leading-relaxed text-text-dim">
-                    Review billing, reports, and activity without full user-management permissions.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => openView('manager')}
-                className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
-              >
-                Open Manager
-              </button>
-            </div>
-          </div>
-        )}
 
         {!isCareTeamProfile && (
           <div className={`overflow-hidden rounded-[2.4rem] border p-5 shadow-sm sm:p-6 ${nextCareFocus.tone}`}>
@@ -1572,7 +1515,9 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
             showBackButton={false}
             onLogout={onSignOut || (() => window.location.reload())}
             isAdmin={effectiveUserRole === 'admin'}
+            isManager={effectiveUserRole === 'manager'}
             onOpenAdminPanel={() => openView('admin', 'Admin')}
+            onOpenManagerPanel={() => openView('manager', 'Manager')}
           />
         );
       case 'logs':

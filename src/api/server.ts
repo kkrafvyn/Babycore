@@ -51,6 +51,7 @@ import {
   syncSnapshotHandler,
   voiceTranscribeHandler,
 } from './handlers/system-handlers.js';
+import { sendWelcomeEmailHandler } from './handlers/auth-handlers.js';
 import {
   getSupabaseServerUrl,
   getRuntimeEnvironment,
@@ -67,6 +68,7 @@ const clientIndexPath = path.join(clientDistPath, 'index.html');
 const hasClientBuild = fs.existsSync(clientIndexPath);
 const genericEmailRateLimit = rateLimit(3, '1m');
 const inviteEmailRateLimit = rateLimit(6, '1m');
+const welcomeEmailRateLimit = rateLimit(3, '1m');
 const reportEmailRateLimit = rateLimit(4, '1m');
 const syncRateLimit = rateLimit(8, '1m');
 const voiceTranscriptionRateLimit = rateLimit(12, '1m');
@@ -161,6 +163,7 @@ app.get('/api/health/config', healthConfigHandler);
 const apiRouter = express.Router();
 
 apiRouter.post('/send-email', genericEmailRateLimit, sendEmailHandler);
+apiRouter.post('/auth/welcome-email', welcomeEmailRateLimit, sendWelcomeEmailHandler);
 apiRouter.post('/email/send-invite', inviteEmailRateLimit, sendInviteEmailHandler);
 apiRouter.post('/email/send-report', reportEmailRateLimit, sendReportEmailHandler);
 apiRouter.get('/admin/current-role', currentRoleHandler);

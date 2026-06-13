@@ -411,7 +411,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
         className="sticky top-[4.75rem] z-30 border-b border-slate-200/80 bg-[#f5f7fa]/95 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050507]/95 lg:hidden"
         aria-label="Manager sections"
       >
-        <div className="mx-auto grid max-w-[1180px] grid-cols-5 gap-1 overflow-x-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-sm no-scrollbar dark:border-white/10 dark:bg-zinc-950">
+        <div className="mx-auto flex max-w-[1180px] gap-1 overflow-x-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-sm no-scrollbar dark:border-white/10 dark:bg-zinc-950">
           {MANAGER_SECTIONS.map((section) => {
             const isActive = section.id === activeSection;
             const SectionIcon = section.Icon;
@@ -422,7 +422,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 type="button"
                 aria-pressed={isActive}
                 onClick={() => handleSectionChange(section.id)}
-                className={`flex h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-[8px] text-[7px] font-black uppercase tracking-[0.08em] transition-all ${
+                className={`flex h-12 min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[8px] px-2 text-[7px] font-black uppercase tracking-[0.08em] transition-all ${
                   isActive
                     ? "bg-[#111827] text-white dark:bg-white dark:text-zinc-950"
                     : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
@@ -844,81 +844,44 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
                 className={activeSection === "settings" ? "space-y-4" : "hidden"}
               >
                 <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em] px-1">
-                  Manager Settings
+                  Manager Permissions
                 </h3>
-                <div className="rounded-[2rem] border border-sky-200/80 bg-sky-50/85 p-5 shadow-xl shadow-sky-950/5 backdrop-blur-xl dark:border-sky-400/20 dark:bg-sky-950/20">
-                  <p className="text-[9px] font-black uppercase tracking-[0.24em] text-sky-700 dark:text-sky-300">
-                    Role boundary
+                <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950">
+                  <p className="text-sm font-bold leading-relaxed text-text-dim">
+                    Managers can review billing, reports, and activity. Role changes,
+                    user deletion, and payment configuration stay in the full Admin
+                    Console.
                   </p>
-                  <p className="mt-2 text-sm font-bold leading-relaxed text-sky-950 dark:text-sky-50">
-                    Managers can review the powers enabled for this limited
-                    admin role. They cannot switch account roles here; role
-                    changes stay in full Admin Settings only.
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    {
-                      label: "Scope",
-                      value: "Billing, reports, activity",
-                      detail: "Managers stay focused on operations instead of user role control.",
-                    },
-                    {
-                      label: "Escalation",
-                      value: "Admin handles roles",
-                      detail: "Promotions, demotions, and deletes require the full admin page.",
-                    },
-                    {
-                      label: "Launch QA",
-                      value: "Safe by default",
-                      detail: "Managers can verify billing recovery without unlocking broader settings.",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-[1.75rem] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
-                    >
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-text-light">
-                        {item.label}
-                      </p>
-                      <p className="mt-2 text-sm font-headline font-black tracking-tight text-foreground">
-                        {item.value}
-                      </p>
-                      <p className="mt-2 text-xs font-semibold leading-5 text-text-dim">
-                        {item.detail}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">
-                  {permissionEntries.length === 0 && (
-                    <div className="sm:col-span-2">
-                      <ManagerEmptyState
-                        Icon={ShieldCheck}
-                        title="No permission details loaded"
-                        description="Manager powers will list here when the permissions endpoint returns enabled capabilities."
-                      />
-                    </div>
-                  )}
-                  {permissionEntries.map(([permission, enabled]) => (
-                    <div
-                      key={permission}
-                      className="flex items-center justify-between rounded-[1.25rem] border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/5"
-                    >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
-                        {permission}
-                      </p>
-                      <span
-                        className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-                          enabled
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                            : "bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
-                        }`}
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {permissionEntries.length === 0 && (
+                      <div className="sm:col-span-2">
+                        <ManagerEmptyState
+                          Icon={ShieldCheck}
+                          title="No permission details loaded"
+                          description="Manager powers will list here when the permissions endpoint returns enabled capabilities."
+                        />
+                      </div>
+                    )}
+                    {permissionEntries.map(([permission, enabled]) => (
+                      <div
+                        key={permission}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
                       >
-                        {enabled ? "On" : "Off"}
-                      </span>
-                    </div>
-                  ))}
+                        <p className="text-[10px] font-black uppercase tracking-widest text-text-light">
+                          {permission.replace(/_/g, " ")}
+                        </p>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                            enabled
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
+                          }`}
+                        >
+                          {enabled ? "On" : "Off"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </>

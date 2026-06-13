@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
+import { renderInviteEmail } from '../utils/email-templates.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { supabase } from '../utils/supabase.js';
 import { applyFullSync, buildSyncSnapshot } from '../utils/sync-data.js';
@@ -23,14 +24,6 @@ const INVITE_VIEWS = new Set(['patients', 'family-sharing']);
 
 const isTrueEnvFlag = (value: string | undefined): boolean =>
   TRUE_VALUES.has(String(value || '').trim().toLowerCase());
-
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 const normalizeEmail = (value: unknown): string => String(value || '').trim().toLowerCase();
 
@@ -422,6 +415,7 @@ export async function sendEmailHandler(req: AuthRequest, res: Response): Promise
   const to = normalizeEmail(req.body?.to);
   const subject = String(req.body?.subject || '').trim();
   const html = String(req.body?.html || '').trim();
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : undefined;
   const from = typeof req.body?.from === 'string' ? req.body.from : undefined;
 
   if (!to || !subject || !html) {
@@ -439,7 +433,7 @@ export async function sendEmailHandler(req: AuthRequest, res: Response): Promise
     return;
   }
 
-  if (subject.length > 200 || html.length > 100_000) {
+  if (subject.length > 200 || html.length > 100_000 || (text?.length || 0) > 50_000) {
     res.status(400).json({ success: false, error: 'Email payload exceeds allowed limits' });
     return;
   }
@@ -449,6 +443,7 @@ export async function sendEmailHandler(req: AuthRequest, res: Response): Promise
       to,
       subject,
       html,
+      text,
       from,
     });
 
@@ -526,41 +521,18 @@ export async function sendInviteEmailHandler(req: AuthRequest, res: Response): P
     const normalizedRole = String(invite.role || '').trim().toLowerCase();
     const role = INVITE_ROLES.has(normalizedRole) ? normalizedRole : 'caregiver';
     const inviteLink = buildInviteLink(req, inviteToken, view);
-    const safeRoleLabel = escapeHtml(role);
-    const safeInviteLink = escapeHtml(inviteLink);
-    const safeBabyName = String(invite.baby_name_snapshot || '').trim();
-    const safeRecipientName = String(invite.invited_name || '').trim();
-    const subject = `BabyCore invite: ${role}`;
-    const introCopy = safeBabyName
-      ? `You were invited as <strong>${safeRoleLabel}</strong> to help care for <strong>${escapeHtml(safeBabyName)}</strong>.`
-      : `You were invited as <strong>${safeRoleLabel}</strong> to BabyCore.`;
-    const greeting = safeRecipientName ? `<p>Hi ${escapeHtml(safeRecipientName)},</p>` : '';
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
-        <h2 style="margin-bottom: 12px;">You have been invited to BabyCore</h2>
-        ${greeting}
-        <p>${introCopy}</p>
-        <p>Click the button below to accept:</p>
-        <p style="margin: 24px 0;">
-          <a href="${safeInviteLink}" style="display:inline-block;padding:12px 18px;background:#1f6feb;color:#fff;text-decoration:none;border-radius:8px;">
-            Accept Invite
-          </a>
-        </p>
-        <p style="color:#555;">If the button does not work, open this link:</p>
-        <p style="word-break: break-all; color:#1f6feb;">${safeInviteLink}</p>
-      </div>
-    `.trim();
-    const text = [
-      'You have been invited to BabyCore.',
-      safeBabyName ? `Role: ${role} for ${safeBabyName}` : `Role: ${role}`,
-      `Accept invite: ${inviteLink}`,
-    ].join('\n');
+    const email = renderInviteEmail({
+      recipientName: String(invite.invited_name || '').trim(),
+      babyName: String(invite.baby_name_snapshot || '').trim(),
+      role,
+      inviteLink,
+    });
 
     const result = await sendTransactionalEmail({
       to: recipientEmail,
-      subject,
-      html,
-      text,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
     });
 
     res.status(200).json({

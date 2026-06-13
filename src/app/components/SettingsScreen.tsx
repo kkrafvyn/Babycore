@@ -100,7 +100,9 @@ interface SettingsScreenProps {
   onLogout: () => void;
   showBackButton?: boolean;
   isAdmin?: boolean;
+  isManager?: boolean;
   onOpenAdminPanel?: () => void;
+  onOpenManagerPanel?: () => void;
 }
 
 const decodeLegacyUtf8 = (value: string): string => {
@@ -121,7 +123,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onLogout,
   showBackButton = true,
   isAdmin = false,
+  isManager = false,
   onOpenAdminPanel,
+  onOpenManagerPanel,
 }) => {
   const { babies, currentBaby, settings, updateSettings, user, refreshBabies, refreshUser } = useAppContext();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -642,7 +646,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                      className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-[10px] font-black uppercase tracking-widest text-secondary shadow-lg transition-all hover:scale-[1.02] active:scale-95"
                    >
                      <Shield size={14} />
-                     Open Dashboard
+                     Open Admin Console
                    </button>
                  )}
                  <button
@@ -699,7 +703,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
              </div>
            )}
 
-           {canManageAdminAccountMode && (
+           {canManageAdminAccountMode && !adminModeActive && (
              <div className="rounded-[2rem] border border-secondary/20 bg-secondary/5 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20 sm:p-6">
                <div className="mb-4 flex items-start justify-between gap-4">
                  <div className="flex items-center gap-3">
@@ -780,6 +784,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                        Add Child Profile
                      </button>
                    )}
+                 </div>
+               </div>
+             </div>
+           )}
+
+           {(isAdmin || isManager) && !adminModeActive && !canManageAdminAccountMode && (
+             <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-6">
+               <div className="flex items-start gap-4">
+                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${isAdmin ? 'bg-cyan-600 shadow-cyan-600/20' : 'bg-slate-900 shadow-slate-900/20'}`}>
+                   <Shield size={20} />
+                 </div>
+                 <div className="min-w-0 flex-1">
+                   <p className="text-[9px] font-black uppercase tracking-[0.22em] text-text-light">
+                     {isAdmin ? 'Platform Admin' : 'Operations Manager'}
+                   </p>
+                   <h3 className="mt-1 font-headline text-lg font-black text-foreground">
+                     {isAdmin ? 'Admin Console' : 'Manager Workspace'}
+                   </h3>
+                   <p className="mt-2 text-xs font-bold leading-relaxed text-text-light">
+                     {isAdmin
+                       ? 'Manage users, payments, launch checks, and platform activity.'
+                       : 'Review billing recovery, reports, and activity without user-management access.'}
+                   </p>
+                   <button
+                     type="button"
+                     onClick={isAdmin ? onOpenAdminPanel : onOpenManagerPanel}
+                     className="mt-4 inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-[9px] font-black uppercase tracking-widest text-background transition-all hover:scale-[1.02] active:scale-95"
+                   >
+                     <Shield size={13} />
+                     {isAdmin ? 'Open Admin Console' : 'Open Manager Workspace'}
+                   </button>
                  </div>
                </div>
              </div>
@@ -1132,23 +1167,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <ChevronRight size={18} className="text-text-light shrink-0" />
                  </button>
-                 {isAdmin && onOpenAdminPanel && (
-                   <button
-                     onClick={onOpenAdminPanel}
-                     className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left"
-                   >
-                      <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-                         <div className="w-12 h-12 sm:w-14 sm:h-14 bg-secondary/10 dark:bg-cyan-900/20 text-secondary rounded-2xl flex items-center justify-center shrink-0">
-                           <Shield size={22} className="sm:h-6 sm:w-6" />
-                         </div>
-                         <div className="min-w-0">
-                            <p className="text-base sm:text-lg font-headline font-black text-foreground leading-tight">Admin Panel</p>
-                            <p className="text-[8px] sm:text-[9px] font-black text-text-light uppercase tracking-widest mt-1 leading-tight">Platform overview</p>
-                         </div>
-                      </div>
-                      <ChevronRight size={18} className="text-text-light shrink-0" />
-                   </button>
-                 )}
                  
                  <button onClick={() => setShowLangSettings(true)} className="w-full p-4 sm:p-8 flex items-center justify-between gap-3 sm:gap-5 hover:bg-surface-gray dark:hover:bg-zinc-800 transition-all text-left">
                     <div className="flex items-center gap-3 sm:gap-5 min-w-0">

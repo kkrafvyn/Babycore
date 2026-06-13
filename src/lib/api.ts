@@ -106,20 +106,14 @@ export const API = {
       return data;
     },
 
-    sendWelcomeEmail: async (email: string, userName: string) => {
-      const { data, error } = await supabase.functions.invoke('send-welcome-email', {
-        body: { email, userName },
-      });
-      if (error) throw error;
-      return data;
-    },
+    sendWelcomeEmail: async () =>
+      requestAuthedApi('/auth/welcome-email', {
+        method: 'POST',
+      }),
 
     sendVaccinationReminder: async (email: string, babyName: string, vaccines: any[]) => {
-      const { data, error } = await supabase.functions.invoke('send-vaccination-reminder', {
-        body: { email, babyName, vaccines },
-      });
-      if (error) throw error;
-      return data;
+      const { sendVaccinationReminderEmail } = await import('./email-service');
+      return sendVaccinationReminderEmail(email, babyName, vaccines);
     },
   },
 
