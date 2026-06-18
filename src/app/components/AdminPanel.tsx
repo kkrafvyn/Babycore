@@ -217,7 +217,7 @@ const LIMITED_ADMIN_ROLE_LABELS: Record<
 };
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [loading, setLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -305,25 +305,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     });
   };
 
-  const loadOverview = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const loadOverview = async () => {
+    setOverviewLoading(true);
 
-    const response = await fetchAdminOverview();
-    if (!response.success || !response.data) {
-      setError(response.error || "Unable to load admin overview.");
-      setLoading(false);
-      setRefreshing(false);
-      return;
+    try {
+      const response = await fetchAdminOverview();
+      if (!response.success || !response.data) {
+        setError(response.error || "Unable to load admin overview.");
+        return;
+      }
+
+      setError(null);
+      setCounts(response.data.counts || {});
+      setRoleDistribution(response.data.roleDistribution || []);
+      setRecent(response.data.recent || {});
+      setGeneratedAt(response.data.generatedAt || "");
+    } catch (loadError: any) {
+      setError(loadError?.message || "Unable to load admin overview.");
+    } finally {
+      setOverviewLoading(false);
     }
-
-    setError(null);
-    setCounts(response.data.counts || {});
-    setRoleDistribution(response.data.roleDistribution || []);
-    setRecent(response.data.recent || {});
-    setGeneratedAt(response.data.generatedAt || "");
-    setLoading(false);
-    setRefreshing(false);
   };
 
   const loadUsers = async () => {
@@ -459,15 +460,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const refreshAll = async (isRefresh = false) => {
-    await Promise.all([
-      loadOverview(isRefresh),
-      loadUsers(),
-      loadAdminLogs(),
-      loadBilling(),
-      loadPricing(),
-      loadPaymentCollection(),
-      loadLaunchHealth(),
-    ]);
+    if (isRefresh) setRefreshing(true);
+
+    try {
+      await Promise.all([
+        loadOverview(),
+        loadUsers(),
+        loadAdminLogs(),
+        loadBilling(),
+        loadPricing(),
+        loadPaymentCollection(),
+        loadLaunchHealth(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handlePricingDraftChange = (
@@ -507,7 +514,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setPricingPlans(response.data.plans || []);
     toast.success(response.message || "Pricing updated.");
     await Promise.all([
-      loadOverview(true),
+      loadOverview(),
       loadAdminLogs(),
       loadLaunchHealth(),
     ]);
@@ -549,7 +556,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
     toast.success(response.message || "Payment collection control updated.");
     await Promise.all([
-      loadOverview(true),
+      loadOverview(),
       loadAdminLogs(),
       loadLaunchHealth(),
     ]);
@@ -589,7 +596,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     );
     toast.success(response.message || "Premium access mode updated.");
     await Promise.all([
-      loadOverview(true),
+      loadOverview(),
       loadAdminLogs(),
       loadLaunchHealth(),
     ]);
@@ -628,7 +635,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const createdRole =
       response.data.user.role === "admin" ? "full admin" : "limited admin";
     toast.success(`${response.data.user.name} created as ${createdRole}.`);
-    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleApplyRole = async (user: AdminUserRecord) => {
@@ -652,7 +659,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(`${user.name}'s role updated to ${nextRole}.`);
-    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
   const handlePromote = async (
@@ -670,7 +677,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(`${user.name} promoted to ${nextRole}.`);
-    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleDemote = async (user: AdminUserRecord) => {
@@ -685,7 +692,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(`${user.name} demoted to user.`);
-    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleDeleteUser = async (user: AdminUserRecord) => {
@@ -704,7 +711,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(`${user.name} deleted.`);
-    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleRetryBilling = async (reference: string) => {
@@ -718,7 +725,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(result.message || `Retry requested for ${reference}.`);
-    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleResolveBilling = async (
@@ -746,7 +753,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     toast.success(result.message || `${reference} updated.`);
-    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview(true)]);
+    await Promise.all([loadBilling(), loadAdminLogs(), loadOverview()]);
   };
 
   const handleExportBilling = async () => {
@@ -1013,6 +1020,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   return (
     <div className="admin-panel min-h-[100dvh] overflow-x-hidden bg-[#f5f7fa] text-foreground dark:bg-[#050507]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90">
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-300" />
         <div className="mx-auto flex min-h-[4.75rem] w-full max-w-[1180px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -1035,7 +1043,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
           <button
             onClick={() => refreshAll(true)}
-            disabled={refreshing || loading}
+            disabled={refreshing}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-sm shadow-slate-950/10 transition-all hover:bg-slate-700 active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
             title="Refresh admin data"
             aria-label="Refresh admin data"
@@ -1204,14 +1212,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               </MotionDiv>
             )}
 
-            {loading ? (
+            {overviewLoading && activeSection === "overview" ? (
               <div className="rounded-[2rem] border border-white/70 bg-white/80 p-8 text-center shadow-xl shadow-slate-950/5 backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/75">
                 <p className="text-sm font-bold text-text-light">
-                  Loading admin data...
+                  Loading overview totals...
                 </p>
               </div>
-            ) : (
-              <>
+            ) : null}
+
+            <>
                 <div
                   id="admin-overview"
                   className={
@@ -2551,8 +2560,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     ))}
                   </div>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </main>
       </div>

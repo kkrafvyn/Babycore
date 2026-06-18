@@ -226,43 +226,97 @@ const ORDER_CANDIDATES = [
   'purchased_at',
 ] as const;
 
-async function countRows(table: string): Promise<number> {
+const OVERVIEW_QUERY_TIMEOUT_MS = 6_000;
+const OVERVIEW_COUNT_CONCURRENCY = 10;
+
+async function withOverviewTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    const { count, error } = await supabase.from(table).select('*', {
-      count: 'exact',
-      head: true,
-    });
-    if (error) return 0;
-    return count || 0;
-  } catch {
-    return 0;
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeoutId = setTimeout(() => resolve(fallback), OVERVIEW_QUERY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 }
 
-async function fetchRecentRows(table: string): Promise<any[]> {
-  for (const orderColumn of ORDER_CANDIDATES) {
-    try {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .order(orderColumn, { ascending: false })
-        .limit(6);
-
-      if (!error) {
-        return data || [];
-      }
-    } catch {
-      // Try the next ordering strategy.
-    }
-  }
-
-  try {
-    const { data, error } = await supabase.from(table).select('*').limit(6);
-    if (error) return [];
-    return data || [];
-  } catch {
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) {
     return [];
   }
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+async function countRows(table: string): Promise<number> {
+  return withOverviewTimeout(
+    (async () => {
+      try {
+        const { count, error } = await supabase.from(table).select('*', {
+          count: 'exact',
+          head: true,
+        });
+        if (error) return 0;
+        return count || 0;
+      } catch {
+        return 0;
+      }
+    })(),
+    0,
+  );
+}
+
+async function fetchRecentRows(table: string): Promise<any[]> {
+  return withOverviewTimeout(
+    (async () => {
+      for (const orderColumn of ORDER_CANDIDATES) {
+        try {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .order(orderColumn, { ascending: false })
+            .limit(6);
+
+          if (!error) {
+            return data || [];
+          }
+        } catch {
+          // Try the next ordering strategy.
+        }
+      }
+
+      try {
+        const { data, error } = await supabase.from(table).select('*').limit(6);
+        if (error) return [];
+        return data || [];
+      } catch {
+        return [];
+      }
+    })(),
+    [],
+  );
 }
 
 const extractStoragePath = (audioUrl?: string, storageKey?: string): string | null => {
@@ -582,15 +636,19 @@ export async function adminOverviewHandler(req: AuthRequest, res: Response): Pro
     return;
   }
 
-  const countResults = await Promise.all(
-    TABLES_TO_COUNT.map(async (table) => [table, await countRows(table)] as const),
+  const countResults = await mapWithConcurrency(
+    TABLES_TO_COUNT,
+    OVERVIEW_COUNT_CONCURRENCY,
+    async (table) => [table, await countRows(table)] as const,
   );
   const counts = Object.fromEntries(countResults) as Record<string, number>;
 
   const roleDistribution = await getRoleDistribution().catch(() => []);
 
-  const recentResults = await Promise.all(
-    RECENT_TABLES.map(async (table) => [table, await fetchRecentRows(table)] as const),
+  const recentResults = await mapWithConcurrency(
+    RECENT_TABLES,
+    OVERVIEW_COUNT_CONCURRENCY,
+    async (table) => [table, await fetchRecentRows(table)] as const,
   );
   const recent = Object.fromEntries(recentResults) as Record<string, any[]>;
 

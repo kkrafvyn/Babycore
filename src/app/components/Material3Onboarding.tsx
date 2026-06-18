@@ -5,10 +5,10 @@
 
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { COUNTRIES } from '../../lib/countries';
 import { getDefaultAvatar, getUserAvatar } from '../../lib/baby-utils';
-import { getVaccinationRegionForCountry } from '../../lib/vaccination-schedule-resolver';
+import { buildCountryPickerOptions, getCountryFlagUrl, guessUserCountryCode } from '../../lib/country-picker';
 import { getCountryCareDefaults, getDefaultUnitsForCountry } from '../../lib/country-care-defaults';
+import { OnboardingCountryStep } from './OnboardingCountryStep';
 import {
   deriveSettingsFromCareProfile,
   getCareProfileBadges,
@@ -28,13 +28,6 @@ import type {
 
 type OnboardingStep = 'welcome' | 'country' | 'baby' | 'personalize' | 'units' | 'notifications' | 'complete';
 type ProfileType = 'baby' | 'doctor' | 'caregiver';
-
-interface CountryOption {
-  code: string;
-  flagUrl: string | null;
-  name: string;
-  info: string;
-}
 
 interface OnboardingData {
   profileType: ProfileType;
@@ -118,29 +111,6 @@ const CARE_PROFILE_SUPPORT_OPTIONS: CareProfileSupportFocus[] = [
   'growth-review',
 ];
 
-const decodeLegacyUtf8 = (value: string): string => {
-  if (!/[\u00C3\u00E2]/.test(value)) {
-    return value;
-  }
-
-  try {
-    const bytes = Uint8Array.from(value, (char) => char.charCodeAt(0));
-    return new TextDecoder('utf-8').decode(bytes);
-  } catch {
-    return value;
-  }
-};
-
-const getCountryFlagUrl = (countryCode: string): string | null => {
-  const normalizedCode = countryCode.trim().toUpperCase();
-
-  if (!/^[A-Z]{2}$/.test(normalizedCode)) {
-    return null;
-  }
-
-  return `https://flagcdn.com/${normalizedCode.toLowerCase()}.svg`;
-};
-
 const formatTemplate = (template: string, replacements: Record<string, string | number>): string =>
   Object.entries(replacements).reduce(
     (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
@@ -158,55 +128,36 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   onViewPolicies,
 }) => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
-  const [searchQuery, setSearchQuery] = useState('');
   const [hasCustomizedUnits, setHasCustomizedUnits] = useState(false);
-  const [formData, setFormData] = useState<OnboardingData>({
-    profileType: 'baby',
-    country: 'US',
-    units: getDefaultUnitsForCountry('US'),
-    notificationsEnabled: true,
-    careProfilePreferences: getDefaultCareProfile('baby'),
-    babyName: '',
-    babyDateOfBirth: '',
-    babyGender: 'other',
-    babyPhotoUrl: undefined,
-    profilePhotoUrl: undefined,
-    doctorName: '',
-    doctorSpecialty: '',
-    caregiverName: '',
-    caregiverRelationship: 'Family',
+  const [formData, setFormData] = useState<OnboardingData>(() => {
+    const country = guessUserCountryCode() || 'US';
+
+    return {
+      profileType: 'baby',
+      country,
+      units: getDefaultUnitsForCountry(country),
+      notificationsEnabled: true,
+      careProfilePreferences: getDefaultCareProfile('baby'),
+      babyName: '',
+      babyDateOfBirth: '',
+      babyGender: 'other',
+      babyPhotoUrl: undefined,
+      profilePhotoUrl: undefined,
+      doctorName: '',
+      doctorSpecialty: '',
+      caregiverName: '',
+      caregiverRelationship: 'Family',
+    };
   });
 
-  const countryOptions = useMemo<CountryOption[]>(() => {
-    const parsed = (COUNTRIES as Array<{ code: string; name: string; info?: string }>).map((country) => {
-      const { regionName } = getVaccinationRegionForCountry(country.code);
-      return {
-        code: country.code,
-        flagUrl: getCountryFlagUrl(country.code),
-        name: decodeLegacyUtf8(country.name),
-        info: `${regionName} region`,
-      };
-    });
-
-    return parsed.sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
-
-  const filteredCountries = countryOptions.filter((country) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-
-    return (
-      country.name.toLowerCase().includes(query) ||
-      country.code.toLowerCase().includes(query) ||
-      country.info.toLowerCase().includes(query)
-    );
-  });
+  const countryOptions = useMemo(() => buildCountryPickerOptions(), []);
 
   const activeSteps = formData.profileType === 'baby' ? STEPS : CARE_TEAM_STEPS;
   const activeStepIndex = activeSteps.indexOf(currentStep);
   const safeActiveStepIndex = activeStepIndex < 0 ? 0 : activeStepIndex;
   const progress = Math.round((safeActiveStepIndex / (activeSteps.length - 1)) * 100);
-  const isScrollableStep = currentStep === 'baby' || currentStep === 'personalize';
+  const isScrollableStep =
+    currentStep === 'country' || currentStep === 'baby' || currentStep === 'personalize';
 
   const selectedCountry = countryOptions.find((country) => country.code === formData.country);
   const countryCareDefaults = useMemo(() => getCountryCareDefaults(formData.country), [formData.country]);
@@ -416,6 +367,14 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
     setCurrentStep(activeSteps[safeActiveStepIndex + 1]);
   };
 
+  const handleCountrySelect = (countryCode: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      country: countryCode,
+      units: hasCustomizedUnits ? prev.units : getDefaultUnitsForCountry(countryCode),
+    }));
+  };
+
   const handleProfilePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -438,10 +397,24 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
     reader.readAsDataURL(file);
   };
 
+  if (currentStep === 'country') {
+    return (
+      <OnboardingCountryStep
+        selectedCountryCode={formData.country}
+        stepNumber={safeActiveStepIndex + 1}
+        totalSteps={activeSteps.length}
+        onSelectCountry={handleCountrySelect}
+        onBack={handlePrevious}
+        onContinue={handleNext}
+        onViewPolicies={onViewPolicies}
+      />
+    );
+  }
+
   return (
     <div className="grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
       <header className="border-b border-gray-100 bg-white/85 backdrop-blur-xl dark:border-zinc-800 dark:bg-[#121315]/85">
-        {currentStep === 'baby' ? (
+        {currentStep !== 'welcome' ? (
           <>
             <div className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center px-4 py-2.5 sm:hidden">
               <button
@@ -613,177 +586,6 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                     </p>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {currentStep === 'country' && (
-            <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 sm:gap-6">
-              <div className="text-center">
-                <h2 className="font-['Plus_Jakarta_Sans',sans-serif] text-[clamp(1.95rem,6vw,3rem)] font-black tracking-[-0.05em] text-[#2f3337] dark:text-white">
-                  {i18nT('onboarding.countryTitle', 'Select Your Country')}
-                </h2>
-                <p className="mx-auto mt-2 max-w-2xl text-sm font-bold leading-relaxed text-[#787b80] dark:text-zinc-400 sm:text-base">
-                  {i18nT(
-                    'onboarding.countrySubtitle',
-                    'We use this for localized health guidance, vaccine schedules, and regional defaults.',
-                  )}
-                </p>
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-[#17181b] sm:rounded-[2.5rem] sm:p-6">
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[#afb2b8]">
-                    <span className="material-symbols-outlined">search</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder={i18nT('onboarding.countrySearch', 'Search for your country')}
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full rounded-2xl border border-transparent bg-[#f8f8fb] py-3 pl-12 pr-4 font-bold text-[#2f3337] outline-none transition-all placeholder:text-[#afb2b8] focus:border-[#45627d] dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-blue-500 sm:mt-4"
-                  />
-                </div>
-
-                {selectedCountry && (
-                  <div className="mt-4 flex items-center gap-3 rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-inner dark:bg-zinc-800">
-                      {selectedCountry.flagUrl ? (
-                        <img
-                          src={selectedCountry.flagUrl}
-                          alt={`${selectedCountry.name} flag`}
-                          className="h-5 w-7 rounded-[0.3rem] object-cover shadow-sm"
-                        />
-                      ) : (
-                        <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#787b80] dark:text-zinc-400">
-                          {selectedCountry.code}
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
-                        {selectedCountry.name}
-                      </p>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
-                        {selectedCountry.code} - {selectedCountry.info}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedCountry && (
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
-                        {i18nT('onboarding.guidanceUnits', 'Recommended Units')}
-                      </p>
-                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
-                        {countryCareDefaults.recommendedUnits === 'imperial'
-                          ? i18nT('onboarding.unitsImperial', 'Imperial')
-                          : i18nT('onboarding.unitsMetric', 'Metric')}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
-                        {countryCareDefaults.recommendedUnitsCompactLabel}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
-                        {i18nT('onboarding.guidanceVaccines', 'Vaccine Schedule')}
-                      </p>
-                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
-                        {countryCareDefaults.vaccinationScheduleName}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
-                        {countryCareDefaults.vaccinationRegionName}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8fbff] px-4 py-3 dark:bg-zinc-900">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#afb2b8]">
-                        {i18nT('onboarding.guidanceCoverage', 'Coverage')}
-                      </p>
-                      <p className="mt-1 font-['Plus_Jakarta_Sans',sans-serif] text-sm font-black text-[#2f3337] dark:text-white">
-                        {scheduleSourceLabel}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-[#787b80] dark:text-zinc-400">
-                        {selectedCountry.code}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
-                    {filteredCountries.map((country) => (
-                      <button
-                        key={country.code}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            country: country.code,
-                            units: hasCustomizedUnits ? prev.units : getDefaultUnitsForCountry(country.code),
-                          }))
-                        }
-                        className={`rounded-2xl border p-4 text-left transition-all ${
-                          formData.country === country.code
-                            ? 'border-[#45627d] bg-[#f8fbff] shadow-md dark:border-blue-500 dark:bg-zinc-900'
-                            : 'border-gray-100 bg-white shadow-sm hover:border-gray-200 dark:border-zinc-800 dark:bg-[#17181b] dark:hover:border-zinc-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f3f7] shadow-inner dark:bg-zinc-900">
-                              {country.flagUrl ? (
-                                <img
-                                  src={country.flagUrl}
-                                  alt={`${country.name} flag`}
-                                  className="h-5 w-7 rounded-[0.3rem] object-cover shadow-sm"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-[#787b80] dark:text-zinc-400">
-                                  {country.code}
-                                </span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p
-                                className={`truncate font-['Plus_Jakarta_Sans',sans-serif] text-base font-black leading-tight ${
-                                  formData.country === country.code
-                                    ? 'text-[#45627d] dark:text-white'
-                                    : 'text-[#2f3337] dark:text-zinc-300'
-                                }`}
-                              >
-                                {country.name}
-                              </p>
-                              <p className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-[#afb2b8]">
-                                {country.code} - {country.info}
-                              </p>
-                            </div>
-                          </div>
-                          {formData.country === country.code && (
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#45627d] shadow-inner dark:bg-blue-400/15 dark:text-blue-300">
-                              <span className="material-symbols-outlined text-lg">check</span>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {filteredCountries.length === 0 && (
-                    <div className="flex h-full min-h-[12rem] items-center justify-center rounded-[1.5rem] border border-dashed border-gray-200 bg-[#fafbff] px-6 text-center dark:border-zinc-700 dark:bg-zinc-900/60">
-                      <div>
-                        <p className="font-['Plus_Jakarta_Sans',sans-serif] text-lg font-black text-[#2f3337] dark:text-white">
-                          {i18nT('onboarding.countryNoMatchTitle', 'No matches yet')}
-                        </p>
-                        <p className="mt-2 text-sm font-bold text-[#787b80] dark:text-zinc-400">
-                          {i18nT('onboarding.countryNoMatchBody', 'Try a country name, code, or region keyword.')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}

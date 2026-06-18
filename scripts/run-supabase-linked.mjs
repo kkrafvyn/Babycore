@@ -25,20 +25,32 @@ if (forwardedArgs.includes('--db-url')) {
   process.exit(1);
 }
 
-if (!process.env.SUPABASE_DB_PASSWORD?.trim()) {
-  console.error('SUPABASE_DB_PASSWORD is required for linked Supabase CLI commands.');
-  process.exit(1);
-}
+const resolveDatabaseUrl = () => {
+  const directUrl = String(process.env.SUPABASE_DB_URL || '').trim();
+  if (directUrl) {
+    return directUrl;
+  }
 
-if (!fs.existsSync(poolerUrlPath)) {
-  console.error('Missing supabase/.temp/pooler-url. Run `supabase link` first.');
-  process.exit(1);
-}
+  const password = String(process.env.SUPABASE_DB_PASSWORD || '').trim();
+  if (!password) {
+    console.error('SUPABASE_DB_PASSWORD or SUPABASE_DB_URL is required for linked Supabase CLI commands.');
+    console.error('Tip: copy the Session pooler URI from Supabase Dashboard -> Project Settings -> Database.');
+    process.exit(1);
+  }
 
-const poolerUrl = new URL(fs.readFileSync(poolerUrlPath, 'utf8').trim());
-poolerUrl.password = process.env.SUPABASE_DB_PASSWORD.trim();
+  if (!fs.existsSync(poolerUrlPath)) {
+    console.error('Missing supabase/.temp/pooler-url. Run `npx supabase link` first.');
+    process.exit(1);
+  }
 
-const result = spawnSync(command, ['supabase', ...forwardedArgs, '--db-url', poolerUrl.toString()], {
+  const poolerUrl = new URL(fs.readFileSync(poolerUrlPath, 'utf8').trim());
+  poolerUrl.password = password;
+  return poolerUrl.toString();
+};
+
+const databaseUrl = resolveDatabaseUrl();
+
+const result = spawnSync(command, ['supabase', ...forwardedArgs, '--db-url', databaseUrl], {
   cwd: repoRoot,
   env: process.env,
   shell: process.platform === 'win32',
@@ -47,6 +59,12 @@ const result = spawnSync(command, ['supabase', ...forwardedArgs, '--db-url', poo
 
 if (result.error) {
   console.error(result.error.message);
+}
+
+if ((result.status ?? 1) !== 0) {
+  console.error('\nDatabase CLI auth failed. This is not the same as SUPABASE_SERVICE_KEY.');
+  console.error('Use the database password from Supabase Dashboard -> Project Settings -> Database.');
+  console.error('If the password contains #, wrap SUPABASE_DB_PASSWORD in quotes, or paste the full URI as SUPABASE_DB_URL.');
 }
 
 process.exit(result.status ?? 1);
