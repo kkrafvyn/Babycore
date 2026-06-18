@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-28T16:16:52.223Z",
+  "generatedAt": "2026-06-18T09:43:48.542Z",
   "migrations": {
     "DATABASE_SCHEMA.sql": "20260517132933_database_schema.sql",
     "database/sql/00-doctor-profiles.sql": "20260517132938_00_doctor_profiles.sql",

@@ -19,6 +19,13 @@ const MOBILE_AUTH_CALLBACK_HOST = 'auth';
 const MOBILE_AUTH_CALLBACK_PATH = '/callback';
 export const MOBILE_AUTH_CALLBACK_URL = `${MOBILE_AUTH_CALLBACK_SCHEME}://${MOBILE_AUTH_CALLBACK_HOST}${MOBILE_AUTH_CALLBACK_PATH}`;
 
+// Avoid navigator.locks contention from React Strict Mode double-mount and parallel getSession calls.
+const supabaseAuthLock = async <T>(
+  _name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<T>,
+): Promise<T> => fn();
+
 const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
 const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiYWJ5bG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE1MTYyMzkwMjJ9.signature';
@@ -40,6 +47,8 @@ export const supabase = createClient(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'pkce' : 'implicit',
+      lock: supabaseAuthLock,
+      lockAcquireTimeout: 10000,
     },
     realtime: {
       params: {

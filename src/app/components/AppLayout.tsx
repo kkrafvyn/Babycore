@@ -109,7 +109,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Top Header */}
       {showTopHeader && (
         <header className="fixed top-0 w-full z-50 h-16 sm:h-20 border-b border-border-gray bg-background/85 backdrop-blur-xl dark:border-zinc-800/50">
-          <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-3 sm:px-6 md:px-12 lg:px-16 lg:pl-28">
+          <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-3 sm:px-6 md:px-12 lg:px-16 xl:max-w-7xl xl:px-20 lg:pl-28">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-gray bg-surface-gray shadow-inner dark:border-zinc-700 dark:bg-zinc-800 sm:h-10 sm:w-10">
                 <img src="/logo.png" alt="BabyLog" className="h-full w-full object-contain" />
@@ -159,7 +159,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               onClick={() => setShowNotifications(false)}
            >
               <MotionDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25 }}
-                className="w-full max-w-[320px] bg-surface h-full shadow-2xl flex flex-col"
+                className="w-full max-w-[min(100vw,28rem)] bg-surface h-full shadow-2xl flex flex-col"
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
                  <div className="p-8 border-b border-border-gray dark:border-zinc-800 flex items-center justify-between">
@@ -242,7 +242,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           showTopHeader ? 'pt-16 sm:pt-20' : 'pt-0'
         }`}
       >
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 md:px-12 lg:px-16 py-5 sm:py-8 lg:py-10 lg:pl-28">
+        <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 md:px-12 lg:px-16 xl:max-w-7xl xl:px-20 py-5 sm:py-8 lg:py-10 lg:pl-28">
            {children}
         </div>
       </main>
@@ -270,8 +270,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       )}
 
       {/* Desktop Side Navigation */}
-      <aside className="fixed left-6 top-1/2 z-40 hidden -translate-y-1/2 lg:block">
-        <nav className="w-20 rounded-[2rem] border border-border-gray bg-surface/90 p-2 backdrop-blur-xl shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/90">
+      <aside className="fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 xl:left-8 lg:block">
+        <nav className="w-[5.25rem] rounded-[2rem] border border-border-gray bg-surface/90 p-2.5 backdrop-blur-xl shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/90">
           <div className="flex flex-col gap-2">
             {navItems.map((item) => (
               <button

@@ -384,24 +384,6 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
   // Listen for auth state changes
   useEffect(() => {
-    let isMounted = true;
-
-    const hydrateInitialUser = async () => {
-      const authUser = await getCurrentUser();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setUser(authUser);
-
-      if (!authUser) {
-        setIsLoading(false);
-      }
-    };
-
-    hydrateInitialUser();
-
     const { data: { subscription } } = onAuthStateChange((authUser) => {
       setUser(authUser);
       if (!authUser) {
@@ -415,7 +397,6 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     });
 
     return () => {
-      isMounted = false;
       subscription?.unsubscribe();
     };
   }, []);
