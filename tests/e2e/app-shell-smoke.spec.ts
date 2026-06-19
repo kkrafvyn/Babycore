@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { primeGuestApp, stubGuestAppNetwork, TEST_BABY } from './support/app-shell';
+import { primeAuthenticatedApp, stubAuthenticatedAppNetwork, TEST_BABY } from './support/app-shell';
 
 test.describe('Seeded app shell smoke', () => {
   test.beforeEach(async ({ page }) => {
-    await stubGuestAppNetwork(page);
-    await primeGuestApp(page);
+    await stubAuthenticatedAppNetwork(page);
+    await primeAuthenticatedApp(page);
   });
 
   test('family sharing route renders invite and member shells', async ({ page }) => {
@@ -20,11 +20,11 @@ test.describe('Seeded app shell smoke', () => {
     await expect(page.getByRole('button', { name: /Start Handoff/i })).toBeVisible();
   });
 
-  test('sync center shows guest-device diagnostics', async ({ page }) => {
+  test('sync center shows signed-in diagnostics', async ({ page }) => {
     await page.goto('/sync-center', { waitUntil: 'networkidle' });
     await expect(page.getByText('Sync Center')).toBeVisible();
     await expect(page.getByText('Sync Health')).toBeVisible();
-    await expect(page.getByText(/Guest on this device/i)).toBeVisible();
+    await expect(page.getByText(/playwright@example.com/i)).toBeVisible();
   });
 
   test('admin shell route renders the admin console frame', async ({ page }) => {

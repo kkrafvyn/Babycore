@@ -208,7 +208,6 @@ const translations: Record<string, Translations> = {
       authFailed: 'Authentication failed. Please try again.',
       socialAuthFailed: 'Social authentication failed. Please try again.',
       continueWith: 'Continue with {provider}',
-      continueAsGuest: 'Continue as Guest',
     },
     onboarding: {
       titleLineOne: 'The Sanctuary for',
@@ -426,7 +425,6 @@ const translations: Record<string, Translations> = {
       authFailed: 'La autenticacion fallo. Intentalo de nuevo.',
       socialAuthFailed: 'La autenticacion social fallo. Intentalo de nuevo.',
       continueWith: 'Continuar con {provider}',
-      continueAsGuest: 'Continuar como invitado',
     },
     onboarding: {
       titleLineOne: 'El santuario para',
@@ -595,7 +593,6 @@ const translations: Record<string, Translations> = {
       authFailed: 'Echec de l authentification. Veuillez reessayer.',
       socialAuthFailed: 'Echec de la connexion sociale. Veuillez reessayer.',
       continueWith: 'Continuer avec {provider}',
-      continueAsGuest: 'Continuer en invite',
     },
     onboarding: {
       titleLineOne: 'Le sanctuaire pour',
@@ -766,7 +763,6 @@ const translations: Record<string, Translations> = {
       authFailed: 'Authentifizierung fehlgeschlagen. Bitte erneut versuchen.',
       socialAuthFailed: 'Soziale Anmeldung fehlgeschlagen. Bitte erneut versuchen.',
       continueWith: 'Weiter mit {provider}',
-      continueAsGuest: 'Als Gast fortfahren',
     },
     onboarding: {
       titleLineOne: 'Der geschutzte Raum fur',

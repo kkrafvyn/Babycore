@@ -42,9 +42,7 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
 
   const accountLabel = syncState.accountEmail?.trim()
     ? syncState.accountEmail
-    : syncState.dataScope === 'account'
-      ? 'Signed-in account'
-      : 'Guest on this device';
+    : 'Signed-in account';
 
   const handleRefreshDiagnostics = async () => {
     setRefreshingNow(true);
@@ -147,7 +145,7 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
               </div>
               <p className="text-sm font-black text-foreground mt-3 break-all">{accountLabel}</p>
               <p className="text-[11px] font-semibold text-text-dim mt-2">
-                Data scope: {syncState.dataScope === 'account' ? 'Cloud account' : 'Guest-only device storage'}
+                Data scope: Cloud account
               </p>
             </div>
 
@@ -198,15 +196,6 @@ export function SyncCenter({ onBack }: SyncCenterProps) {
           {pullSummary && (
             <div className="rounded-xl border border-border-gray dark:border-zinc-800 bg-surface p-3 text-xs font-semibold text-text-dim whitespace-pre-wrap">
               {pullSummary}
-            </div>
-          )}
-
-          {syncState.dataScope === 'guest' && (
-            <div className="rounded-[1.6rem] border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4">
-              <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                You are viewing guest-only data on this device. Sign in with the same account on every device and the
-                app will keep trying to move your data into cloud storage automatically while you are online.
-              </p>
             </div>
           )}
 

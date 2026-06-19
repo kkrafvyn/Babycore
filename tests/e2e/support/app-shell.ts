@@ -10,10 +10,27 @@ export const TEST_BABY = {
   createdAt: '2026-05-17T12:00:00.000Z',
 } as const;
 
+export const TEST_USER = {
+  id: 'playwright-user',
+  aud: 'authenticated',
+  role: 'authenticated',
+  email: 'playwright@example.com',
+  email_confirmed_at: '2026-05-17T12:00:00.000Z',
+  user_metadata: { onboarding_profile_type: 'baby' },
+  created_at: '2026-05-17T12:00:00.000Z',
+} as const;
+
 const DB_NAME = 'babylog';
 const DB_VERSION = 5;
-const GUEST_SESSION_KEY = 'babylog_guest_session';
+const LEGACY_GUEST_SESSION_KEY = 'babylog_guest_session';
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
+const TEST_USER_SCOPE = `user:${TEST_USER.id}`;
+
+const getSupabaseAuthStorageKey = (): string => {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://example.supabase.co';
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0] || 'example';
+  return `sb-${projectRef}-auth-token`;
+};
 
 const fulfillJson = async (route: Route, payload: unknown, status = 200): Promise<void> => {
   await route.fulfill({
@@ -23,7 +40,27 @@ const fulfillJson = async (route: Route, payload: unknown, status = 200): Promis
   });
 };
 
-export const stubGuestAppNetwork = async (page: Page): Promise<void> => {
+export const stubAuthenticatedAppNetwork = async (page: Page): Promise<void> => {
+  await page.route('**/auth/v1/user**', async (route) => {
+    if (route.request().method() === 'GET') {
+      await fulfillJson(route, TEST_USER);
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.route('**/auth/v1/token**', async (route) => {
+    await fulfillJson(route, {
+      access_token: 'playwright-access-token',
+      refresh_token: 'playwright-refresh-token',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: 'bearer',
+      user: TEST_USER,
+    });
+  });
+
   await page.route('**/rest/v1/**', async (route) => {
     await fulfillJson(
       route,
@@ -60,12 +97,14 @@ export const stubGuestAppNetwork = async (page: Page): Promise<void> => {
   });
 };
 
-export const primeGuestApp = async (page: Page): Promise<void> => {
+export const primeAuthenticatedApp = async (page: Page): Promise<void> => {
+  const authStorageKey = getSupabaseAuthStorageKey();
+
   await page.goto('/login', { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.location.pathname === '/login');
 
   await page.evaluate(
-    async ({ dbName, dbVersion, guestSessionKey, splashSessionKey, baby }) => {
+    async ({ dbName, dbVersion, authKey, legacyGuestSessionKey, splashSessionKey, baby, ownerScopeId, user }) => {
       const waitForRequest = <T>(request: IDBRequest<T>) =>
         new Promise<T>((resolve, reject) => {
           request.onsuccess = () => resolve(request.result);
@@ -97,8 +136,19 @@ export const primeGuestApp = async (page: Page): Promise<void> => {
         }
       };
 
-      localStorage.setItem(guestSessionKey, 'true');
+      localStorage.removeItem(legacyGuestSessionKey);
       sessionStorage.setItem(splashSessionKey, 'true');
+      localStorage.setItem(
+        authKey,
+        JSON.stringify({
+          access_token: 'playwright-access-token',
+          refresh_token: 'playwright-refresh-token',
+          expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          token_type: 'bearer',
+          user,
+        }),
+      );
 
       await deleteDb();
 
@@ -167,7 +217,7 @@ export const primeGuestApp = async (page: Page): Promise<void> => {
       await waitForRequest(
         store.put({
           ...baby,
-          ownerScopeId: 'guest',
+          ownerScopeId,
         }),
       );
 
@@ -182,9 +232,12 @@ export const primeGuestApp = async (page: Page): Promise<void> => {
     {
       dbName: DB_NAME,
       dbVersion: DB_VERSION,
-      guestSessionKey: GUEST_SESSION_KEY,
+      authKey: authStorageKey,
+      legacyGuestSessionKey: LEGACY_GUEST_SESSION_KEY,
       splashSessionKey: MOBILE_SPLASH_SESSION_KEY,
       baby: TEST_BABY,
+      ownerScopeId: TEST_USER_SCOPE,
+      user: TEST_USER,
     },
   );
 

@@ -128,7 +128,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
               <span>Account Scope</span>
               <span className="font-500 text-gray-900 dark:text-white">
-                {syncState.dataScope === 'account' ? syncState.accountEmail || 'Signed in' : 'Guest only'}
+                {syncState.accountEmail || 'Signed in'}
               </span>
             </div>
 

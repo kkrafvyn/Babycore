@@ -47,9 +47,9 @@ type LocationRoute =
       token: string;
     };
 
-const GUEST_SESSION_KEY = 'babylog_guest_session';
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
 const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
+const LEGACY_GUEST_SESSION_KEY = 'babylog_guest_session';
 
 const getLegacyRouteFromHash = (): LocationRoute | null => {
   const hash = window.location.hash.toLowerCase();
@@ -184,16 +184,12 @@ function AppShell() {
   const handledInviteTokenRef = React.useRef<string | null>(null);
   const lastNativeWearableSyncAtRef = React.useRef(0);
   const [locationRoute, setLocationRoute] = React.useState<LocationRoute>(() => getLocationRoute());
-  const [guestSession, setGuestSession] = React.useState(
-    () => localStorage.getItem(GUEST_SESSION_KEY) === 'true',
-  );
-  const [isGuestHydrating, setIsGuestHydrating] = React.useState(guestSession);
   const [showMobileSplash, setShowMobileSplash] = React.useState(() => shouldShowMobileSplash());
   const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
   const [accountRole, setAccountRole] = React.useState('user');
   const [isAccountRoleLoading, setIsAccountRoleLoading] = React.useState(false);
 
-  const hasSession = Boolean(user) || guestSession;
+  const hasSession = Boolean(user);
   const publicRoute = locationRoute.kind === 'public' ? locationRoute.publicRoute : 'welcome';
   const appRouteView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
   const currentAppRouteView = locationRoute.kind === 'app' ? locationRoute.appView : null;
@@ -201,7 +197,7 @@ function AppShell() {
 
   const cachedOnboardingProfileType = React.useMemo(
     () => getOnboardingCache().profileType,
-    [effectivePublicRoute, user?.id, guestSession, appRouteView],
+    [effectivePublicRoute, user?.id, appRouteView],
   );
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
@@ -379,6 +375,10 @@ function AppShell() {
   }, []);
 
   React.useEffect(() => {
+    localStorage.removeItem(LEGACY_GUEST_SESSION_KEY);
+  }, []);
+
+  React.useEffect(() => {
     if (!hasSession) {
       return;
     }
@@ -387,35 +387,6 @@ function AppShell() {
       navigateToAppView('dashboard', { replace: true, preserveSearch: true });
     }
   }, [hasSession, locationRoute.kind, locationRoute.kind === 'public' ? locationRoute.publicRoute : null]);
-
-  React.useEffect(() => {
-    if (!guestSession) {
-      setIsGuestHydrating(false);
-      return;
-    }
-
-    let isMounted = true;
-
-    setIsGuestHydrating(true);
-    Promise.resolve(refreshBabies()).finally(() => {
-      if (isMounted) {
-        setIsGuestHydrating(false);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [guestSession]);
-
-  React.useEffect(() => {
-    if (!user || !guestSession) {
-      return;
-    }
-
-    localStorage.removeItem(GUEST_SESSION_KEY);
-    setGuestSession(false);
-  }, [user, guestSession]);
 
   React.useEffect(() => {
     if (!hasSession) {
@@ -433,7 +404,7 @@ function AppShell() {
     }, 150);
 
     return () => window.clearTimeout(timeoutId);
-  }, [hasSession, user?.id, guestSession]);
+  }, [hasSession, user?.id]);
 
   React.useEffect(() => {
     if (!user?.id) {
@@ -491,27 +462,11 @@ function AppShell() {
     return () => mediaQuery.removeEventListener('change', handleViewportChange);
   }, []);
 
-  const handleGuestMode = () => {
-    localStorage.setItem(GUEST_SESSION_KEY, 'true');
-    setGuestSession(true);
-    navigateToAppView(appRouteView, { replace: true, preserveSearch: true });
-  };
-
   const handleSignOut = async () => {
     if (user) {
-      localStorage.removeItem(GUEST_SESSION_KEY);
-      setGuestSession(false);
       await signOut();
-      navigateToPublicRoute('login', { replace: true });
-      return;
     }
-
-    if (guestSession) {
-      localStorage.removeItem(GUEST_SESSION_KEY);
-      setGuestSession(false);
-      navigateToPublicRoute('login', { replace: true });
-      return;
-    }
+    navigateToPublicRoute('login', { replace: true });
   };
 
   const openPolicies = () => {
@@ -597,7 +552,7 @@ function AppShell() {
     );
   }
 
-  if ((isLoading && !hasSession) || (guestSession && isGuestHydrating) || (Boolean(user) && isLoading)) {
+  if (isLoading) {
     return <FullScreenLoader label="Loading BabyLog..." />;
   }
 
@@ -686,7 +641,6 @@ function AppShell() {
           const nextView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
           navigateToAppView(nextView, { replace: true, preserveSearch: true });
         }}
-        onGuestMode={handleGuestMode}
         onViewPolicies={openPolicies}
         postAuthDestinationLabel={locationRoute.kind === 'app' ? formatAppViewLabel(locationRoute.appView) : null}
       />,

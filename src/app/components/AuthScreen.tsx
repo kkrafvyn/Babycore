@@ -22,7 +22,6 @@ import { i18nT } from '../../lib/i18n';
 
 interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
-  onGuestMode: () => void;
   onViewPolicies: () => void;
   postAuthDestinationLabel?: string | null;
 }
@@ -56,7 +55,6 @@ const socialProviders: Array<{
 
 export function AuthScreen({
   onSuccess,
-  onGuestMode,
   onViewPolicies,
   postAuthDestinationLabel,
 }: AuthScreenProps) {
@@ -351,17 +349,6 @@ export function AuthScreen({
 
           <button
             type="button"
-            onClick={onGuestMode}
-            disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
-          >
-            <span className="font-black uppercase tracking-widest text-[#45697d] underline">
-              {i18nT('auth.continueAsGuest', 'Continue as Guest')}
-            </span>
-          </button>
-
-          <button
-            type="button"
             onClick={onViewPolicies}
             disabled={isAuthBusy}
             className="block w-full text-[11px] font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
@@ -420,17 +407,6 @@ export function AuthScreen({
             {mode === 'signin' ? 'Need to register? ' : 'Already recognized? '}
             <span className="ml-1 font-black uppercase tracking-widest text-[#45697d] underline">
               {mode === 'signin' ? 'Create Account' : 'Sign In Portal'}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onGuestMode}
-            disabled={isAuthBusy}
-            className="block w-full text-sm font-bold text-[#686d76] transition-colors hover:text-[#45697d]"
-          >
-            <span className="font-black uppercase tracking-widest text-[#45697d] underline">
-              {i18nT('auth.continueAsGuest', 'Continue as Guest')}
             </span>
           </button>
 

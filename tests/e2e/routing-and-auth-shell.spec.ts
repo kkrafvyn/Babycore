@@ -7,7 +7,8 @@ test.describe('Routing and auth shell', () => {
     await expect(page.getByRole('button', { name: /Begin the Journey/i })).toBeVisible();
 
     await page.goto('/login');
-    await expect(page.getByRole('button', { name: /Continue as Guest/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sign In|Create Account/i }).first()).toBeVisible();
+    await expect(page.getByText(/Continue as Guest/i)).toHaveCount(0);
   });
 
   test('unauthenticated app route redirects to public auth', async ({ page }) => {
@@ -17,7 +18,7 @@ test.describe('Routing and auth shell', () => {
     const pathname = new URL(page.url()).pathname;
     expect(['/login', '/', '/app']).toContain(pathname);
     await expect(
-      page.getByText(/Continue as Guest|Sign In|Create Account|Need to register/i).first(),
+      page.getByText(/Sign In|Create Account|Need to register/i).first(),
     ).toBeVisible();
   });
 });

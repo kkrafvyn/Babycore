@@ -34,7 +34,7 @@ const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 if (!hasSupabaseConfig) {
   console.warn(
-    'Supabase environment variables not set. Guest mode will still work, but email auth is disabled until VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY are configured.',
+    'Supabase environment variables not set. Sign-in is disabled until VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY are configured.',
   );
 }
 
