@@ -67,8 +67,6 @@
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tabs": "^1.0.4",
-    "@react-three/drei": "^9.100.0",
-    "@react-three/fiber": "^8.15.0",
     "@supabase/supabase-js": "^2.38.4",
     "@tanstack/react-query": "^5.28.0",
     "@tanstack/react-table": "^8.16.0",
@@ -91,7 +89,6 @@
     "react-hook-form": "^7.50.1",
     "recharts": "^2.10.3",
     "sonner": "^2.0.7",
-    "three": "^0.158.0",
     "uuid": "^14.0.0",
     "web-push": "^3.6.7",
     "zod": "^3.22.4"
