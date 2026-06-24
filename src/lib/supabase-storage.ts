@@ -18,6 +18,13 @@ import {
 
 import * as LocalStorage from "./storage";
 import {
+  isCloudSyncPaused,
+  isTransientFetchError,
+  pauseCloudSync,
+  resumeCloudSync,
+  warnCloudOnce,
+} from './network-status';
+import {
   toDiaperLogCloudRow,
   toFeedLogCloudRow,
   toGrowthMeasurementCloudRow,
@@ -662,6 +669,10 @@ const upsertUserSettingsToCloud = async (userId: string, settings: UserSettings)
 };
 
 const getRemoteUserSettings = async (userId: string): Promise<UserSettings | undefined> => {
+  if (isCloudSyncPaused()) {
+    return undefined;
+  }
+
   const user = await getCurrentUser();
   if (!user?.id || user.id !== userId) {
     return undefined;
@@ -682,12 +693,16 @@ const getRemoteUserSettings = async (userId: string): Promise<UserSettings | und
       return undefined;
     }
 
+    resumeCloudSync();
     return fromUserSettingsCloudRow(data);
   } catch (error) {
     if (isTablePermissionDenied(error, 'user_settings')) {
       return undefined;
     }
-    console.warn('Unable to load user settings from cloud:', error);
+    if (isTransientFetchError(error)) {
+      pauseCloudSync();
+    }
+    warnCloudOnce('Unable to load user settings from cloud:', error);
     return undefined;
   }
 };

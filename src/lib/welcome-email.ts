@@ -4,11 +4,16 @@
  */
 export async function requestWelcomeEmail(): Promise<void> {
   try {
+    const authHeaders = await getAuthHeaders();
+    if (!('Authorization' in authHeaders)) {
+      return;
+    }
+
     const response = await fetch('/api/auth/welcome-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await getAuthHeaders()),
+        ...authHeaders,
       },
     });
 

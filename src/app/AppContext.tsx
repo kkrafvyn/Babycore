@@ -49,6 +49,12 @@ import {
 } from '../lib/care-workspace-sync';
 import { CARE_WORKSPACE_UPDATED_EVENT } from '../lib/care-workspace-events';
 import {
+  isCloudSyncPaused,
+  isTransientFetchError,
+  pauseCloudSync,
+  resumeCloudSync,
+} from '../lib/network-status';
+import {
   getSharedCareWorkspaceSnapshot,
   saveSharedCareWorkspaceSnapshot,
 } from '../lib/shared-care-workspace-service';
@@ -296,7 +302,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       return;
     }
 
-    if (!navigator.onLine) {
+    if (!navigator.onLine || isCloudSyncPaused()) {
       return;
     }
 
@@ -371,7 +377,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
           careWorkspaceData,
           userSettings: latestSettings || null,
         });
+        resumeCloudSync();
       } catch (error) {
+        if (isTransientFetchError(error)) {
+          pauseCloudSync();
+        }
         console.warn('Cloud sync push failed:', error);
       } finally {
         if (syncLocalSnapshotRunIdRef.current === syncRunId) {
@@ -383,6 +393,13 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     syncLocalSnapshotPromiseRef.current = syncOperation;
     await syncOperation;
   };
+
+  // Resume cloud sync when connectivity returns
+  useEffect(() => {
+    const handleOnline = () => resumeCloudSync();
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -529,6 +546,9 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
         // Background sync keeps cloud current for multi-device access.
         syncInterval = setInterval(async () => {
+          if (!navigator.onLine || isCloudSyncPaused()) {
+            return;
+          }
           await syncLocalSnapshotToCloud(userId);
         }, 60000);
 

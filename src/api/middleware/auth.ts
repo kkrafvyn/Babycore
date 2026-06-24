@@ -106,7 +106,6 @@ function isPublicEndpoint(path: string): boolean {
     '/api/cron/',
     '/reports/shared/',
     '/api/reports/shared/', // Shared reports with token
-    '/api/auth/', // Auth endpoints (if using separate auth routes)
   ];
 
   return publicEndpoints.some(endpoint => {
