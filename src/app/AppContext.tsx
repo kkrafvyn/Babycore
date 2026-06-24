@@ -132,6 +132,8 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   const syncLocalSnapshotRunIdRef = useRef(0);
   const isApplyingSharedWorkspaceRef = useRef(false);
   const skipNextSharedWorkspacePushRef = useRef(false);
+  const initializedUserIdRef = useRef<string | null>(null);
+  const initializePromiseRef = useRef<Promise<void> | null>(null);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
 
   useEffect(() => {
@@ -385,8 +387,23 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
   // Listen for auth state changes
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange((authUser) => {
-      setUser(authUser);
+      setUser((previous) => {
+        if (!authUser) {
+          return null;
+        }
+
+        // Token refresh emits a new user object — keep the stable reference so we
+        // do not re-run the expensive bootstrap when the tab regains focus.
+        if (previous?.id === authUser.id) {
+          return previous;
+        }
+
+        return authUser;
+      });
+
       if (!authUser) {
+        initializedUserIdRef.current = null;
+        initializePromiseRef.current = null;
         // Clear app state on logout
         setBabies([]);
         setCurrentBaby(null);
@@ -406,12 +423,24 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     setUser(authUser);
   };
 
-  // Initialize app when user logs in
+  // Initialize app when user logs in (once per account — not on token refresh)
   useEffect(() => {
-    if (!user) return;
+    const userId = user?.id;
+    if (!userId) {
+      return;
+    }
 
-    let syncInterval: any;
+    if (initializedUserIdRef.current === userId) {
+      return;
+    }
+
+    if (initializePromiseRef.current) {
+      return;
+    }
+
+    let syncInterval: ReturnType<typeof setInterval> | undefined;
     let realtimeUnsubscribe: (() => void) | null = null;
+    let cancelled = false;
 
     const initialize = async () => {
       try {
@@ -445,13 +474,13 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         await refreshBabies();
         
         // Load settings
-        const userSettings = await getUserSettings(user.id);
+        const userSettings = await getUserSettings(userId);
 
         if (userSettings) {
           applySettingsState(userSettings);
         } else {
           const defaultSettings: UserSettings = {
-            userId: user.id,
+            userId,
             units: onboardingSettings?.units || 'metric',
             language: onboardingSettings?.language || i18nInstance.getLanguage(),
             careProfilePreferences: onboardingSettings?.careProfilePreferences,
@@ -474,12 +503,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
             },
             updatedAt: new Date().toISOString(),
           };
-          await setUserSettings(user.id, defaultSettings);
+          await setUserSettings(userId, defaultSettings);
           applySettingsState(defaultSettings);
         }
 
-        await subscriptionManager.initialize(user.id);
-        await syncSubscriptionStatusFromBackend(user.id);
+        await subscriptionManager.initialize(userId);
+        await syncSubscriptionStatusFromBackend(userId);
 
         // Setup Real-time Sync (Connectivity)
         realtimeUnsubscribe = setupRealtimeSync((change: any) => {
@@ -496,30 +525,45 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         });
 
         // Push latest local snapshot once on initialization.
-        await syncLocalSnapshotToCloud(user.id);
+        await syncLocalSnapshotToCloud(userId);
 
         // Background sync keeps cloud current for multi-device access.
         syncInterval = setInterval(async () => {
-          await syncLocalSnapshotToCloud(user.id);
+          await syncLocalSnapshotToCloud(userId);
         }, 60000);
 
         void requestWelcomeEmail();
         
-        setError(null);
+        if (!cancelled) {
+          setError(null);
+          initializedUserIdRef.current = userId;
+        }
       } catch (err) {
         console.error('Failed to initialize app:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    initialize();
+    const bootstrap = initialize();
+    initializePromiseRef.current = bootstrap;
+    void bootstrap.finally(() => {
+      if (initializePromiseRef.current === bootstrap) {
+        initializePromiseRef.current = null;
+      }
+    });
+
     return () => {
+      cancelled = true;
       clearInterval(syncInterval);
       realtimeUnsubscribe?.();
     };
-  }, [user]);
+  }, [user?.id]);
 
   const syncSubscriptionStatusFromBackend = async (userId: string) => {
     try {

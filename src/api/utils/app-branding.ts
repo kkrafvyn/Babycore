@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 
+import { APP_PRODUCTION_ORIGIN, APP_SUPPORT_EMAIL } from '../../lib/app-domain.js';
 import { resolveClientAppBaseUrl, resolveConfiguredAppBaseUrl } from './app-base-url.js';
 
 export type EmailBranding = {
@@ -32,12 +33,16 @@ const normalizeUrl = (value: string, fallbackProtocol = 'https'): string | null 
   }
 };
 
+export const APP_DISPLAY_NAME = 'Bud & Bloom';
+export const APP_PRODUCT_NAME = 'Bloom';
+
 export const resolveAppDisplayName = (): string =>
-  String(process.env.APP_NAME || process.env.VITE_APP_NAME || 'BabyLog').trim() || 'BabyLog';
+  String(process.env.APP_NAME || process.env.VITE_APP_NAME || APP_DISPLAY_NAME).trim() ||
+  APP_DISPLAY_NAME;
 
 export const resolveAppProductName = (): string =>
-  String(process.env.APP_PRODUCT_NAME || process.env.VITE_APP_PRODUCT_NAME || 'Serenity').trim() ||
-  'Serenity';
+  String(process.env.APP_PRODUCT_NAME || process.env.VITE_APP_PRODUCT_NAME || APP_PRODUCT_NAME).trim() ||
+  APP_PRODUCT_NAME;
 
 export const resolveAppBaseUrl = (req?: Pick<Request, 'get' | 'headers' | 'protocol'>): string => {
   const configured = resolveConfiguredAppBaseUrl();
@@ -50,7 +55,7 @@ export const resolveAppBaseUrl = (req?: Pick<Request, 'get' | 'headers' | 'proto
   }
 
   return normalizeUrl(String(process.env.VITE_APP_URL || process.env.CLIENT_URL || ''), 'https') ||
-    'http://localhost:5173';
+    APP_PRODUCTION_ORIGIN;
 };
 
 export const resolveEmailBranding = (
@@ -60,7 +65,7 @@ export const resolveEmailBranding = (
   const contactFromEnv =
     normalizeUrl(String(process.env.APP_CONTACT_URL || process.env.SUPPORT_URL || ''), 'https') ||
     normalizeUrl(String(process.env.VAPID_SUBJECT || '').replace(/^mailto:/i, ''), 'mailto') ||
-    `mailto:${String(process.env.SUPPORT_EMAIL || process.env.SMTP_FROM || 'support@babycore.app').trim()}`;
+    `mailto:${String(process.env.SUPPORT_EMAIL || process.env.SMTP_FROM || APP_SUPPORT_EMAIL).trim()}`;
 
   return {
     appName: overrides?.appName || resolveAppDisplayName(),

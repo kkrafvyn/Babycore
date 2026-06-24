@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Shield } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 
 interface SplashScreenProps {
   onSplashComplete?: () => void;
@@ -11,8 +12,9 @@ interface SplashScreenProps {
 export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
   onSplashComplete,
   duration = 2200,
-  logoSrc = '/logo.svg',
+  logoSrc = getClientLogoSrc(),
 }) => {
+  const appName = getClientAppName();
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
 
             <motion.img
               src={logoSrc}
-              alt="BabyLog nursing mother logo"
+              alt={`${appName} logo`}
               className="relative h-[5.5rem] w-[5.5rem] object-contain sm:h-[6.1rem] sm:w-[6.1rem]"
               animate={{ scale: [1, 1.018, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
@@ -86,7 +88,7 @@ export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
 
           <div className="space-y-3">
             <h1 className="font-headline text-[3.95rem] font-black tracking-[-0.075em] text-[#2a3034] sm:text-[4.35rem]">
-              BabyLog
+              {appName}
             </h1>
             <p className="font-body text-[1.05rem] font-semibold tracking-[-0.02em] text-[#647c97] sm:text-[1.18rem]">
               Nurturing with intention.

@@ -94,7 +94,11 @@ const CHART_DATA = [
   { label: 'Sun', value: 80, color: 'var(--color-accent-emerald)' },
 ];
 
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
+
 export function DashboardPage() {
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
   const [activeNav, setActiveNav] = useState('Dashboard');
   const [mounted, setMounted] = useState(false);
 
@@ -110,8 +114,8 @@ export function DashboardPage() {
       <div className="dashboard-content">
         <nav className="nav-header">
           <div className="nav-logo">
-            <img src="/logo.png" alt="BabyLog" className="nav-logo-icon" />
-            <span className="nav-logo-text">BabyLog</span>
+            <img src={logoSrc} alt={appName} className="nav-logo-icon" />
+            <span className="nav-logo-text">{appName}</span>
           </div>
           <div className="nav-links">
             {['Dashboard', 'Projects', 'Analytics', 'Settings'].map((item) => (
@@ -259,7 +263,7 @@ export function DashboardPage() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              BabyLog
+              Bud & Bloom
             </a>{' '}
             - Baby care dashboard
           </p>

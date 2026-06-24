@@ -7,6 +7,7 @@ import {
   type CountryPickerOption,
 } from '../../lib/country-picker';
 import { getClientAppName } from '../../lib/app-branding-client';
+import { APP_SUPPORT_EMAIL } from '../../lib/app-domain';
 import { i18nT } from '../../lib/i18n';
 
 interface OnboardingCountryStepProps {
@@ -20,7 +21,7 @@ interface OnboardingCountryStepProps {
 }
 
 const SUPPORT_EMAIL =
-  String(import.meta.env.VITE_SUPPORT_EMAIL || 'support@babycore.app').trim() || 'support@babycore.app';
+  String(import.meta.env.VITE_SUPPORT_EMAIL || APP_SUPPORT_EMAIL).trim() || APP_SUPPORT_EMAIL;
 
 const CountryFlag: React.FC<{ country: Pick<CountryPickerOption, 'code' | 'flagUrl' | 'name'> }> = ({ country }) => (
   <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">

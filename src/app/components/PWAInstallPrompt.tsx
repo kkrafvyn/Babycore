@@ -53,7 +53,7 @@ export const PWAInstallPrompt: React.FC = () => {
              </div>
              <div>
                 <h3 className="text-lg font-headline font-black text-foreground leading-tight flex items-center gap-2">
-                   Serenity Mobile <Sparkles size={14} className="text-amber-500" />
+                   Bud & Bloom Mobile <Sparkles size={14} className="text-amber-500" />
                 </h3>
                 <p className="text-[10px] font-black text-text-light uppercase tracking-widest mt-1">Install App for Full Experience</p>
              </div>

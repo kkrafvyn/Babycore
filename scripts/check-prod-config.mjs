@@ -46,7 +46,7 @@ const APP_URL =
   getEnv('VITE_APP_URL') ||
   getEnv('CLIENT_URL') ||
   getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL') ||
-  'https://app.example.com';
+  'https://budandbloom.com';
 const SERVER_SUPABASE_URL = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');

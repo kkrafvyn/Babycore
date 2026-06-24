@@ -173,7 +173,7 @@ export const Paywall: React.FC<PaywallProps> = ({ feature = 'Premium Features', 
                 </p>
                 <p className="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700 dark:text-emerald-300">
                   {premiumAccess.reason ||
-                    'Premium tools are available without checkout while Babycore tests packages.'}
+                    'Premium tools are available without checkout while Bud & Bloom tests packages.'}
                 </p>
               </div>
             </div>

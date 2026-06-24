@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../utils/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { ensureDoctorAssignmentRecord } from '../utils/doctor-assignment.js';
+import { createShareInviteEmail, isShareInviteEmail } from '../../lib/app-domain.js';
 import { resolveClientAppBaseUrl } from '../utils/app-base-url.js';
 
 const router = Router();
@@ -39,7 +40,7 @@ const buildInviteLink = (
 };
 
 const generatePublicInviteEmail = (): string =>
-  `invite-${crypto.randomUUID().replace(/-/g, '')}@share.babycore.app`.toLowerCase();
+  createShareInviteEmail(crypto.randomUUID().replace(/-/g, ''));
 
 const mapInvite = (invite: any) => ({
   ...invite,
@@ -647,10 +648,7 @@ router.get('/search-candidates', requireAuth, async (req: AuthRequest, res: Resp
 
     const inviteCandidates = (recentInviteResult.data || [])
       .filter((invite: any) => !invite?.is_public_link)
-      .filter((invite: any) => {
-        const normalized = normalizeEmail(invite?.invited_email);
-        return !/^invite-[a-f0-9]+@share\.babycore\.app$/.test(normalized);
-      })
+      .filter((invite: any) => !isShareInviteEmail(normalizeEmail(invite?.invited_email)))
       .map((invite: any) => {
         const email = normalizeEmail(invite?.invited_email);
         const fallbackName = email.split('@')[0].replace(/[._-]+/g, ' ').trim();

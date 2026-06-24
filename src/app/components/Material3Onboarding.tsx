@@ -426,7 +426,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                 <span className="material-symbols-outlined text-[1.25rem]">arrow_back</span>
               </button>
               <p className="truncate text-center font-['Plus_Jakarta_Sans',sans-serif] text-[1.08rem] font-black tracking-tight text-[#2f3337] dark:text-white">
-                BabyLog
+                Bud & Bloom
               </p>
               <div aria-hidden="true" />
             </div>
@@ -440,7 +440,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-lg font-black tracking-tight text-[#2f3337] dark:text-white sm:text-xl">
-                    BabyLog
+                    Bud & Bloom
                   </p>
                   <p className="hidden text-[11px] font-black uppercase tracking-[0.22em] text-[#afb2b8] sm:block">
                     Gentle care onboarding
@@ -487,7 +487,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-['Plus_Jakarta_Sans',sans-serif] text-lg font-black tracking-tight text-[#2f3337] dark:text-white sm:text-xl">
-                    BabyLog
+                    Bud & Bloom
                   </p>
                   <p className="hidden text-[11px] font-black uppercase tracking-[0.22em] text-[#afb2b8] sm:block">
                     Gentle care onboarding
@@ -1054,7 +1054,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
                   {formData.profileType === 'baby'
                     ? i18nT(
                         'onboarding.personalizeSubtitleBaby',
-                        'Tell us the stage, feeding style, and care priorities so BabyLog can recommend the right rhythm from day one.',
+                        'Tell us the stage, feeding style, and care priorities so Bud & Bloom can recommend the right rhythm from day one.',
                       )
                     : i18nT(
                         'onboarding.personalizeSubtitleCareTeam',

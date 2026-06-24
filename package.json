@@ -1,5 +1,5 @@
 {
-  "name": "babylog",
+  "name": "bud-and-bloom",
   "version": "1.0.0",
   "description": "Complete baby care management and monitoring app with AI insights, premium features, and family sharing",
   "type": "module",
@@ -142,7 +142,7 @@
     "pwa",
     "supabase"
   ],
-  "author": "BabyLog Team",
+  "author": "Bud & Bloom Team",
   "license": "MIT",
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.60.2"

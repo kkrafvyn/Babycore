@@ -310,7 +310,7 @@ const redactedSupabaseHost = resolvedSupabaseUrl ? resolvedSupabaseUrl.replace(/
 const server = app.listen(PORT, HOST, () => {
   console.log(`
 ╔════════════════════════════════════════╗
-║     BabyLog Backend API Server         ║
+║     Bud & Bloom Backend API Server         ║
 ╚════════════════════════════════════════╝
 
 Environment: ${runtimeEnvironment}

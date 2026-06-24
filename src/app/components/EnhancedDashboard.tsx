@@ -26,7 +26,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
-import { SerenityAI } from './SerenityAI';
+import { BloomAI } from './BloomAI';
 import { FeedingTimer } from './FeedingTimer';
 import { Paywall } from './Paywall';
 import { addFeedLog } from '../../lib/supabase-storage';
@@ -974,7 +974,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
         </div>
 
-        <SerenityAI feeds={feedLogs} sleeps={sleepLogs} />
+        <BloomAI feeds={feedLogs} sleeps={sleepLogs} />
 
         {settings?.careProfilePreferences && (
           <div className="rounded-[2rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] sm:p-6">

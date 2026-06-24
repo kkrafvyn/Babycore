@@ -8,17 +8,26 @@ import { readFileSync } from 'node:fs';
 import { connect as connectHttp2 } from 'node:http2';
 import { Router, Request, Response } from 'express';
 import webpush from 'web-push';
+import { APP_NOREPLY_EMAIL, APP_VAPID_MAILTO } from '../../lib/app-domain.js';
 import { supabase } from '../lib/supabase.js';
 
 const router = Router();
 
-const vapidSubject = process.env.VAPID_SUBJECT || 'support@babylog.app';
+const normalizeVapidSubject = (value?: string): string => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return APP_VAPID_MAILTO;
+  }
+  return trimmed.startsWith('mailto:') ? trimmed : `mailto:${trimmed}`;
+};
+
+const vapidSubject = normalizeVapidSubject(process.env.VAPID_SUBJECT || APP_VAPID_MAILTO);
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VITE_VAPID_PRIVATE_KEY;
 
 // Configure web-push with VAPID keys
 if (vapidPublicKey && vapidPrivateKey) {
-  webpush.setVapidDetails(`mailto:${vapidSubject}`, vapidPublicKey, vapidPrivateKey);
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 } else {
   console.warn('VAPID keys are missing. Push notifications sending is disabled.');
 }

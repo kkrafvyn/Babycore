@@ -127,7 +127,7 @@ class FlutterwavePaymentClient {
           name: `${options.firstName} ${options.lastName}`,
         },
         customizations: {
-          title: options.customization?.title || 'BabyLog Subscription',
+          title: options.customization?.title || 'Bud & Bloom Subscription',
           description: options.customization?.description || 'Premium subscription payment',
           logo: options.customization?.logo,
         },

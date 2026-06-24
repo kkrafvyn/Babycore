@@ -882,7 +882,7 @@ export function CareExpansionHub({ babyId, babyName, onBack, onRecordsSaved }: C
       needsFollowUp.length
         ? `Follow-up queue: ${needsFollowUp.join('; ')}.`
         : 'No urgent follow-up items are flagged in this workspace.',
-      'This assistant summarizes Babycore records only and is not a diagnosis or emergency triage tool.',
+      'This assistant summarizes Bud & Bloom records only and is not a diagnosis or emergency triage tool.',
     ].join(' ');
 
     setAssistantAnswer(answer);

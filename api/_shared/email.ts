@@ -1,3 +1,5 @@
+import { APP_NOREPLY_EMAIL } from '../../src/lib/app-domain.js';
+
 type SendEmailInput = {
   to: string;
   subject: string;
@@ -24,7 +26,7 @@ const getFromAddress = (override?: string): string =>
     process.env.RESEND_FROM_EMAIL ||
     process.env.SENDGRID_FROM_EMAIL ||
     process.env.EMAIL_FROM ||
-    'support@babycore.app'
+    APP_NOREPLY_EMAIL
   ).trim();
 
 const toPlainText = (html: string): string =>

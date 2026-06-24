@@ -32,7 +32,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAppContext } from '../AppContext';
 import { onAuthStateChange, signOut } from '../../lib/supabase';
 import { useIsMobile } from './ui/use-mobile';
-import { updateBaby } from '../../lib/supabase-storage';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 import { FeedingTracker } from './FeedingTracker';
 import { SleepTracker } from './SleepTracker';
 import { DiaperLogScreen } from './DiaperLog';
@@ -179,6 +179,9 @@ function PhotoUploadButton({
 
 // Logo Banner Header Component
 function LogoBanner() {
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -187,15 +190,14 @@ function LogoBanner() {
     >
       <div className="flex items-center gap-4">
         <motion.img 
-          src="/logo.svg" 
-          alt="BabyLog Logo" 
+          src={logoSrc} 
+          alt={`${appName} logo`} 
           className="w-16 h-16 sm:w-20 sm:h-20" 
           whileHover={{ scale: 1.05 }}
         />
         <div className="flex flex-col">
-          <div className="font-bold text-2xl sm:text-3xl tracking-tight">
-            <span className="text-primary">Baby</span>
-            <span className="text-label-primary">Log</span>
+          <div className="font-bold text-2xl sm:text-3xl tracking-tight text-label-primary">
+            {appName}
           </div>
           <p className="text-xs sm:text-sm text-label-secondary font-medium tracking-wide">Track Every Precious Moment</p>
         </div>
@@ -250,6 +252,8 @@ interface LayoutProps {
 
 function WebLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEntryMenu, handleLogout }: LayoutProps) {
   const { currentBaby, user } = useAppContext();
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
 
   const handleBack = () => setActiveTab('home');
 
@@ -295,10 +299,9 @@ function WebLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEntryM
         {/* Logo Section */}
         <motion.div className="p-6 pb-4">
           <div className="flex items-center gap-3 mb-2">
-            <img src="/logo.svg" alt="BabyLog Logo" className="w-10 h-10" />
-            <div className="font-bold text-xl tracking-tight">
-              <span className="text-primary">Baby</span>
-              <span className="text-label-primary">Log</span>
+            <img src={logoSrc} alt={`${appName} logo`} className="w-10 h-10" />
+            <div className="font-bold text-xl tracking-tight text-label-primary">
+              {appName}
             </div>
           </div>
           <p className="text-xs text-label-secondary font-medium ml-13">Care Tracking</p>
@@ -495,6 +498,8 @@ function WebLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEntryM
 
 function MobileLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEntryMenu, handleLogout }: LayoutProps) {
   const { currentBaby } = useAppContext();
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const handleBack = () => setActiveTab('home');
@@ -548,10 +553,9 @@ function MobileLayout({ activeTab, setActiveTab, showNewEntryMenu, setShowNewEnt
               className="flex items-center gap-3 flex-1"
               whileHover={{ scale: 1.01 }}
             >
-              <img src="/logo.svg" alt="BabyLog Logo" className="w-8 h-8" />
-              <div className="font-bold text-xl tracking-tight">
-                <span className="text-primary">Baby</span>
-                <span className="text-label-primary">Log</span>
+              <img src={logoSrc} alt={`${appName} logo`} className="w-8 h-8" />
+              <div className="font-bold text-xl tracking-tight text-label-primary">
+                {appName}
               </div>
               {currentBaby && (
                 <motion.div 

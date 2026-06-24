@@ -91,7 +91,7 @@ export const Material3FeedingTracker: React.FC = () => {
         <div className="flex justify-between items-center w-full px-6 md:px-8 h-20">
           <div className="flex items-center gap-4">
             <span className="text-2xl font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white tracking-tighter">
-              Serenity
+              Bloom
             </span>
           </div>
           <div className="flex items-center gap-3">

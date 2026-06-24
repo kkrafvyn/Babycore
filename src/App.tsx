@@ -48,6 +48,26 @@ type LocationRoute =
     };
 
 const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
+
+const hasSeenMobileSplash = () => {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return (
+    window.localStorage.getItem(MOBILE_SPLASH_SESSION_KEY) === 'true' ||
+    window.sessionStorage.getItem(MOBILE_SPLASH_SESSION_KEY) === 'true'
+  );
+};
+
+const markMobileSplashSeen = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(MOBILE_SPLASH_SESSION_KEY, 'true');
+  window.sessionStorage.setItem(MOBILE_SPLASH_SESSION_KEY, 'true');
+};
 const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
 const LEGACY_GUEST_SESSION_KEY = 'babylog_guest_session';
 
@@ -133,10 +153,11 @@ const shouldShowMobileSplash = () => {
     return false;
   }
 
-  return (
-    window.matchMedia('(max-width: 767px)').matches &&
-    window.sessionStorage.getItem(MOBILE_SPLASH_SESSION_KEY) !== 'true'
-  );
+  if (hasSeenMobileSplash()) {
+    return false;
+  }
+
+  return window.matchMedia('(max-width: 767px)').matches;
 };
 
 const FullScreenLoader = ({ label }: { label: string }) => (
@@ -183,6 +204,7 @@ function AppShell() {
   const { user, babies, currentBaby, isLoading, refreshBabies, refreshAllLogs } = useAppContext();
   const handledInviteTokenRef = React.useRef<string | null>(null);
   const lastNativeWearableSyncAtRef = React.useRef(0);
+  const lastResumeRefreshAtRef = React.useRef(0);
   const [locationRoute, setLocationRoute] = React.useState<LocationRoute>(() => getLocationRoute());
   const [showMobileSplash, setShowMobileSplash] = React.useState(() => shouldShowMobileSplash());
   const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
@@ -354,6 +376,13 @@ function AppShell() {
     };
 
     const handleNativeResume = () => {
+      const now = Date.now();
+      if (now - lastResumeRefreshAtRef.current < 60_000) {
+        void syncNativeWearablesOnResume();
+        return;
+      }
+
+      lastResumeRefreshAtRef.current = now;
       void refreshBabies();
       void refreshAllLogs();
       void syncNativeWearablesOnResume();
@@ -541,19 +570,19 @@ function AppShell() {
   };
 
   const handleSplashComplete = () => {
-    window.sessionStorage.setItem(MOBILE_SPLASH_SESSION_KEY, 'true');
+    markMobileSplashSeen();
     setShowMobileSplash(false);
   };
 
   if (showMobileSplash) {
     return renderWithSuspense(
-      <Material3SplashScreen logoSrc="/logo.svg" onSplashComplete={handleSplashComplete} />,
+      <Material3SplashScreen onSplashComplete={handleSplashComplete} />,
       'Loading splash...',
     );
   }
 
-  if (isLoading) {
-    return <FullScreenLoader label="Loading BabyLog..." />;
+  if (isLoading && !(hasSession && babies.length > 0)) {
+    return <FullScreenLoader label="Loading Bud & Bloom..." />;
   }
 
   if (publicRoute === 'policies') {

@@ -11,7 +11,7 @@ import { getOnboardingCache, saveProfileToOnboarding } from '../../lib/onboardin
 import { updateCurrentUserMetadata } from '../../lib/supabase';
 import { deriveSettingsFromCareProfile, getDefaultCareProfile } from '../../lib/care-profile';
 import type { Baby } from '../../types';
-import { captureNativePhoto, isNativeAppRuntime } from '../../lib/native-media';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 import { getDefaultAvatar, getUserAvatar } from '../../lib/baby-utils';
 
 type ProfileType = 'baby' | 'doctor' | 'caregiver';
@@ -32,6 +32,8 @@ interface AddBabyScreenProps {
 }
 
 export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) => {
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
   const context = useAppContext();
   const { refreshBabies, refreshUser, updateSettings, user } = context || {};
 
@@ -275,14 +277,14 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/70 bg-white/90 p-2.5 shadow-[0_18px_40px_rgba(69,98,125,0.12)] backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/85">
               <img
-                src="/logo.svg"
-                alt="BabyLog logo"
+                src={logoSrc}
+                alt={`${appName} logo`}
                 className="h-full w-full object-contain logo-theme-fix"
               />
             </div>
             <div className="space-y-0.5">
               <p className="font-['Plus_Jakarta_Sans',sans-serif] text-2xl font-black tracking-tight text-[#2f3337] dark:text-white">
-                BabyLog
+                {appName}
               </p>
               <p className="hidden text-[11px] font-black uppercase tracking-[0.22em] text-[#afb2b8] sm:block">
                 Editorial serenity
@@ -567,9 +569,9 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
           <div className="hidden items-center justify-between gap-4 border-t border-white/70 px-2 pt-2 text-[10px] font-semibold text-[#5e5f61] dark:border-zinc-800 dark:text-zinc-400 lg:flex">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white">
-                BabyLog
+                Bud & Bloom
               </span>
-              <span>Editorial Serenity</span>
+              <span>Editorial Bloom</span>
             </div>
             <div className="flex items-center gap-6">
               <span>Privacy Policy</span>
@@ -578,7 +580,7 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
               <span>Our Mission</span>
             </div>
             <span>
-              © 2024 BabyLog Editorial. All rights reserved.
+              © 2024 Bud & Bloom Editorial. All rights reserved.
             </span>
           </div>
 

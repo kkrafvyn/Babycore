@@ -406,7 +406,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
                 </p>
                 <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
                   {premiumAccess.reason ||
-                    'Premium tools are available without checkout while Babycore tests packages.'}
+                    'Premium tools are available without checkout while Bud & Bloom tests packages.'}
                 </p>
               </div>
             </MotionDiv>

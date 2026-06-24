@@ -69,7 +69,7 @@ export const Material3SleepTracker: React.FC = () => {
       <header className="fixed top-0 w-full z-50 bg-white/80 dark:bg-[#1a1c1e]/80 backdrop-blur-xl flex justify-between items-center h-20 px-6 md:px-8 border-b border-gray-100 dark:border-zinc-800 shadow-[0_8px_32px_rgba(47,51,55,0.02)]">
         <div className="flex items-center gap-4">
           <span className="text-2xl font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white tracking-tighter">
-            Serenity
+            Bloom
           </span>
         </div>
         <div className="flex items-center gap-3">

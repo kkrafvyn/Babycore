@@ -98,7 +98,7 @@ export function SubscriptionAddons() {
             <Lock className="h-5 w-5" />
             Premium Add-Ons
           </CardTitle>
-          <CardDescription>Enhance your BabyLog experience with premium features</CardDescription>
+          <CardDescription>Enhance your Bud & Bloom experience with premium features</CardDescription>
         </CardHeader>
       </Card>
 

@@ -19,6 +19,7 @@ import {
 } from '../../lib/supabase';
 import { getOnboardingCache } from '../../lib/onboarding-storage';
 import { i18nT } from '../../lib/i18n';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 
 interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
@@ -58,6 +59,8 @@ export function AuthScreen({
   onViewPolicies,
   postAuthDestinationLabel,
 }: AuthScreenProps) {
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
   const [mode, setMode] = useState<AuthMode>(() => consumeAuthModeHint());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -158,7 +161,7 @@ export function AuthScreen({
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5f8ff] text-[#45697d]">
               <Fingerprint size={18} />
             </div>
-            <span className="text-xl font-black tracking-[-0.02em] text-[#55575c]">BabyLog</span>
+            <span className="text-xl font-black tracking-[-0.02em] text-[#55575c]">{appName}</span>
           </div>
           <button
             type="button"
@@ -180,7 +183,7 @@ export function AuthScreen({
             >
               <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2.25rem] bg-white shadow-[0_18px_44px_rgba(37,43,54,0.08)] sm:h-32 sm:w-32 sm:rounded-[2.75rem]">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#dff8ff] text-[#45697d] sm:h-20 sm:w-20">
-                  <img src="/logo.png" alt="BabyLog" className="h-9 w-9 object-contain sm:h-11 sm:w-11" />
+                  <img src={logoSrc} alt={appName} className="h-9 w-9 object-contain sm:h-11 sm:w-11" />
                 </div>
               </div>
               <p className="mt-8 text-[10px] font-black uppercase tracking-[0.24em] text-[#49697a] sm:text-[11px]">
@@ -191,7 +194,7 @@ export function AuthScreen({
               <h1 className="mx-auto mt-4 max-w-lg text-5xl font-black leading-[0.98] tracking-[0] text-[#242932] [text-shadow:0_3px_0_rgba(0,0,0,0.09)] sm:text-6xl">
                 {mode === 'signin'
                   ? i18nT('auth.welcomeBack', 'Welcome Back')
-                  : i18nT('auth.joinBabyLog', 'Join BabyLog')}
+                  : i18nT('auth.joinApp', 'Join Bud & Bloom')}
               </h1>
               <p className="mx-auto mt-6 max-w-md text-lg leading-8 text-[#5f646d]">
                 A calm space for tracking every milestone, feeding, and nap with professional clarity.
@@ -424,7 +427,7 @@ export function AuthScreen({
           <div className="flex flex-col items-center gap-2 pt-4 sm:pt-6">
             <div className="h-1 w-8 rounded-full bg-[#e7e9ef]" />
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#9aa3b2]">
-              BABYLOG SECURE ACCESS
+              BUD & BLOOM SECURE ACCESS
             </p>
           </div>
         </div>

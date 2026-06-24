@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './api-base-url';
+import { createShareInviteEmail, isShareInviteEmail } from './app-domain';
 import { supabase } from './supabase';
 
 export type FamilySharingRole = 'owner' | 'editor' | 'viewer' | 'caregiver' | 'doctor';
@@ -714,8 +715,8 @@ const isSyntheticPublicInviteEmail = (email: string): boolean => {
   const normalized = String(email || '').trim().toLowerCase();
   if (!normalized) return false;
 
-  if (/^public-link\+.+@babycore\.local$/.test(normalized)) return true;
-  if (/^invite-[a-f0-9]+@share\.babycore\.app$/.test(normalized)) return true;
+  if (/^public-link\+.+@budandbloom\.local$/.test(normalized)) return true;
+  if (isShareInviteEmail(normalized)) return true;
 
   return false;
 };
@@ -726,7 +727,7 @@ const generatePublicInviteEmail = (): string => {
       ? crypto.randomUUID().replace(/-/g, '')
       : `${Date.now()}${Math.random().toString(16).slice(2, 10)}`;
 
-  return `invite-${unique}@share.babycore.app`.toLowerCase();
+  return createShareInviteEmail(unique);
 };
 
 /**

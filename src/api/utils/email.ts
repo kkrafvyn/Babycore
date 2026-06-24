@@ -1,3 +1,5 @@
+import { APP_NOREPLY_EMAIL } from '../../lib/app-domain.js';
+
 export type EmailProvider = 'resend' | 'sendgrid' | 'smtp' | 'dry-run';
 
 export interface TransactionalEmailOptions {
@@ -20,7 +22,7 @@ const resolveFromAddress = (provided?: string): string =>
   process.env.RESEND_FROM_EMAIL ||
   process.env.SENDGRID_FROM_EMAIL ||
   process.env.EMAIL_FROM ||
-  'noreply@babycore.app';
+  APP_NOREPLY_EMAIL;
 
 const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
   modulePath: string,

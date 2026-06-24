@@ -146,7 +146,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight mb-1">
-                {t('common.babyLog', 'BabyLog')}
+                {t('common.appName', 'Bud & Bloom')}
               </h1>
               <p className="text-base text-gray-500 dark:text-gray-400">{t('dashboard.todaySummary', "Today's summary")}</p>
             </div>

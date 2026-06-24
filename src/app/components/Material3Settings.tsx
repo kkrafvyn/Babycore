@@ -141,7 +141,7 @@ export const Material3Settings: React.FC = () => {
       <header className="fixed top-0 w-full z-50 bg-white/80 dark:bg-[#1a1c1e]/80 backdrop-blur-xl flex justify-between items-center h-20 px-6 md:px-8 border-b border-gray-100 dark:border-zinc-800 shadow-[0_8px_32px_rgba(47,51,55,0.02)]">
         <div className="flex items-center gap-4">
           <span className="text-2xl font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white tracking-tighter">
-            Serenity
+            Bloom
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ export const Material3Settings: React.FC = () => {
         <div className="flex flex-col gap-3">
           <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-[#2f3337] dark:text-white font-['Plus_Jakarta_Sans',sans-serif]">Preferences</h1>
           <p className="text-[#787b80] dark:text-zinc-400 text-sm md:text-base font-bold max-w-md leading-relaxed">
-            Tailor your Serenity experience for clinical precision and personalized comfort.
+            Tailor your Bloom experience for clinical precision and personalized comfort.
           </p>
         </div>
 
@@ -219,7 +219,7 @@ export const Material3Settings: React.FC = () => {
 
         {/* Version & Legal */}
         <div className="mt-16 pt-10 border-t border-[#f3f3f7] dark:border-zinc-800 text-center pb-12">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-[#a0a4ae] dark:text-zinc-500 mb-6 font-['Plus_Jakarta_Sans',sans-serif]">Serenity Ecosystem v2.4.0</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-[#a0a4ae] dark:text-zinc-500 mb-6 font-['Plus_Jakarta_Sans',sans-serif]">Bud & Bloom v2.4.0</p>
           <div className="flex justify-center gap-8 text-xs font-bold text-[#45627d] dark:text-blue-300 font-['Manrope',sans-serif]">
             <button className="hover:text-[#2f3337] dark:hover:text-white transition-colors">Terms of Care</button>
             <button className="hover:text-[#2f3337] dark:hover:text-white transition-colors">Privacy Sanctum</button>

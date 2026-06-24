@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, HeartHandshake, MoonStar, ShieldCheck, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 import { i18nT } from '../../lib/i18n';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -15,9 +16,10 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
   onGetStarted,
   onLogIn,
   onViewPolicies,
-  logoUrl = '/logo.png',
-  heroImageUrl = '/logo.png',
+  logoUrl = getClientLogoSrc(),
+  heroImageUrl = getClientLogoSrc(),
 }) => {
+  const appName = getClientAppName();
   const highlights = [
     { label: i18nT('public.highlightSleep', 'Sleep'), value: i18nT('public.highlightSynced', 'Synced'), icon: MoonStar },
     { label: i18nT('public.highlightFeed', 'Feed'), value: i18nT('public.highlightReady', 'Ready'), icon: HeartHandshake },
@@ -41,12 +43,12 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
         <section className="flex h-full flex-col px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/70 bg-white/85 p-2.5 shadow-[0_18px_40px_rgba(69,98,125,0.12)] backdrop-blur">
-              <img alt="BabyLog logo" className="h-full w-full object-contain logo-theme-fix" src={logoUrl} />
+              <img alt={`${appName} logo`} className="h-full w-full object-contain logo-theme-fix" src={logoUrl} />
             </div>
 
             <div className="space-y-0.5">
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-secondary">
-                BabyLog
+                {appName}
               </p>
               <p className="text-sm font-semibold text-text-dim">
                 {i18nT('public.tagline', 'Gentle baby care tracking for feeding, sleep, and milestones.')}
@@ -62,7 +64,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
 
             <div className="space-y-3 text-center">
               <h1 className="mx-auto max-w-[8ch] text-[clamp(2.8rem,16vw,4.5rem)] font-black leading-[0.9] tracking-[-0.07em] text-[#2f3337]">
-                BabyLog
+                {appName}
               </h1>
               <p className="mx-auto max-w-[20rem] text-[0.98rem] font-semibold leading-[1.55] text-text-dim">
                 {i18nT(
@@ -153,12 +155,12 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                 className="flex items-center gap-3"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/70 bg-white/85 p-3 shadow-[0_18px_40px_rgba(69,98,125,0.12)] backdrop-blur">
-                  <img alt="BabyLog logo" className="h-full w-full object-contain logo-theme-fix" src={logoUrl} />
+                  <img alt={`${appName} logo`} className="h-full w-full object-contain logo-theme-fix" src={logoUrl} />
                 </div>
 
                 <div className="space-y-0.5">
                   <p className="text-[11px] font-black uppercase tracking-[0.28em] text-secondary">
-                    BabyLog
+                    {appName}
                   </p>
                   <p className="text-[0.95rem] font-semibold text-text-dim">
                     {i18nT('public.tagline', 'Gentle baby care tracking for feeding, sleep, and milestones.')}
@@ -179,7 +181,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
 
                 <div className="space-y-3">
                   <h1 className="max-w-[9ch] text-[5.4rem] font-black tracking-[-0.06em] text-[#2f3337] xl:text-[5.8rem]">
-                    BabyLog
+                    {appName}
                   </h1>
                   <p className="max-w-[25rem] text-[1.02rem] leading-[1.55] text-text-dim xl:text-[1.12rem]">
                     {i18nT(
@@ -213,7 +215,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                       </div>
 
                       <div className="rounded-full border border-secondary/10 bg-white/80 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.24em] text-text-dim">
-                        BabyLog
+                        {appName}
                       </div>
                     </div>
 

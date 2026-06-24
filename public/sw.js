@@ -17,16 +17,16 @@ self.addEventListener('push', (event) => {
     payload = event.data.json();
   } catch (error) {
     payload = {
-      title: 'BabyLog',
+      title: 'Bud & Bloom',
       body: event.data.text(),
     };
   }
 
-  const title = payload.title || 'BabyLog';
+  const title = payload.title || 'Bud & Bloom';
   const options = {
-    body: payload.body || 'You have a new update from BabyLog.',
-    icon: payload.icon || '/logo.png',
-    badge: payload.badge || '/logo.png',
+    body: payload.body || 'You have a new update from Bud & Bloom.',
+    icon: payload.icon || '/logo.svg',
+    badge: payload.badge || '/logo.svg',
     tag: payload.tag || 'babylog-update',
     data: payload.data || {},
     vibrate: [120, 60, 120],

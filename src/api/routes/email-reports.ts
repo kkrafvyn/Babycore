@@ -13,6 +13,7 @@ import {
   buildWeeklyDigestContent,
 } from '../utils/email-report-content.js';
 import { sendTransactionalEmail } from '../utils/email.js';
+import { APP_NOREPLY_EMAIL } from '../../lib/app-domain.js';
 import { ensureBabyAccess } from '../utils/baby-access.js';
 import type { AuthRequest } from '../middleware/auth.js';
 
@@ -133,7 +134,7 @@ export async function generateWeeklyDigest(req: AuthRequest, res: Response) {
       subject: emailContent.subject,
       html: emailContent.html,
       text: emailContent.text,
-      from: process.env.EMAIL_FROM || 'noreply@babylog.app',
+      from: process.env.EMAIL_FROM || APP_NOREPLY_EMAIL,
     });
 
     // Record email sent
@@ -199,7 +200,7 @@ export async function sendMilestoneAnnouncement(req: AuthRequest, res: Response)
     // Send email
     const transporter = await getEmailTransporter();
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@babylog.app',
+      from: process.env.EMAIL_FROM || APP_NOREPLY_EMAIL,
       to: userEmail,
       subject: emailContent.subject,
       html: emailContent.html,

@@ -180,7 +180,7 @@ export const isNativeAppRuntime = (): boolean => {
 };
 
 export const captureNativePhoto = async (
-  baseName = 'babylog-photo',
+  baseName = 'bud-bloom-photo',
 ): Promise<CapturedPhotoAsset | null> => {
   const bridge = await getBridge();
   if (!bridge) {
@@ -210,7 +210,7 @@ export const captureNativePhoto = async (
 };
 
 export const chooseNativePhoto = async (
-  baseName = 'babylog-photo',
+  baseName = 'bud-bloom-photo',
 ): Promise<CapturedPhotoAsset | null> => {
   const bridge = await getBridge();
   if (!bridge) {

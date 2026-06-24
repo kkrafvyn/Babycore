@@ -1,76 +1,71 @@
-{
-  "name": "BabyLog",
-  "short_name": "BabyLog",
-  "description": "Smart baby tracking with Apple Design System.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#007AFF",
-  "categories": ["health", "medical", "productivity", "family"],
-  "icons": [
-    {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/logo.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Log Feeding",
-      "short_name": "Feed",
-      "description": "Open the feeding tracker quickly.",
-      "url": "/?view=feeding",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Sleep Tracker",
-      "short_name": "Sleep",
-      "description": "Jump straight into sleep tracking.",
-      "url": "/?view=sleep",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Health Records",
-      "short_name": "Health",
-      "description": "Open visits, medication, and records.",
-      "url": "/?view=health-records",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Emergency Card",
-      "short_name": "Emergency",
-      "description": "Open the emergency card right away.",
-      "url": "/?view=emergency-card",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    }
-  ]
-}
+{
+  "name": "Bud & Bloom",
+  "short_name": "Bud&Bloom",
+  "description": "Bud & Bloom — smart baby tracking, caregiver sync, and care records.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007AFF",
+  "categories": ["health", "medical", "productivity", "family"],
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Log Feeding",
+      "short_name": "Feed",
+      "description": "Open the feeding tracker quickly.",
+      "url": "/?view=feeding",
+      "icons": [
+        {
+          "src": "/logo.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Sleep Tracker",
+      "short_name": "Sleep",
+      "description": "Jump straight into sleep tracking.",
+      "url": "/?view=sleep",
+      "icons": [
+        {
+          "src": "/logo.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Health Records",
+      "short_name": "Health",
+      "description": "Open visits, medication, and records.",
+      "url": "/?view=health-records",
+      "icons": [
+        {
+          "src": "/logo.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Emergency Card",
+      "short_name": "Emergency",
+      "description": "Open the emergency card right away.",
+      "url": "/?view=emergency-card",
+      "icons": [
+        {
+          "src": "/logo.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

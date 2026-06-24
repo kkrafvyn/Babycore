@@ -7,6 +7,7 @@
 import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
 import { supabase } from './supabase';
+import { APP_LOGO_SRC } from './app-branding-client';
 import { getApiBaseUrl } from './api-base-url';
 import { readJsonResponse } from './http-json';
 import { buildNativeAppUrl } from './native-app-links';
@@ -694,7 +695,7 @@ export class NotificationsManager {
 
     // iOS web push requires the app to be installed to the home screen.
     if (this.isIOS() && !this.isStandaloneDisplayMode()) {
-      toast('Install BabyLog on your home screen to enable iOS push notifications.');
+      toast('Install Bud & Bloom on your home screen to enable iOS push notifications.');
       return true;
     }
 
@@ -1221,8 +1222,8 @@ export class NotificationsManager {
          if (registration) {
            registration.showNotification(notification.title, {
              body: notification.body,
-             icon: '/logo.png',
-             badge: '/logo.png',
+             icon: APP_LOGO_SRC,
+             badge: APP_LOGO_SRC,
              tag: notification.type || 'general',
              data: notification.data,
              vibrate: [200, 100, 200],
@@ -1234,7 +1235,7 @@ export class NotificationsManager {
        try {
          new Notification(notification.title, {
            body: notification.body,
-           icon: '/logo.png',
+           icon: APP_LOGO_SRC,
            tag: notification.type || 'general',
            data: notification.data,
          });

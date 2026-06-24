@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">BabyLog</string>
-    <string name="title_activity_main">BabyLog</string>
+    <string name="app_name">Bud & Bloom<//string>
+    <string name="title_activity_main">Bud & Bloom<//string>
     <string name="package_name">com.babylog.app</string>
     <string name="custom_url_scheme">com.babylog.app</string>
     <string name="shortcut_feed_short">Log Feed</string>

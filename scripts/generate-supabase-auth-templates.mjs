@@ -6,8 +6,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const outputDir = path.join(rootDir, 'supabase', 'templates');
 
-const appName = String(process.env.APP_NAME || process.env.VITE_APP_NAME || 'BabyLog').trim() || 'BabyLog';
-const productName = String(process.env.APP_PRODUCT_NAME || 'Serenity').trim() || 'Serenity';
+const appName = String(process.env.APP_NAME || process.env.VITE_APP_NAME || 'Bud & Bloom').trim() || 'Bud & Bloom';
+const productName = String(process.env.APP_PRODUCT_NAME || process.env.VITE_APP_PRODUCT_NAME || 'Bloom').trim() || 'Bloom';
 
 const renderAuthEmail = ({
   title,

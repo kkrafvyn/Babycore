@@ -1,4 +1,4 @@
-// Core data types for BabyLog app
+// Core data types for Bud & Bloom app
 
 export interface Baby {
   id: string;

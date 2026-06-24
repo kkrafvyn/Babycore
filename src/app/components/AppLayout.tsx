@@ -13,6 +13,7 @@ import {
   type BabyLogNotification,
 } from '../../lib/notifications';
 import { useAuthStore } from '@/app/AppContext';
+import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -35,6 +36,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const reminderPreferences = React.useMemo(() => getReminderPreferences(settings), [settings]);
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = React.useState(false);
+  const appName = getClientAppName();
+  const logoSrc = getClientLogoSrc();
   const [notifications, setNotifications] = React.useState<BabyLogNotification[]>(
     () => getNotificationHistory(),
   );
@@ -112,9 +115,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-3 sm:px-6 md:px-12 lg:px-16 xl:max-w-7xl xl:px-20 lg:pl-28">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-gray bg-surface-gray shadow-inner dark:border-zinc-700 dark:bg-zinc-800 sm:h-10 sm:w-10">
-                <img src="/logo.png" alt="BabyLog" className="h-full w-full object-contain" />
+                <img src={logoSrc} alt={appName} className="h-full w-full object-contain" />
               </div>
-              <span className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">BabyLog</span>
+              <span className="truncate text-lg font-headline font-black tracking-tight text-foreground sm:text-xl">{appName}</span>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-5">
