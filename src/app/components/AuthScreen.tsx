@@ -7,10 +7,8 @@ import {
   EyeOff,
   ShieldCheck,
   Fingerprint,
-  Apple,
-  Chrome,
-  type LucideIcon,
 } from 'lucide-react';
+import { AppleIcon, GoogleIcon } from './SocialAuthIcons';
 import {
   signUpWithEmail,
   signInWithEmail,
@@ -48,10 +46,11 @@ const MotionDiv = motion.div as any;
 const socialProviders: Array<{
   provider: SocialAuthProvider;
   label: string;
-  Icon: LucideIcon;
+  Icon: React.FC<{ className?: string; size?: number }>;
+  iconClassName?: string;
 }> = [
-  { provider: 'google', label: 'Google', Icon: Chrome },
-  { provider: 'apple', label: 'Apple', Icon: Apple },
+  { provider: 'google', label: 'Google', Icon: GoogleIcon },
+  { provider: 'apple', label: 'Apple', Icon: AppleIcon, iconClassName: 'text-[#242932]' },
 ];
 
 export function AuthScreen({
@@ -372,7 +371,7 @@ export function AuthScreen({
           </div>
 
           <div className="space-y-3">
-            {socialProviders.map(({ provider, label, Icon }) => (
+            {socialProviders.map(({ provider, label, Icon, iconClassName }) => (
               <button
                 key={provider}
                 type="button"
@@ -387,7 +386,7 @@ export function AuthScreen({
                   </>
                 ) : (
                   <>
-                    <Icon size={18} />
+                    <Icon size={18} className={`shrink-0 ${iconClassName || ''}`} />
                     <span>{i18nT('auth.continueWith', 'Continue with {provider}').replace('{provider}', label)}</span>
                   </>
                 )}
