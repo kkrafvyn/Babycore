@@ -1,4 +1,5 @@
 import { APP_NOREPLY_EMAIL } from '../../src/lib/app-domain.js';
+import nodemailer from 'nodemailer';
 
 type SendEmailInput = {
   to: string;
@@ -14,10 +15,6 @@ type SendEmailResult = {
   id?: string;
   message?: string;
 };
-
-const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
-  modulePath: string,
-) => Promise<any>;
 
 const getFromAddress = (override?: string): string =>
   (
@@ -129,13 +126,6 @@ export const sendTransactionalEmail = async (
 
   const smtpConfig = resolveSmtpConfig();
   if (smtpConfig) {
-    const nodemailerModule = await dynamicImport('nodemailer').catch(() => null);
-    const nodemailer = nodemailerModule?.default || nodemailerModule;
-
-    if (!nodemailer?.createTransport) {
-      throw new Error('SMTP configured but nodemailer is not installed');
-    }
-
     const transporter = nodemailer.createTransport({
       host: smtpConfig.host,
       port: smtpConfig.port,

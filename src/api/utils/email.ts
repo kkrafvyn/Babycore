@@ -1,4 +1,5 @@
 import { APP_NOREPLY_EMAIL } from '../../lib/app-domain.js';
+import nodemailer from 'nodemailer';
 
 export type EmailProvider = 'resend' | 'sendgrid' | 'smtp' | 'dry-run';
 
@@ -23,10 +24,6 @@ const resolveFromAddress = (provided?: string): string =>
   process.env.SENDGRID_FROM_EMAIL ||
   process.env.EMAIL_FROM ||
   APP_NOREPLY_EMAIL;
-
-const dynamicImport = new Function('modulePath', 'return import(modulePath)') as (
-  modulePath: string,
-) => Promise<any>;
 
 const resolveSmtpConfig = (): {
   host: string;
@@ -136,13 +133,6 @@ export async function sendTransactionalEmail(
 
   const smtpConfig = resolveSmtpConfig();
   if (smtpConfig) {
-    const nodemailerModule = await dynamicImport('nodemailer').catch(() => null);
-    const nodemailer = nodemailerModule?.default || nodemailerModule;
-
-    if (!nodemailer?.createTransport) {
-      throw new Error('SMTP configured but nodemailer is not installed');
-    }
-
     const transporter = nodemailer.createTransport({
       host: smtpConfig.host,
       port: smtpConfig.port,
