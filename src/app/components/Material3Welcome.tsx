@@ -31,7 +31,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative h-[100dvh] overflow-hidden bg-background"
+      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-background"
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-secondary-fixed/30 blur-[120px]" />

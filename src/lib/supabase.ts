@@ -48,7 +48,6 @@ export const supabase = createClient(
       detectSessionInUrl: true,
       flowType: typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'pkce' : 'implicit',
       lock: supabaseAuthLock,
-      lockAcquireTimeout: 10000,
     },
     realtime: {
       params: {

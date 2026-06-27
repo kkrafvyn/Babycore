@@ -1,43 +1,83 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Fingerprint, ShieldCheck, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Lock, Fingerprint, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useAppContext } from '../AppContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const MotionDiv = motion.div as any;
+
+const canUsePlatformBiometrics = async (): Promise<boolean> => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (
+    !('PublicKeyCredential' in window) ||
+    typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable !== 'function'
+  ) {
+    return false;
+  }
+
+  try {
+    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
+};
 
 export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { settings } = useAppContext();
   const [isLocked, setIsLocked] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [biometricsAvailable, setBiometricsAvailable] = useState<boolean | null>(null);
 
   const lockEnabled = settings?.biometricLockEnabled;
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!lockEnabled) {
       setIsLocked(false);
+      setBiometricsAvailable(null);
       return;
     }
 
-    // Lock immediately on mount/refresh if enabled
-    setIsLocked(true);
+    void (async () => {
+      const available = await canUsePlatformBiometrics();
+      if (cancelled) {
+        return;
+      }
 
-    // Lock when app goes to background
+      setBiometricsAvailable(available);
+      setIsLocked(available);
+    })();
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && lockEnabled) {
-        setIsLocked(true);
+        void canUsePlatformBiometrics().then((available) => {
+          if (available) {
+            setIsLocked(true);
+          }
+        });
       }
     };
 
     const handleNativePause = () => {
-      if (lockEnabled) {
-        setIsLocked(true);
+      if (!lockEnabled) {
+        return;
       }
+
+      void canUsePlatformBiometrics().then((available) => {
+        if (available) {
+          setIsLocked(true);
+        }
+      });
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('babylog_native_pause', handleNativePause);
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('babylog_native_pause', handleNativePause);
     };
@@ -48,74 +88,62 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
     setError(null);
 
     try {
-      const hasBiometricApi =
-        typeof window !== 'undefined' &&
-        'PublicKeyCredential' in window &&
-        typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
-
-      if (!hasBiometricApi) {
-        setError('Biometric authentication is not supported on this device/browser.');
-        return;
-      }
-
-      const available =
-        await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-
+      const available = await canUsePlatformBiometrics();
       if (!available) {
-        setError('Biometric hardware was not detected on this device.');
+        setIsLocked(false);
         return;
       }
 
-      // Unlock only when platform biometrics are available.
       setIsLocked(false);
-    } catch (err) {
+    } catch {
       setError('Authentication failed. Please try again.');
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  if (!isLocked) return <>{children}</>;
+  if (!isLocked) {
+    return <>{children}</>;
+  }
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center p-8 overflow-hidden">
-      {/* Background Decoration */}
-      <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-secondary/10 rounded-full blur-[100px]" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-primary/10 rounded-full blur-[100px]" />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-background p-8">
+      <div className="absolute top-[-10%] right-[-10%] h-96 w-96 rounded-full bg-secondary/10 blur-[100px]" />
+      <div className="absolute bottom-[-10%] left-[-10%] h-96 w-96 rounded-full bg-primary/10 blur-[100px]" />
 
-      <MotionDiv 
+      <MotionDiv
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-xs w-full text-center space-y-8 relative z-10"
+        className="relative z-10 w-full max-w-xs space-y-8 text-center"
       >
         <div className="relative inline-block">
-          <div className="w-24 h-24 bg-surface rounded-[2.5rem] border border-border-gray dark:border-zinc-800 flex items-center justify-center shadow-2xl mx-auto">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[2.5rem] border border-border-gray bg-surface shadow-2xl dark:border-zinc-800">
             <Lock size={40} className="text-secondary" />
           </div>
-          <MotionDiv 
+          <MotionDiv
             animate={{ scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }}
             transition={{ repeat: Infinity, duration: 2 }}
-            className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-background flex items-center justify-center text-white"
+            className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-4 border-background bg-emerald-500 text-white"
           >
             <ShieldCheck size={14} />
           </MotionDiv>
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-3xl font-headline font-black text-foreground tracking-tighter">Vault Locked</h2>
-          <p className="text-sm font-bold text-text-dim px-4 leading-relaxed">
+          <h2 className="font-headline text-3xl font-black tracking-tighter text-foreground">Vault Locked</h2>
+          <p className="px-4 text-sm font-bold leading-relaxed text-text-dim">
             Biometric verification is required to access baby logs and private memories.
           </p>
         </div>
 
-        <div className="pt-4 space-y-4">
-          <button 
+        <div className="space-y-4 pt-4">
+          <button
             onClick={handleUnlock}
             disabled={isAuthenticating}
-            className="w-full h-16 bg-secondary text-white rounded-2xl flex items-center justify-center gap-3 font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-secondary/20 active:scale-95 transition-all disabled:opacity-50"
+            className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl bg-secondary text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-xl shadow-secondary/20 transition-all active:scale-95 disabled:opacity-50"
           >
             {isAuthenticating ? (
-              <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="h-6 w-6 animate-spin rounded-full border-3 border-white/30 border-t-white" />
             ) : (
               <>
                 <Fingerprint size={20} />
@@ -124,15 +152,29 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
             )}
           </button>
 
+          {biometricsAvailable === false && (
+            <button
+              type="button"
+              onClick={() => setIsLocked(false)}
+              className="w-full rounded-2xl border border-border-gray px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-text-dim dark:border-zinc-700"
+            >
+              Continue on this device
+            </button>
+          )}
+
           {error && (
-            <MotionDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center gap-2 text-[10px] font-black text-rose-500 uppercase tracking-widest px-4">
+            <MotionDiv
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center justify-center gap-2 px-4 text-[10px] font-black uppercase tracking-widest text-rose-500"
+            >
               <ShieldAlert size={14} />
               <span>{error}</span>
             </MotionDiv>
           )}
 
-          <p className="text-[10px] font-black text-text-light uppercase tracking-widest pt-4">
-            Secured by Apple FaceID / Android Biometrics
+          <p className="pt-4 text-[10px] font-black uppercase tracking-widest text-text-light">
+            Secured by Apple Face ID / Android Biometrics
           </p>
         </div>
       </MotionDiv>

@@ -32,6 +32,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAppContext } from '../AppContext';
 import { onAuthStateChange, signOut } from '../../lib/supabase';
 import { useIsMobile } from './ui/use-mobile';
+import { updateBaby } from '../../lib/supabase-storage';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 import { FeedingTracker } from './FeedingTracker';
 import { SleepTracker } from './SleepTracker';

@@ -11,6 +11,7 @@ import { getOnboardingCache, saveProfileToOnboarding } from '../../lib/onboardin
 import { updateCurrentUserMetadata } from '../../lib/supabase';
 import { deriveSettingsFromCareProfile, getDefaultCareProfile } from '../../lib/care-profile';
 import type { Baby } from '../../types';
+import { captureNativePhoto, isNativeAppRuntime } from '../../lib/native-media';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 import { getDefaultAvatar, getUserAvatar } from '../../lib/baby-utils';
 
@@ -265,14 +266,14 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
       : getUserAvatar(formData.name || formData.profileType));
 
   return (
-    <div className="relative min-h-[100dvh] overflow-x-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
+    <div className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-[#e8f5ff] opacity-90 blur-[120px] dark:bg-blue-900/20" />
         <div className="absolute -left-24 bottom-24 h-[18rem] w-[18rem] rounded-full bg-[#ffe9ef] opacity-80 blur-[120px] dark:bg-rose-900/20" />
         <div className="absolute -right-20 top-1/3 h-[18rem] w-[18rem] rounded-full bg-[#eefaff] opacity-90 blur-[120px] dark:bg-cyan-900/20" />
       </div>
 
-      <div className="relative mx-auto flex min-h-[100dvh] max-w-[82rem] flex-col px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-[82rem] flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4 py-3 sm:py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/70 bg-white/90 p-2.5 shadow-[0_18px_40px_rgba(69,98,125,0.12)] backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/85">

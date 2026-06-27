@@ -65,7 +65,7 @@ export const OnboardingCountryStep: React.FC<OnboardingCountryStepProps> = ({
   );
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#f7f8fb] font-['Manrope',sans-serif] text-[#2f3337] dark:bg-[#0d0e10] dark:text-white">
+    <div className="relative flex min-h-[100dvh] flex-col overflow-x-hidden overflow-y-auto bg-[#f7f8fb] font-['Manrope',sans-serif] text-[#2f3337] dark:bg-[#0d0e10] dark:text-white">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"

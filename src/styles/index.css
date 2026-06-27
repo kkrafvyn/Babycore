@@ -137,9 +137,76 @@
     min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
+  }
+
+  /* AppLayout owns scrolling; nested route shells should not trap gestures */
+  .fit-screen > main.overflow-y-auto .fit-screen {
+    min-height: auto;
+    height: auto;
+    overflow: visible;
+    display: block;
+  }
+
+  .fit-screen > main.overflow-y-auto .fit-screen > main {
+    overflow: visible !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    padding-top: 0 !important;
+  }
+
+  /* Tab/detail views inside AppLayout: one scroll surface, sticky section headers */
+  .app-shell-content > .fit-screen {
+    min-height: auto;
+    height: auto;
+    overflow: visible;
+    display: block;
+  }
+
+  .app-shell-content > .fit-screen > header.fixed.top-0 {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    width: auto;
+    margin-inline: -0.75rem;
+    padding-inline: 0.75rem;
+  }
+
+  @media (min-width: 640px) {
+    .app-shell-content > .fit-screen > header.fixed.top-0 {
+      margin-inline: -1.5rem;
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .app-shell-content > .fit-screen > header.fixed.top-0 {
+      margin-inline: -3rem;
+      padding-inline: 3rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .app-shell-content > .fit-screen > header.fixed.top-0 {
+      margin-inline: -4rem;
+      padding-inline: 4rem;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .app-shell-content > .fit-screen > header.fixed.top-0 {
+      margin-inline: -5rem;
+      padding-inline: 5rem;
+    }
+  }
+
+  .page-scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .fit-screen > header.fixed.top-0 {

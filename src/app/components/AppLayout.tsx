@@ -108,7 +108,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
-    <div className="fit-screen bg-background">
+    <div className="fit-screen flex min-h-[100dvh] flex-col overflow-hidden bg-background">
       {/* Top Header */}
       {showTopHeader && (
         <header className="fixed top-0 w-full z-50 h-16 sm:h-20 border-b border-border-gray bg-background/85 backdrop-blur-xl dark:border-zinc-800/50">
@@ -237,7 +237,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
       {/* Main Content */}
       <main
-        className={`min-h-0 flex-1 overflow-y-auto no-scrollbar pb-8 sm:pb-10 lg:pb-10 ${
+        className={`min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] no-scrollbar pb-8 sm:pb-10 lg:pb-10 ${
           showBottomNav
             ? 'mb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:mb-[calc(6rem+env(safe-area-inset-bottom))] lg:mb-0'
             : 'mb-0'
@@ -245,7 +245,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           showTopHeader ? 'pt-16 sm:pt-20' : 'pt-0'
         }`}
       >
-        <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 md:px-12 lg:px-16 xl:max-w-7xl xl:px-20 py-5 sm:py-8 lg:py-10 lg:pl-28">
+        <div className="app-shell-content mx-auto w-full max-w-6xl px-3 sm:px-6 md:px-12 lg:px-16 xl:max-w-7xl xl:px-20 py-5 sm:py-8 lg:py-10 lg:pl-28">
            {children}
         </div>
       </main>

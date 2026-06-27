@@ -412,7 +412,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   }
 
   return (
-    <div className="grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
+    <div className="grid min-h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
       <header className="border-b border-gray-100 bg-white/85 backdrop-blur-xl dark:border-zinc-800 dark:bg-[#121315]/85">
         {currentStep !== 'welcome' ? (
           <>
@@ -538,7 +538,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
       </header>
 
       <main
-        className={`${isScrollableStep ? 'overflow-y-auto sm:overflow-hidden' : 'overflow-hidden'} min-h-0 px-3 py-4 sm:px-6 sm:py-4`}
+        className={`${isScrollableStep ? 'overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]' : 'overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]'} min-h-0 px-3 py-4 sm:px-6 sm:py-4`}
       >
         <motion.div
           key={currentStep}

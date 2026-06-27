@@ -153,6 +153,11 @@ const shouldShowMobileSplash = () => {
     return false;
   }
 
+  const forceSplash = new URLSearchParams(window.location.search).get('splash') === '1';
+  if (forceSplash) {
+    return true;
+  }
+
   if (hasSeenMobileSplash()) {
     return false;
   }
@@ -569,10 +574,18 @@ function AppShell() {
     navigateToPublicRoute('login');
   };
 
-  const handleSplashComplete = () => {
+  const handleSplashComplete = React.useCallback(() => {
     markMobileSplashSeen();
     setShowMobileSplash(false);
-  };
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('splash')) {
+        url.searchParams.delete('splash');
+        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    }
+  }, []);
 
   if (showMobileSplash) {
     return renderWithSuspense(
@@ -581,7 +594,7 @@ function AppShell() {
     );
   }
 
-  if (isLoading && !(hasSession && babies.length > 0)) {
+  if (hasSession && isLoading && babies.length === 0) {
     return <FullScreenLoader label="Loading Bud & Bloom..." />;
   }
 
