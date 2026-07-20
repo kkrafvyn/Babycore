@@ -19,25 +19,25 @@ self.addEventListener('push', (event) => {
     const { title, body, icon, badge, data } = payload;
 
     const options: any = {
-      body: body || 'You have a new update from Bud & Bloom.',
+      body: body || 'You have a new update from Cradlyn.',
       icon: icon || '/logo.svg',
       badge: badge || '/logo.svg',
       vibrate: [100, 50, 100],
       data: data || {},
       actions: [
-        { action: 'open', title: 'Open Bud & Bloom' },
+        { action: 'open', title: 'Open Cradlyn' },
         { action: 'close', title: 'Dismiss' }
       ]
     };
 
     event.waitUntil(
-      self.registration.showNotification(title || 'Bud & Bloom Update', options)
+      self.registration.showNotification(title || 'Cradlyn Update', options)
     );
   } catch (err) {
     console.error('Failed to handle push notification:', err);
     // Generic fallback if JSON parsing fails
     event.waitUntil(
-      self.registration.showNotification('Bud & Bloom Notification', {
+      self.registration.showNotification('Cradlyn Notification', {
         body: event.data.text()
       })
     );

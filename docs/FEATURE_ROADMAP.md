@@ -1,4 +1,4 @@
-# 🚀 BabyLog Feature Roadmap
+# 🚀 Cradlyn Feature Roadmap
 
 ## ✅ Phase 1: Core Complete
 - ✅ Sleep Tracker
@@ -266,7 +266,7 @@ New priority features added from that analysis:
 - [x] P0: Pumping plus milk inventory, bottle prep status, and stash alerts.
 - [x] P1: CDC-aligned developmental monitoring starter checklist with provider-question states.
 - [x] P1: Daycare and return-to-work mode with daily sheet capture and away-parent digests.
-- [x] P1: Data-grounded care assistant that answers from Babycore workspace records.
+- [x] P1: Data-grounded care assistant that answers from Cradlyn workspace records.
 - [x] P1: Parent recovery mode for medication reminders, hydration, meals, rest, and support handoffs.
 
 Follow-up depth still needed:

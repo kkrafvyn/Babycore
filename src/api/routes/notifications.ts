@@ -227,7 +227,7 @@ const resolveApnsCredentials = (): ApnsCredentials | null => {
   const keyId = String(process.env.APNS_KEY_ID || process.env.APPLE_KEY_ID || '').trim();
   const privateKey = normalizePrivateKey(readApnsAuthKeyFromEnv());
   const bundleId = String(
-    process.env.APNS_BUNDLE_ID || process.env.IOS_BUNDLE_ID || process.env.APP_BUNDLE_ID || 'com.babylog.app',
+    process.env.APNS_BUNDLE_ID || process.env.IOS_BUNDLE_ID || process.env.APP_BUNDLE_ID || 'com.cradlyn.app',
   ).trim();
   const useSandbox = String(process.env.APNS_USE_SANDBOX || '').trim().toLowerCase();
   const host =

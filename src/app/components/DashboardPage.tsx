@@ -263,7 +263,7 @@ export function DashboardPage() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              Bud & Bloom
+              Cradlyn
             </a>{' '}
             - Baby care dashboard
           </p>

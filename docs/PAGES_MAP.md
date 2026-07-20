@@ -1,4 +1,4 @@
-# BabyLog Pages Map
+# Cradlyn Pages Map
 
 ## Entry Flow
 

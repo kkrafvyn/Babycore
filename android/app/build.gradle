@@ -38,7 +38,7 @@ if (hasReleaseSigningValues && !hasReleaseSigning) {
 }
 
 android {
-    namespace = "com.babylog.app"
+    namespace = "com.cradlyn.app"
     compileSdk = rootProject.ext.compileSdkVersion
     signingConfigs {
         if (hasReleaseSigning) {
@@ -51,7 +51,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId "com.babylog.app"
+        applicationId "com.cradlyn.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2

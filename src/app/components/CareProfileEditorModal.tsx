@@ -169,7 +169,7 @@ export const CareProfileEditorModal: React.FC<CareProfileEditorModalProps> = ({
 
   const subtitle =
     role === 'baby'
-      ? 'Update the stage, feeding style, and priorities so Bud & Bloom can keep the daily rhythm aligned.'
+      ? 'Update the stage, feeding style, and priorities so Cradlyn can keep the daily rhythm aligned.'
       : 'Update the priorities and support areas that should stay at the center of this shared workflow.';
 
   return (

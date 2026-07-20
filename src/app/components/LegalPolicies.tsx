@@ -18,13 +18,13 @@ const POLICY_SECTIONS: PolicySection[] = [
   {
     id: 'privacy-policy',
     title: '1. Privacy Policy',
-    purpose: 'How Bud & Bloom collects, uses, stores, and protects family and child-related data.',
+    purpose: 'How Cradlyn collects, uses, stores, and protects family and child-related data.',
     points: [
       'We collect baby care logs such as feeding, sleep, diaper, growth, health notes, vaccination tracking, reminders, and optional photos uploaded by guardians/caregivers.',
       'Some records can be health-related. This app is designed for family tracking and care coordination, not diagnosis.',
       'Data is stored using secure cloud and local storage with encryption in transit and at rest where supported by infrastructure.',
       'Data can be viewed by the parent/guardian account owner and invited approved users (such as caregivers) according to role permissions.',
-      'Parent/guardian data ownership: baby data belongs to the parent or legal guardian, not Bud & Bloom.',
+      'Parent/guardian data ownership: baby data belongs to the parent or legal guardian, not Cradlyn.',
       'Retention and deletion: active account data is retained while service is in use; deletion requests trigger removal from active systems and scheduled backup expiration according to operational retention windows.',
       'Users can request export or deletion of records through in-app controls where available and account support channels.',
     ],
@@ -32,13 +32,13 @@ const POLICY_SECTIONS: PolicySection[] = [
   {
     id: 'terms-of-service',
     title: '2. Terms of Service',
-    purpose: 'Rules for using Bud & Bloom and responsibilities of account holders.',
+    purpose: 'Rules for using Cradlyn and responsibilities of account holders.',
     points: [
       'Users must provide accurate information to the best of their knowledge and keep account credentials secure.',
       'The primary parent/guardian account is the owner of baby profiles and access permissions.',
       'Premium features, subscriptions, and billing terms are governed by the selected payment plan and renewal settings.',
-      'Bud & Bloom is provided as-is for care tracking support; users remain responsible for real-world care decisions.',
-      'Limitation of liability: Bud & Bloom is not liable for losses resulting from reliance on app suggestions, missed entries, or service interruptions.',
+      'Cradlyn is provided as-is for care tracking support; users remain responsible for real-world care decisions.',
+      'Limitation of liability: Cradlyn is not liable for losses resulting from reliance on app suggestions, missed entries, or service interruptions.',
     ],
   },
   {
@@ -46,7 +46,7 @@ const POLICY_SECTIONS: PolicySection[] = [
     title: '3. Medical Disclaimer',
     purpose: 'Clarifies the app is not a substitute for medical professionals.',
     points: [
-      'Bud & Bloom does not provide medical diagnosis, treatment, or emergency intervention.',
+      'Cradlyn does not provide medical diagnosis, treatment, or emergency intervention.',
       'Insights and reminders are informational support only and may be incomplete, delayed, or incorrect.',
       'Always consult licensed pediatric professionals for health concerns and urgent decisions.',
       'For emergencies, contact local emergency services immediately.',
@@ -57,7 +57,7 @@ const POLICY_SECTIONS: PolicySection[] = [
     title: "4. Children's Data Protection Policy",
     purpose: 'Protection standards for stored child-related records.',
     points: [
-      'Bud & Bloom is intended for adults (parents/guardians/caregivers), not direct use by children.',
+      'Cradlyn is intended for adults (parents/guardians/caregivers), not direct use by children.',
       'We do not knowingly collect accounts directly from children.',
       'Child-related data is submitted by authorized adults for caregiving purposes.',
       'Policy intent aligns with child data protection expectations including COPPA-style and GDPR child-data principles.',
@@ -70,7 +70,7 @@ const POLICY_SECTIONS: PolicySection[] = [
     points: [
       'We may use third-party services for hosting, authentication, storage, analytics, notifications, and payments.',
       'Where possible, only necessary data is shared to operate app features.',
-      'Bud & Bloom does not sell baby or family personal data.',
+      'Cradlyn does not sell baby or family personal data.',
       'If analytics/AI services are used, data processing is limited to service functionality and security operations.',
     ],
   },
@@ -83,7 +83,7 @@ const POLICY_SECTIONS: PolicySection[] = [
       'Owner has full control over profile settings, sharing permissions, export, and deletion.',
       'Caregiver accounts can be limited to logging and viewing permitted records.',
       'Owner can invite, revoke, or update caregiver access.',
-      'Auditability: Bud & Bloom may log who created or modified records to support accountability.',
+      'Auditability: Cradlyn may log who created or modified records to support accountability.',
     ],
   },
   {
@@ -135,7 +135,7 @@ const POLICY_SECTIONS: PolicySection[] = [
     points: [
       'Users must not share harmful, abusive, or misleading childcare/medical misinformation.',
       'Uploaded content must respect privacy rights and local laws.',
-      'Bud & Bloom may moderate, restrict, or remove violating content and accounts.',
+      'Cradlyn may moderate, restrict, or remove violating content and accounts.',
     ],
   },
   {
@@ -183,7 +183,7 @@ const POLICY_SECTIONS: PolicySection[] = [
     title: '16. Emergency Use & Advisory Note',
     purpose: 'Extra protection statement for high-stakes care scenarios.',
     points: [
-      'Bud & Bloom is not an emergency response tool.',
+      'Cradlyn is not an emergency response tool.',
       'Do not delay emergency care because of app outputs or missing notifications.',
       'If a pediatric advisory board is introduced, advisory input improves guidance quality but does not replace direct clinical care.',
     ],
@@ -209,7 +209,7 @@ export const LegalPolicies: React.FC<LegalPoliciesProps> = ({ onBack }) => {
                 Legal & Trust
               </p>
               <h1 className="text-xl font-headline font-black tracking-tight text-foreground">
-                Bud & Bloom Policy Center
+                Cradlyn Policy Center
               </h1>
             </div>
           </div>
@@ -233,8 +233,8 @@ export const LegalPolicies: React.FC<LegalPoliciesProps> = ({ onBack }) => {
                 Safety, Privacy, and Family Control First
               </h2>
               <p className="text-sm font-bold leading-relaxed text-text-dim">
-                These policies define how Bud & Bloom protects child-related records, supports multi-user care
-                workflows, and communicates medical and AI limitations. By using Bud & Bloom, users agree to these
+                These policies define how Cradlyn protects child-related records, supports multi-user care
+                workflows, and communicates medical and AI limitations. By using Cradlyn, users agree to these
                 policy terms.
               </p>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-text-light">

@@ -570,9 +570,9 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
           <div className="hidden items-center justify-between gap-4 border-t border-white/70 px-2 pt-2 text-[10px] font-semibold text-[#5e5f61] dark:border-zinc-800 dark:text-zinc-400 lg:flex">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-['Plus_Jakarta_Sans',sans-serif] font-black text-[#2f3337] dark:text-white">
-                Bud & Bloom
+                Cradlyn
               </span>
-              <span>Editorial Bloom</span>
+              <span>Cradlyn</span>
             </div>
             <div className="flex items-center gap-6">
               <span>Privacy Policy</span>
@@ -581,7 +581,7 @@ export const Material3AddBaby: React.FC<AddBabyScreenProps> = ({ onBabyAdded }) 
               <span>Our Mission</span>
             </div>
             <span>
-              © 2024 Bud & Bloom Editorial. All rights reserved.
+              © 2026 Cradlyn. All rights reserved.
             </span>
           </div>
 

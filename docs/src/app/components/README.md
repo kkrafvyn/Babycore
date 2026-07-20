@@ -1,6 +1,6 @@
-# BabyLog Material Design 3 Components
+# Cradlyn Material Design 3 Components
 
-This folder contains the BabyLog UI components used across onboarding, tracking, sharing, and settings flows.
+This folder contains the Cradlyn UI components used across onboarding, tracking, sharing, and settings flows.
 
 ## Core Components
 - `Material3Dashboard`

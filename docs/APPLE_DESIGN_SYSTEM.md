@@ -1,7 +1,7 @@
-# BabyLog - Apple Design System Implementation
+# Cradlyn - Apple Design System Implementation
 
 ## Overview
-BabyLog is a modern, clean, and intuitive baby tracking application built following Apple's design principles. The app combines functionality with simplicity, allowing parents to easily track their baby's development and activities.
+Cradlyn is a modern, clean, and intuitive baby tracking application built following Apple's design principles. The app combines functionality with simplicity, allowing parents to easily track their baby's development and activities.
 
 ## Design Principles
 

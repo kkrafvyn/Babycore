@@ -114,7 +114,7 @@ export const AIScrapbook: React.FC<AIScrapbookProps> = ({ onBack }) => {
               <div className="space-y-3">
                 <h2 className="text-3xl font-headline font-black text-orange-950 dark:text-orange-50 tracking-tighter">Your Month in Review</h2>
                 <p className="text-sm font-bold text-orange-900/60 dark:text-orange-100/40 leading-relaxed px-4">
-                  Let Bloom AI transform your real logs and memories into a beautiful digital scrapbook page.
+                  Let Cradlyn AI transform your real logs and memories into a beautiful digital scrapbook page.
                 </p>
               </div>
               <button

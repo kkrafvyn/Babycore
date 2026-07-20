@@ -1,4 +1,4 @@
-# 🎯 BabyLog Backend API Complete Inventory
+# 🎯 Cradlyn Backend API Complete Inventory
 
 **Status:** ✅ COMPLETE - All 80+ endpoints implemented and documented
 **Last Updated:** April 23, 2026

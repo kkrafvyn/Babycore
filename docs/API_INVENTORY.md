@@ -1,4 +1,4 @@
-# Complete API Inventory - BabyLog Application
+# Complete API Inventory - Cradlyn Application
 
 ## Summary
 - **Total APIs**: 60+
@@ -266,7 +266,7 @@ HUGGINGFACE_API_KEY=hf_your_huggingface_token
 ### Apple HealthKit
 ```env
 APPLE_HEALTH_TEAM_ID=your_team_id
-APPLE_HEALTH_BUNDLE_ID=com.babylog.app
+APPLE_HEALTH_BUNDLE_ID=com.cradlyn.app
 ```
 - **Native iOS Framework**
 - Data types: heart rate, steps, sleep, temperature

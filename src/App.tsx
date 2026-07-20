@@ -595,7 +595,7 @@ function AppShell() {
   }
 
   if (hasSession && isLoading && babies.length === 0) {
-    return <FullScreenLoader label="Loading Bud & Bloom..." />;
+    return <FullScreenLoader label="Loading Cradlyn..." />;
   }
 
   if (publicRoute === 'policies') {

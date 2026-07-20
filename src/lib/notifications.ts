@@ -695,7 +695,7 @@ export class NotificationsManager {
 
     // iOS web push requires the app to be installed to the home screen.
     if (this.isIOS() && !this.isStandaloneDisplayMode()) {
-      toast('Install Bud & Bloom on your home screen to enable iOS push notifications.');
+      toast('Install Cradlyn on your home screen to enable iOS push notifications.');
       return true;
     }
 

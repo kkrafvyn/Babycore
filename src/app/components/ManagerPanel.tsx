@@ -387,7 +387,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
             </button>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-light">
-                Bud & Bloom Ops
+                Cradlyn Ops
               </p>
               <h1 className="truncate text-base font-headline font-black text-foreground sm:text-lg">
                 Manager Workspace

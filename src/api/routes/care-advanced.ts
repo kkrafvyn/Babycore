@@ -2697,7 +2697,7 @@ router.get('/public/emergency-card/:token/pdf', rateLimit(6, '1m'), async (req: 
     const doc = new PDFDocument({ margin: 42 });
     const bufferPromise = getPdfBuffer(doc);
 
-    doc.fontSize(20).text('BabyCore Emergency Share Card');
+    doc.fontSize(20).text('Cradlyn Emergency Share Card');
     doc.moveDown(0.4);
     doc.fontSize(12).text(`Baby: ${card.baby.name}`);
     doc.fontSize(10).fillColor('#4b5563').text(`Generated: ${new Date(card.generatedAt).toLocaleString()}`);
@@ -2752,7 +2752,7 @@ router.get('/emergency-card/:babyId/pdf', requireAuth, async (req: AuthRequest, 
     const doc = new PDFDocument({ margin: 42 });
     const bufferPromise = getPdfBuffer(doc);
 
-    doc.fontSize(20).text('BabyCore Emergency Share Card');
+    doc.fontSize(20).text('Cradlyn Emergency Share Card');
     doc.moveDown(0.4);
     doc.fontSize(12).text(`Baby: ${card.baby.name}`);
     doc.fontSize(10).fillColor('#4b5563').text(`Generated: ${new Date(card.generatedAt).toLocaleString()}`);

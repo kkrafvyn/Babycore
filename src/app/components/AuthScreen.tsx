@@ -193,7 +193,7 @@ export function AuthScreen({
               <h1 className="mx-auto mt-4 max-w-lg text-5xl font-black leading-[0.98] tracking-[0] text-[#242932] [text-shadow:0_3px_0_rgba(0,0,0,0.09)] sm:text-6xl">
                 {mode === 'signin'
                   ? i18nT('auth.welcomeBack', 'Welcome Back')
-                  : i18nT('auth.joinApp', 'Join Bud & Bloom')}
+                  : i18nT('auth.joinApp', 'Join Cradlyn')}
               </h1>
               <p className="mx-auto mt-6 max-w-md text-lg leading-8 text-[#5f646d]">
                 A calm space for tracking every milestone, feeding, and nap with professional clarity.
@@ -426,7 +426,7 @@ export function AuthScreen({
           <div className="flex flex-col items-center gap-2 pt-4 sm:pt-6">
             <div className="h-1 w-8 rounded-full bg-[#e7e9ef]" />
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#9aa3b2]">
-              BUD & BLOOM SECURE ACCESS
+              CRADLYN SECURE ACCESS
             </p>
           </div>
         </div>

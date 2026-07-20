@@ -310,7 +310,7 @@ export class UnifiedPaymentManager {
       lastName: options.lastName,
       txRef: options.reference,
       customization: {
-        title: 'Bud & Bloom Subscription',
+        title: 'Cradlyn Subscription',
         description: options.description || 'Premium subscription payment',
       },
       meta: {

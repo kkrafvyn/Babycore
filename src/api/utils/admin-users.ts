@@ -38,7 +38,7 @@ const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 const normalizeName = (value: string): string => value.trim();
 const normalizePassword = (value?: string): string => String(value || '').trim();
 
-const generateTemporaryPassword = (): string => `BudBloom!${randomBytes(12).toString('base64url')}`;
+const generateTemporaryPassword = (): string => `Cradlyn!${randomBytes(12).toString('base64url')}`;
 
 export const createAdminManagedUser = async (
   input: CreateAdminManagedUserInput,

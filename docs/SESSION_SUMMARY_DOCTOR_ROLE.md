@@ -1,4 +1,4 @@
-# BabyLog App - Complete Session Summary
+# Cradlyn App - Complete Session Summary
 
 > Historical note: this summary references Vercel as the example deployment target from that session. The current app and API are platform-neutral.
 
@@ -385,7 +385,7 @@ curl https://babylog.app/api/health
 
 ## 🎉 Summary
 
-The BabyLog application is now:
+The Cradlyn application is now:
 - ✅ **Feature Complete**: Doctor role fully implemented
 - ✅ **Production Ready**: All code tested and optimized
 - ✅ **Well Documented**: Comprehensive guides for developers

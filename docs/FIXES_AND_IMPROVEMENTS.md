@@ -1,4 +1,4 @@
-# 🔧 BabyLog: Fixes & Improvements
+# 🔧 Cradlyn: Fixes & Improvements
 
 ## Priority Issues Found
 

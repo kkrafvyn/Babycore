@@ -53,7 +53,7 @@ const getRemotePushStatusCopy = (status: RemotePushStatus | null): { badge: stri
   if (status.subscribed) {
     return {
       badge: 'Remote Push Active',
-      detail: 'Remote reminders are linked to this device and can arrive even when Bud & Bloom is closed.',
+      detail: 'Remote reminders are linked to this device and can arrive even when Cradlyn is closed.',
     };
   }
 
@@ -71,12 +71,12 @@ const getRemotePushStatusCopy = (status: RemotePushStatus | null): { badge: stri
     case 'install-required':
       return {
         badge: 'Install Required',
-        detail: 'Install Bud & Bloom to your home screen on iPhone or iPad before enabling remote push.',
+        detail: 'Install Cradlyn to your home screen on iPhone or iPad before enabling remote push.',
       };
     case 'permission-denied':
       return {
         badge: 'Permission Blocked',
-        detail: 'Browser or system notification permission is blocked for Bud & Bloom. Re-enable it in settings to use remote push.',
+        detail: 'Browser or system notification permission is blocked for Cradlyn. Re-enable it in settings to use remote push.',
       };
     case 'service-worker-unavailable':
     case 'push-manager-unavailable':
@@ -292,7 +292,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         const permissionGranted = await NotificationsManager.requestPermission();
         await updateSettings({ notificationsEnabled: true });
         if (!permissionGranted) {
-          toast('System permissions are limited on this device, but Bud & Bloom will still keep in-app reminders active.');
+          toast('System permissions are limited on this device, but Cradlyn will still keep in-app reminders active.');
         }
       }
 

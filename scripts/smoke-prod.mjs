@@ -88,7 +88,7 @@ const checks = [
 
 const failures = [];
 
-console.log(`\nRunning BabyCore smoke tests against ${baseUrl}\n`);
+console.log(`\nRunning Cradlyn smoke tests against ${baseUrl}\n`);
 
 for (const check of checks) {
   try {

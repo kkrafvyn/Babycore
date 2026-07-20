@@ -2,7 +2,7 @@
 
 Current shell metadata in this repo:
 
-- Bundle identifier: `com.babylog.app`
+- Bundle identifier: `com.cradlyn.app`
 - Marketing version: `1.0.1`
 - Build number: `2`
 - Minimum iOS version: `15.0`

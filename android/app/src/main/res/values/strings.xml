@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Bud & Bloom<//string>
-    <string name="title_activity_main">Bud & Bloom<//string>
-    <string name="package_name">com.babylog.app</string>
-    <string name="custom_url_scheme">com.babylog.app</string>
+    <string name="app_name">Cradlyn</string>
+    <string name="title_activity_main">Cradlyn</string>
+    <string name="package_name">com.cradlyn.app</string>
+    <string name="custom_url_scheme">com.cradlyn.app</string>
     <string name="shortcut_feed_short">Log Feed</string>
     <string name="shortcut_feed_long">Open feeding tracker</string>
     <string name="shortcut_sleep_short">Log Sleep</string>

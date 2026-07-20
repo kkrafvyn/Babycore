@@ -1,4 +1,4 @@
-# BabyCore Production Checklist
+# Cradlyn Production Checklist
 
 ## 1) Required Environment Variables
 
@@ -10,7 +10,7 @@ Set these in your production deployment environment before launch:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
 - `VITE_SUPABASE_AUTH_REDIRECT_URL`
-- Supabase Auth allow-list entry for native mobile: `com.babylog.app://auth/callback`
+- Supabase Auth allow-list entry for native mobile: `com.cradlyn.app://auth/callback`
 - `VITE_PAYSTACK_PUBLIC_KEY`
 - `PAYSTACK_SECRET_KEY`
 - `VITE_API_BASE_URL` (or keep relative `/api`)

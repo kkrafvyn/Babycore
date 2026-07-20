@@ -1,5 +1,5 @@
 {
-  "name": "@babycore/native-wearables",
+  "name": "@cradlyn/native-wearables",
   "version": "0.1.0",
   "description": "Capacitor native wearable bridge for Apple HealthKit and Android Health Connect",
   "license": "MIT",

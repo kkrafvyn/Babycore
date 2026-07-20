@@ -1,5 +1,5 @@
 {
-  "name": "bud-and-bloom",
+  "name": "cradlyn",
   "version": "1.0.0",
   "description": "Complete baby care management and monitoring app with AI insights, premium features, and family sharing",
   "type": "module",
@@ -46,13 +46,14 @@
     "cap:sync:android": "npm run build:frontend && node scripts/run-capacitor.mjs sync android",
     "cap:open:ios": "node scripts/run-capacitor.mjs open ios",
     "cap:open:android": "node scripts/run-capacitor.mjs open android",
+    "run:android": "node scripts/run-android.mjs",
     "cap:add:ios": "node scripts/run-capacitor.mjs add ios",
     "cap:add:android": "node scripts/run-capacitor.mjs add android",
     "generate:vapid": "web-push generate-vapid-keys",
     "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
-    "@babycore/native-wearables": "file:plugins/native-wearables",
+    "@cradlyn/native-wearables": "file:plugins/native-wearables",
     "@capacitor/android": "^8.3.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
@@ -140,7 +141,7 @@
     "pwa",
     "supabase"
   ],
-  "author": "Bud & Bloom Team",
+  "author": "Cradlyn Team",
   "license": "MIT",
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.60.2"

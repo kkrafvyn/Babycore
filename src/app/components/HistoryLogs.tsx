@@ -113,7 +113,7 @@ export const HistoryLogs: React.FC<{ onBack: () => void; showBackButton?: boolea
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
-    a.download = `bud-and-bloom-history-${currentBaby?.name || 'export'}.csv`;
+    a.download = `cradlyn-history-${currentBaby?.name || 'export'}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 

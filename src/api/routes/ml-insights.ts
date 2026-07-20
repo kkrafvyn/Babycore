@@ -416,7 +416,7 @@ export async function careCopilot(req: Request, res: Response) {
             {
               role: 'system',
               content:
-                'You are BabyCore Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
+                'You are Cradlyn Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
             },
             {
               role: 'system',

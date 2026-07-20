@@ -169,7 +169,7 @@ git push origin main
 - [ ] If your repo is already connected: wait for the deploy to start automatically
 - [ ] If not connected:
   - [ ] Click: "Add New..." → "Project"
-  - [ ] Select your BabyLog repository
+  - [ ] Select your Cradlyn repository
   - [ ] Click: "Import"
   - [ ] Next page: Framework preset = "Other"
   - [ ] Add environment variables (copy from .env):

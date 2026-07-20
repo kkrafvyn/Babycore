@@ -59,7 +59,7 @@ export const BloomAI: React.FC<BloomAIProps> = ({ feeds, sleeps }) => {
       <div className="flex items-center gap-4 mb-2">
         <div className={`${insight.color} flex items-center gap-2`}>
           <Sparkles size={16} />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Bloom AI Insight</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Cradlyn AI Insight</span>
         </div>
       </div>
 

@@ -62,9 +62,9 @@ const DATA_TYPE_OPTIONS: Array<{ value: WearableDataType; label: string; default
 
 const SOURCE_OPTIONS = ['manual', ...DEVICE_OPTIONS.map((option) => option.type)];
 const APPLE_HEALTH_PERMISSION_COPY =
-  "Bud & Bloom requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Apple Health at any time by disconnecting the source in Wearables.";
+  "Cradlyn requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Apple Health at any time by disconnecting the source in Wearables.";
 const HEALTH_CONNECT_PERMISSION_COPY =
-  "Bud & Bloom requests read-only access to heart rate, steps, sleep, exercise duration, and body temperature from Android Health Connect. We use these readings only to import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Health Connect at any time by disconnecting the source in Wearables.";
+  "Cradlyn requests read-only access to heart rate, steps, sleep, exercise duration, and body temperature from Android Health Connect. We use these readings only to import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Health Connect at any time by disconnecting the source in Wearables.";
 const WEARABLE_HEALTH_FIELDS = [
   'heart rate',
   'steps',

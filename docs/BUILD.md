@@ -1,7 +1,7 @@
-# BabyLog App - Build Summary
+# Cradlyn App - Build Summary
 
 ## Overview
-BabyLog is a cross-platform baby activity tracker following **Apple Human Interface Guidelines**. Built with React + Vite + TypeScript + Tailwind CSS.
+Cradlyn is a cross-platform baby activity tracker following **Apple Human Interface Guidelines**. Built with React + Vite + TypeScript + Tailwind CSS.
 
 ## Architecture
 

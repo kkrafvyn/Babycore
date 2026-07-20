@@ -273,7 +273,7 @@ export const PediatricianReport: React.FC<PediatricianReportProps> = ({ onBack }
 
             <div className="pt-4 border-t border-border-gray dark:border-zinc-800 flex justify-between items-center text-[10px] font-bold text-text-dim">
               <span>Prepared specifically for pediatrician review.</span>
-              <span className="font-headline font-black text-secondary">Bud & Bloom</span>
+              <span className="font-headline font-black text-secondary">Cradlyn</span>
             </div>
           </div>
         </div>

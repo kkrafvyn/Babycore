@@ -1,4 +1,4 @@
-# 🧪 BabyLog Testing Checklist
+# 🧪 Cradlyn Testing Checklist
 
 ## Pre-Testing Setup
 - [ ] Dev server running (`npm run dev`)

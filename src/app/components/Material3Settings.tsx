@@ -219,7 +219,7 @@ export const Material3Settings: React.FC = () => {
 
         {/* Version & Legal */}
         <div className="mt-16 pt-10 border-t border-[#f3f3f7] dark:border-zinc-800 text-center pb-12">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-[#a0a4ae] dark:text-zinc-500 mb-6 font-['Plus_Jakarta_Sans',sans-serif]">Bud & Bloom v2.4.0</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-[#a0a4ae] dark:text-zinc-500 mb-6 font-['Plus_Jakarta_Sans',sans-serif]">Cradlyn v2.4.0</p>
           <div className="flex justify-center gap-8 text-xs font-bold text-[#45627d] dark:text-blue-300 font-['Manrope',sans-serif]">
             <button className="hover:text-[#2f3337] dark:hover:text-white transition-colors">Terms of Care</button>
             <button className="hover:text-[#2f3337] dark:hover:text-white transition-colors">Privacy Sanctum</button>

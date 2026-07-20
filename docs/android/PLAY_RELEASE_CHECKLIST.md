@@ -2,7 +2,7 @@
 
 ## Current Release Identity
 
-- Application ID: `com.babylog.app`
+- Application ID: `com.cradlyn.app`
 - Version code: `2`
 - Version name: `1.0.1`
 - Min SDK: `26`
@@ -60,7 +60,7 @@ Run this on a physical Android device before upload:
 
 - Local reminders: enable notifications, background the app, and confirm a scheduled reminder appears.
 - App shortcuts: long-press the launcher icon and verify feed, sleep, diaper, and emergency shortcuts open the right screens.
-- Home-screen widget: add the BabyLog widget and verify each quick action opens the matching screen.
+- Home-screen widget: add the Cradlyn widget and verify each quick action opens the matching screen.
 - Camera: take a photo from add-baby, monthly photos, and gallery flows.
 - Health Connect: if shipping wearable sync, complete a permission grant and verify imported readings appear in Wearables.
 

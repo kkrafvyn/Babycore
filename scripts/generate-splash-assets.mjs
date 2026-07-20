@@ -251,9 +251,9 @@ const html = `<!doctype html>
     <div class="frame">
       <div class="main">
         <div class="orb">
-          <img class="logo" src="${logoDataUri}" alt="BabyLog logo" />
+          <img class="logo" src="${logoDataUri}" alt="Cradlyn logo" />
         </div>
-        <div class="title">BabyLog</div>
+        <div class="title">Cradlyn</div>
         <div class="subtitle">Nurturing with intention.</div>
       </div>
       <div class="progress"></div>

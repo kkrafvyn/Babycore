@@ -33,8 +33,8 @@ const normalizeUrl = (value: string, fallbackProtocol = 'https'): string | null 
   }
 };
 
-export const APP_DISPLAY_NAME = 'Bud & Bloom';
-export const APP_PRODUCT_NAME = 'Bloom';
+export const APP_DISPLAY_NAME = 'Cradlyn';
+export const APP_PRODUCT_NAME = 'Cradlyn';
 
 export const resolveAppDisplayName = (): string =>
   String(process.env.APP_NAME || process.env.VITE_APP_NAME || APP_DISPLAY_NAME).trim() ||

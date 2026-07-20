@@ -1,4 +1,4 @@
-# BabyLog - Free & Cheap Services Setup
+# Cradlyn - Free & Cheap Services Setup
 
 **Last Updated**: April 25, 2026  
 **Status**: ✅ Optimized for Startups - $0/month to $50/month

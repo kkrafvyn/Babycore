@@ -1,6 +1,6 @@
-# BabyLog Vercel Deployment Guide
+# Cradlyn Vercel Deployment Guide
 
-> Optional provider-specific example: BabyCore is platform-neutral. Use [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the primary host-agnostic deployment path, and use this guide only if you specifically choose Vercel.
+> Optional provider-specific example: Cradlyn is platform-neutral. Use [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the primary host-agnostic deployment path, and use this guide only if you specifically choose Vercel.
 
 **Status**: ✅ Ready for Production Deployment  
 **Last Updated**: April 25, 2026  
@@ -31,7 +31,7 @@
 3. Create a new organization (optional)
 4. Authorize Vercel to access your GitHub repositories
 
-### 1.2 Import BabyLog Repository
+### 1.2 Import Cradlyn Repository
 1. In Vercel dashboard, click "Add New" → "Project"
 2. Select your GitHub repository
 3. Vercel will auto-detect Vite configuration

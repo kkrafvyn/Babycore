@@ -9,6 +9,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.widget.RemoteViews;
 
+import com.cradlyn.app.R;
+
 public class BabyLogWidgetProvider extends AppWidgetProvider {
 
     private PendingIntent buildViewIntent(Context context, int requestCode, String url) {
@@ -29,19 +31,19 @@ public class BabyLogWidgetProvider extends AppWidgetProvider {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.babylog_widget);
             views.setOnClickPendingIntent(
                 R.id.widget_action_feed,
-                buildViewIntent(context, 101, "com.babylog.app://open/feeding?source=widget")
+                buildViewIntent(context, 101, "com.cradlyn.app://open/feeding?source=widget")
             );
             views.setOnClickPendingIntent(
                 R.id.widget_action_sleep,
-                buildViewIntent(context, 102, "com.babylog.app://open/sleep?source=widget")
+                buildViewIntent(context, 102, "com.cradlyn.app://open/sleep?source=widget")
             );
             views.setOnClickPendingIntent(
                 R.id.widget_action_diaper,
-                buildViewIntent(context, 103, "com.babylog.app://open/diaper?source=widget")
+                buildViewIntent(context, 103, "com.cradlyn.app://open/diaper?source=widget")
             );
             views.setOnClickPendingIntent(
                 R.id.widget_action_emergency,
-                buildViewIntent(context, 104, "com.babylog.app://open/emergency-card?source=widget")
+                buildViewIntent(context, 104, "com.cradlyn.app://open/emergency-card?source=widget")
             );
             appWidgetManager.updateAppWidget(appWidgetId, views);
         }

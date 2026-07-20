@@ -2,7 +2,7 @@
 
 ## Overview
 
-BabyLog now includes a comprehensive role-based access control (RBAC) system with 5 roles:
+Cradlyn now includes a comprehensive role-based access control (RBAC) system with 5 roles:
 - **Admin** - Full system access
 - **Manager** - Content moderation and analytics
 - **User** - Regular app user

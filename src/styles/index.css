@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* BabyLog Design System: light and dark mode tokens */
+/* Cradlyn Design System: light and dark mode tokens */
 
 /* Step 1: Light mode defaults (applied to :root) */
 :root {

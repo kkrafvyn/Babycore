@@ -1,4 +1,4 @@
-# 🔌 BabyLog API Quick Reference
+# 🔌 Cradlyn API Quick Reference
 
 ## Authentication
 ```bash

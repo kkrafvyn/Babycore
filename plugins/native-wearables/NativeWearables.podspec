@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
   s.summary = 'Capacitor bridge for Apple HealthKit and Android Health Connect'
   s.license = 'MIT'
   s.homepage = 'https://babycore.app'
-  s.author = 'BabyCore'
+  s.author = 'Cradlyn'
   s.source = { :path => '.' }
   s.source_files = 'ios/Sources/**/*.{swift,h,m}'
   s.ios.deployment_target = '15.0'

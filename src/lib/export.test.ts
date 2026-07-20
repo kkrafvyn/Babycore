@@ -124,7 +124,7 @@ describe('export helpers', () => {
   it('generates a visit packet html document', () => {
     const html = generateDoctorVisitPacketHTML(exportData as any);
 
-    expect(html).toContain('Bud & Bloom Visit Packet');
+    expect(html).toContain('Cradlyn Visit Packet');
     expect(html).toContain('Ava');
     expect(html).toContain('Vaccines To Review');
     expect(html).toContain('DTaP');

@@ -1,4 +1,4 @@
-# 📖 BabyLog Documentation Index
+# 📖 Cradlyn Documentation Index
 
 ## Quick Navigation
 

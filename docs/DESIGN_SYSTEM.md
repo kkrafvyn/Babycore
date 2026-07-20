@@ -1,4 +1,4 @@
-# Material Design 3 - BabyLog Implementation Guide
+# Material Design 3 - Cradlyn Implementation Guide
 
 ## Color System
 

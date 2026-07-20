@@ -17,14 +17,14 @@ self.addEventListener('push', (event) => {
     payload = event.data.json();
   } catch (error) {
     payload = {
-      title: 'Bud & Bloom',
+      title: 'Cradlyn',
       body: event.data.text(),
     };
   }
 
-  const title = payload.title || 'Bud & Bloom';
+  const title = payload.title || 'Cradlyn';
   const options = {
-    body: payload.body || 'You have a new update from Bud & Bloom.',
+    body: payload.body || 'You have a new update from Cradlyn.',
     icon: payload.icon || '/logo.svg',
     badge: payload.badge || '/logo.svg',
     tag: payload.tag || 'babylog-update',

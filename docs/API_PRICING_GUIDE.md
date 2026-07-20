@@ -1,4 +1,4 @@
-# 💰 BabyLog - API Services & Annual Pricing Guide
+# 💰 Cradlyn - API Services & Annual Pricing Guide
 
 **Last Updated:** April 23, 2026
 **Currency:** USD

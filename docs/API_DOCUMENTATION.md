@@ -959,4 +959,4 @@ All successful responses follow this format:
 
 **API Version**: 1.0.0  
 **Last Updated**: April 22, 2026  
-**Maintained by**: BabyLog Team
+**Maintained by**: Cradlyn Team

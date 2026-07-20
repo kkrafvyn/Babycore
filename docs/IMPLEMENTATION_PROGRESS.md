@@ -1,8 +1,8 @@
-# BabyLog - Implementation Status & Deployment Checklist
+# Cradlyn - Implementation Status & Deployment Checklist
 
 > Historical note: this checklist originally assumed Vercel for deployment examples. The current runtime and active deployment docs are platform-neutral.
 
-**Project**: BabyLog - Baby Health & Development Tracking  
+**Project**: Cradlyn - Baby Health & Development Tracking  
 **Last Updated**: April 25, 2026  
 **Status**: 95%+ Complete - Ready for Production Testing
 

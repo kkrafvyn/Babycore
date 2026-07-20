@@ -1,6 +1,6 @@
 # 🗂️ KEY FILES & DIRECTORY STRUCTURE
 
-**Quick Reference for BabyLog Project**
+**Quick Reference for Cradlyn Project**
 
 ---
 

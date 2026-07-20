@@ -26,7 +26,7 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
     {
       role: 'assistant',
       content:
-        'Hi! I am your BabyCore care copilot. Ask about sleep, feeding, vaccine timing, or growth trends.',
+        'Hi! I am your Cradlyn care copilot. Ask about sleep, feeding, vaccine timing, or growth trends.',
     },
   ]);
   const [copilotModel, setCopilotModel] = useState<string>('built-in-rules');

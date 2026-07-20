@@ -1,4 +1,4 @@
-# 🚀 What Can Be Added to BabyLog
+# 🚀 What Can Be Added to Cradlyn
 
 **Current Foundation:** 40+ tables, RBAC system, 15+ API endpoints, comprehensive features  
 **Date:** April 23, 2026

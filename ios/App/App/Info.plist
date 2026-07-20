@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>BabyLog</string>
+        <string>Cradlyn</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,10 +20,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.babylog.app</string>
+			<string>com.cradlyn.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.babylog.app</string>
+				<string>com.cradlyn.app</string>
 			</array>
 		</dict>
 	</array>
@@ -45,7 +45,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Log Feed</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.babylog.app.open.feeding</string>
+			<string>com.cradlyn.app.open.feeding</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconType</key>
@@ -55,7 +55,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Log Sleep</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.babylog.app.open.sleep</string>
+			<string>com.cradlyn.app.open.sleep</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconType</key>
@@ -65,7 +65,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Log Diaper</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.babylog.app.open.diaper</string>
+			<string>com.cradlyn.app.open.diaper</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconType</key>
@@ -75,17 +75,17 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Emergency</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.babylog.app.open.emergency-card</string>
+			<string>com.cradlyn.app.open.emergency-card</string>
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>BabyLog uses the camera so you can capture baby profile photos and monthly milestone memories directly in the app.</string>
+	<string>Cradlyn uses the camera so you can capture baby profile photos and monthly milestone memories directly in the app.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>BabyLog saves the photos you choose so your baby's timeline and gallery stay complete across devices.</string>
+	<string>Cradlyn saves the photos you choose so your baby's timeline and gallery stay complete across devices.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>BabyLog opens your photo library so you can attach baby photos, gallery memories, and milestone images.</string>
+	<string>Cradlyn opens your photo library so you can attach baby photos, gallery memories, and milestone images.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>BabyLog requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries.</string>
+	<string>Cradlyn requests read-only access to heart rate, steps, sleep sessions, exercise duration, and body temperature from Apple Health so you can import caregiver-approved health trends into your baby's timeline, reminders, and summaries.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

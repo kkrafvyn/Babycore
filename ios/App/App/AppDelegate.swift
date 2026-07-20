@@ -9,10 +9,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private func routeShortcut(_ shortcutItem: UIApplicationShortcutItem) -> Bool {
         let shortcutRoutes: [String: String] = [
-            "com.babylog.app.open.feeding": "com.babylog.app://open/feeding?source=shortcut",
-            "com.babylog.app.open.sleep": "com.babylog.app://open/sleep?source=shortcut",
-            "com.babylog.app.open.diaper": "com.babylog.app://open/diaper?source=shortcut",
-            "com.babylog.app.open.emergency-card": "com.babylog.app://open/emergency-card?source=shortcut"
+            "com.cradlyn.app.open.feeding": "com.cradlyn.app://open/feeding?source=shortcut",
+            "com.cradlyn.app.open.sleep": "com.cradlyn.app://open/sleep?source=shortcut",
+            "com.cradlyn.app.open.diaper": "com.cradlyn.app://open/diaper?source=shortcut",
+            "com.cradlyn.app.open.emergency-card": "com.cradlyn.app://open/emergency-card?source=shortcut"
         ]
 
         guard let route = shortcutRoutes[shortcutItem.type], let url = URL(string: route) else {

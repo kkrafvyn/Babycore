@@ -85,7 +85,7 @@ const COMMON_LANGUAGE_CODES = [
 const translations: Record<string, Translations> = {
   en: {
     common: {
-      appName: 'Bud & Bloom',
+      appName: 'Cradlyn',
       loading: 'Loading...',
       error: 'Error',
       success: 'Success',
@@ -165,7 +165,7 @@ const translations: Record<string, Translations> = {
       processing: 'Authenticating...',
       secure: 'Quantum-Safe Encryption',
       secureNotice:
-        'Your financial credentials are tokenized and processed via high-fidelity secure gateways. Bud & Bloom never retains raw payment data.',
+        'Your financial credentials are tokenized and processed via high-fidelity secure gateways. Cradlyn never retains raw payment data.',
       fillRequired: 'Please fill in all required fields',
     },
     public: {
@@ -193,7 +193,7 @@ const translations: Record<string, Translations> = {
     },
     auth: {
       welcomeBack: 'Welcome Back',
-      joinApp: 'Join Bud & Bloom',
+      joinApp: 'Join Cradlyn',
       identityVerification: 'Identity Verification',
       provisionAccess: 'Provision Access',
       continueAfterSignIn: 'Continue to {destination} after sign in',
@@ -318,7 +318,7 @@ const translations: Record<string, Translations> = {
   },
   es: {
     common: {
-      appName: 'Bud & Bloom',
+      appName: 'Cradlyn',
       loading: 'Cargando...',
       error: 'Error',
       success: 'Éxito',
@@ -384,7 +384,7 @@ const translations: Record<string, Translations> = {
       processing: 'Autenticando...',
       secure: 'Encriptación de grado cuántico',
       secureNotice:
-        'Sus credenciales financieras están tokenizadas y procesadas a través de pasarelas seguras. Bud & Bloom nunca retiene datos de pago sin procesar.',
+        'Sus credenciales financieras están tokenizadas y procesadas a través de pasarelas seguras. Cradlyn nunca retiene datos de pago sin procesar.',
       fillRequired: 'Por favor, complete todos los campos obligatorios',
     },
     public: {
@@ -410,7 +410,7 @@ const translations: Record<string, Translations> = {
     },
     auth: {
       welcomeBack: 'Bienvenido de nuevo',
-      joinApp: 'Unete a Bud & Bloom',
+      joinApp: 'Unete a Cradlyn',
       identityVerification: 'Verificacion de identidad',
       provisionAccess: 'Activar acceso',
       continueAfterSignIn: 'Continua a {destination} despues de iniciar sesion',
@@ -527,7 +527,7 @@ const translations: Record<string, Translations> = {
   },
   fr: {
     common: {
-      appName: 'Bud & Bloom',
+      appName: 'Cradlyn',
       loading: 'Chargement...',
       error: 'Erreur',
       success: 'Succès',
@@ -578,7 +578,7 @@ const translations: Record<string, Translations> = {
     },
     auth: {
       welcomeBack: 'Bon retour',
-      joinApp: 'Rejoindre Bud & Bloom',
+      joinApp: 'Rejoindre Cradlyn',
       identityVerification: 'Verification de l identite',
       provisionAccess: 'Activer l acces',
       continueAfterSignIn: 'Continuer vers {destination} apres connexion',
@@ -697,7 +697,7 @@ const translations: Record<string, Translations> = {
   },
   de: {
     common: {
-      appName: 'Bud & Bloom',
+      appName: 'Cradlyn',
       loading: 'Laden...',
       error: 'Fehler',
       success: 'Erfolg',
@@ -748,7 +748,7 @@ const translations: Record<string, Translations> = {
     },
     auth: {
       welcomeBack: 'Willkommen zuruck',
-      joinApp: 'Zu Bud & Bloom',
+      joinApp: 'Zu Cradlyn',
       identityVerification: 'Identitatsprufung',
       provisionAccess: 'Zugang einrichten',
       continueAfterSignIn: 'Nach Anmeldung weiter zu {destination}',
@@ -865,11 +865,11 @@ const translations: Record<string, Translations> = {
       growthTrackingNote: '*Pflichtfelder fur Wachstumstracking',
     },
   },
-  it: { common: { appName: 'Bud & Bloom' } },
-  pt: { common: { appName: 'Bud & Bloom' } },
-  ja: { common: { appName: 'Bud & Bloom' } },
-  zh: { common: { appName: 'Bud & Bloom' } },
-  ar: { common: { appName: 'Bud & Bloom' } },
+  it: { common: { appName: 'Cradlyn' } },
+  pt: { common: { appName: 'Cradlyn' } },
+  ja: { common: { appName: 'Cradlyn' } },
+  zh: { common: { appName: 'Cradlyn' } },
+  ar: { common: { appName: 'Cradlyn' } },
 };
 
 const normalizeLanguageCodeInternal = (language: string | null | undefined): string => {

@@ -1,8 +1,8 @@
-# BabyLog — Apple Design Guidelines Implementation
+# Cradlyn — Apple Design Guidelines Implementation
 
 ## Project Summary
 
-**BabyLog** is a full-featured baby activity tracking application built following **Apple's Human Interface Guidelines (HIG)**. The app is designed to help parents and caregivers worldwide track their baby's sleep, feeding, diaper changes, growth, and vaccinations.
+**Cradlyn** is a full-featured baby activity tracking application built following **Apple's Human Interface Guidelines (HIG)**. The app is designed to help parents and caregivers worldwide track their baby's sleep, feeding, diaper changes, growth, and vaccinations.
 
 ### Key Details
 - **Status**: Core architecture & onboarding complete. Core trackers in progress.

@@ -1,4 +1,4 @@
-# 🎉 BabyLog - Complete Session Delivery
+# 🎉 Cradlyn - Complete Session Delivery
 
 > Historical note: this session summary references Vercel because it was the example deployment target at the time. The current project can be deployed on any platform.
 

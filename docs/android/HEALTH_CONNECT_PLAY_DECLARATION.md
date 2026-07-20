@@ -2,7 +2,7 @@
 
 ## Requested Android Health Connect Reads
 
-BabyLog currently requests read-only access to:
+Cradlyn currently requests read-only access to:
 
 - heart rate
 - steps
@@ -16,13 +16,13 @@ These match the permissions declared by the local native wearables plugin.
 
 Use this same meaning anywhere Health Connect is described in the app, the Play Console, or the privacy policy:
 
-> BabyLog requests read-only access to heart rate, steps, sleep, exercise duration, and body temperature from Android Health Connect. We use these readings only to import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Health Connect at any time by disconnecting the source in Wearables.
+> Cradlyn requests read-only access to heart rate, steps, sleep, exercise duration, and body temperature from Android Health Connect. We use these readings only to import caregiver-approved health trends into your baby's timeline, reminders, and summaries. You can stop using Health Connect at any time by disconnecting the source in Wearables.
 
 ## Privacy Policy Copy
 
 Add a section to the production privacy policy that says:
 
-> If you choose to connect Android Health Connect, BabyLog may read heart rate, steps, sleep sessions, exercise duration, and body temperature that you explicitly allow through Health Connect permissions. This data is used only to import health information into the baby's care records, display health trends, and support caregiver features inside the app. BabyLog does not request write access to Health Connect for this feature.
+> If you choose to connect Android Health Connect, Cradlyn may read heart rate, steps, sleep sessions, exercise duration, and body temperature that you explicitly allow through Health Connect permissions. This data is used only to import health information into the baby's care records, display health trends, and support caregiver features inside the app. Cradlyn does not request write access to Health Connect for this feature.
 
 ## Play Console Declaration Notes
 

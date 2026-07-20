@@ -1,4 +1,4 @@
-// Core data types for Bud & Bloom app
+// Core data types for Cradlyn app
 
 export interface Baby {
   id: string;

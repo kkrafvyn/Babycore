@@ -29,7 +29,7 @@ try {
 
   const packageJson = JSON.parse(originalPackageJson);
   packageJson.dependencies = packageJson.dependencies || {};
-  packageJson.dependencies['@babycore/native-wearables'] = 'file:plugins/native-wearables';
+  packageJson.dependencies['@cradlyn/native-wearables'] = 'file:plugins/native-wearables';
   writeFileSync(`${packageJsonPath}`, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8');
 
   const child = spawn(process.execPath, [capacitorCliPath, ...args], {

@@ -8,9 +8,9 @@ export interface PaymentCollectionConfig {
 }
 
 export const DEFAULT_PAYMENT_COLLECTION_REASON =
-  'Payments are disabled while Bud & Bloom completes full-app testing before marketing.';
+  'Payments are disabled while Cradlyn completes full-app testing before marketing.';
 export const DEFAULT_PREMIUM_ACCESS_REASON =
-  'Premium enforcement is open while Bud & Bloom completes package testing before marketing.';
+  'Premium enforcement is open while Cradlyn completes package testing before marketing.';
 
 export const DEFAULT_PAYMENT_COLLECTION_CONFIG: PaymentCollectionConfig = {
   enabled: false,

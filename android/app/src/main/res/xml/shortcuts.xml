@@ -8,7 +8,7 @@
         android:shortcutShortLabel="@string/shortcut_feed_short">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="com.babylog.app://open/feeding?source=shortcut" />
+            android:data="com.cradlyn.app://open/feeding?source=shortcut" />
     </shortcut>
 
     <shortcut
@@ -19,7 +19,7 @@
         android:shortcutShortLabel="@string/shortcut_sleep_short">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="com.babylog.app://open/sleep?source=shortcut" />
+            android:data="com.cradlyn.app://open/sleep?source=shortcut" />
     </shortcut>
 
     <shortcut
@@ -30,7 +30,7 @@
         android:shortcutShortLabel="@string/shortcut_diaper_short">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="com.babylog.app://open/diaper?source=shortcut" />
+            android:data="com.cradlyn.app://open/diaper?source=shortcut" />
     </shortcut>
 
     <shortcut
@@ -41,6 +41,6 @@
         android:shortcutShortLabel="@string/shortcut_emergency_short">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="com.babylog.app://open/emergency-card?source=shortcut" />
+            android:data="com.cradlyn.app://open/emergency-card?source=shortcut" />
     </shortcut>
 </shortcuts>

@@ -6,7 +6,7 @@ import {
   type PublicRoute,
 } from './app-routing';
 
-export const NATIVE_APP_SCHEME = 'com.babylog.app';
+export const NATIVE_APP_SCHEME = 'com.cradlyn.app';
 const OPEN_HOSTS = new Set(['open', 'app', 'view']);
 
 export interface ParsedNativeAppLink {

@@ -7,7 +7,7 @@
 
 ## 📌 What Was Delivered
 
-You now have a **complete role-based access control (RBAC) system** with Admin and Manager roles added to your BabyLog application.
+You now have a **complete role-based access control (RBAC) system** with Admin and Manager roles added to your Cradlyn application.
 
 ### New Roles Added
 1. **Admin** - Full system control (NEW)
@@ -352,7 +352,7 @@ curl -X POST /api/manager/moderate-content/[POST_ID] \
 
 ## 🎉 Summary
 
-Your BabyLog application now has **enterprise-grade role-based access control** with:
+Your Cradlyn application now has **enterprise-grade role-based access control** with:
 
 ✅ Full audit trail of all role changes  
 ✅ Admin user management system  

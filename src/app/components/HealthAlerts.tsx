@@ -319,7 +319,7 @@ export function HealthAlerts({ countryCode, babyName }: HealthAlertsProps) {
                 {headline}
               </h1>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-relaxed text-text-dim">
-                A calmer place to review recalls, advisories, and public-health updates without losing the original Bud & Bloom feel.
+                A calmer place to review recalls, advisories, and public-health updates without losing the original Cradlyn feel.
               </p>
             </div>
             <button
@@ -360,7 +360,7 @@ export function HealthAlerts({ countryCode, babyName }: HealthAlertsProps) {
                 {featuredItem ? `${featuredItem.source} - ${categoryLabels[featuredItem.category]}` : 'Official source guide'}
               </span>
               <h2 className="mt-6 max-w-3xl font-headline text-4xl font-black leading-none tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-                {featuredItem?.title || 'Where Bud & Bloom gets family health news'}
+                {featuredItem?.title || 'Where Cradlyn gets family health news'}
               </h2>
               <p className="mt-5 max-w-2xl text-sm font-semibold leading-7 text-text-dim sm:text-base">
                 {featuredItem?.summary ||

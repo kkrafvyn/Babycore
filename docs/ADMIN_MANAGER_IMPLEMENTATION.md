@@ -268,7 +268,7 @@ curl -X POST http://localhost:3000/api/manager/moderate-content/post-uuid \
 
 ## Summary
 
-Your BabyLog application now has a **complete role-based access control system** with:
+Your Cradlyn application now has a **complete role-based access control system** with:
 
 - ✅ **5 Roles**: Admin, Manager, User, Caregiver, Viewer
 - ✅ **15+ New Endpoints**: Admin (8) + Manager (7)

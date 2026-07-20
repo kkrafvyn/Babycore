@@ -1,5 +1,5 @@
 /**
- * Material Design 3 - Editorial Bloom Components
+ * Material Design 3 - Cradlyn Components
  * All components follow the Brand Specification in serenity_log/DESIGN.md
  * 
  * Usage:

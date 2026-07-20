@@ -46,7 +46,7 @@ const APP_URL =
   getEnv('VITE_APP_URL') ||
   getEnv('CLIENT_URL') ||
   getEnv('VITE_SUPABASE_AUTH_REDIRECT_URL') ||
-  'https://budandbloom.com';
+  'https://cradlyn.com';
 const SERVER_SUPABASE_URL = getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL');
 
 const toStringValue = (value) => (typeof value === 'string' ? value.trim() : '');
@@ -363,7 +363,7 @@ const criticalFailures = checks.filter((check) => check.critical && !check.valid
 const optionalFailures = checks.filter((check) => !check.critical && !check.valid);
 const nativeWarnings = nativeChecks.filter((check) => !check.valid);
 
-console.log('\nBabyCore Production Config Check\n');
+console.log('\nCradlyn Production Config Check\n');
 for (const check of checks) {
   const symbol = check.valid ? 'PASS' : check.critical ? 'FAIL' : 'WARN';
   console.log(`${symbol.padEnd(5)} ${check.key}`);

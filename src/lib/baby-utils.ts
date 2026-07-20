@@ -317,7 +317,7 @@ export function getGrowthStandardData(
   standard: GrowthStandard = 'WHO',
 ): WHODataPoint[] {
   if (standard === 'CDC') {
-    // Bud & Bloom charts currently cover birth to 24 months. CDC guidance uses the
+    // Cradlyn charts currently cover birth to 24 months. CDC guidance uses the
     // WHO growth standard for this age range, so CDC requests intentionally
     // resolve to WHO reference data instead of fabricated parallel curves.
     return getWhoGrowthData(metric, gender);

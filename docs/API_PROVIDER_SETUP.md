@@ -1,6 +1,6 @@
 # API Provider Setup
 
-This file lists the real external providers that BabyCore can use, which ones are required today, and how to get access to each one.
+This file lists the real external providers that Cradlyn can use, which ones are required today, and how to get access to each one.
 
 ## Required For Current Production
 

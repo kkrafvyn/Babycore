@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "Babycore"
+project_id = "Cradlyn"
 
 [api]
 enabled = true
@@ -240,23 +240,23 @@ otp_expiry = 3600
 
 # Uncomment to customize email template
 [auth.email.template.confirmation]
-subject = "Confirm your BabyLog account"
+subject = "Confirm your Cradlyn account"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Reset your BabyLog password"
+subject = "Reset your Cradlyn password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
-subject = "Your BabyLog sign-in link"
+subject = "Your Cradlyn sign-in link"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.invite]
-subject = "You have been invited to BabyLog"
+subject = "You have been invited to Cradlyn"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.email_change]
-subject = "Confirm your new BabyLog email"
+subject = "Confirm your new Cradlyn email"
 content_path = "./supabase/templates/email_change.html"
 
 # Regenerate branded auth templates after changing APP_NAME:

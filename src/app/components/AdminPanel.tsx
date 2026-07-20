@@ -1033,7 +1033,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </button>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-light">
-                Bud & Bloom Command
+                Cradlyn Command
               </p>
               <h1 className="truncate text-base font-headline font-black text-foreground sm:text-lg">
                 Admin Console
@@ -1271,7 +1271,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       Role Distribution
                     </p>
                     <h3 className="mt-1 text-xl font-headline font-black tracking-tight text-foreground">
-                      Who is using Bud & Bloom
+                      Who is using Cradlyn
                     </h3>
                   </div>
                   <div className="grid gap-2 rounded-[2.25rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70 sm:grid-cols-2">

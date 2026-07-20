@@ -149,7 +149,7 @@ async function generateSocialMediaCard(babyName: string, milestoneType: string):
         Milestone: ${safeMilestone}
       </text>
       <text x="80" y="410" font-size="30" fill="#d7f3ff" font-family="Arial, sans-serif">
-        Captured with BabyCore
+        Captured with Cradlyn
       </text>
     </svg>
   `.trim();

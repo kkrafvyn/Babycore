@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers setting up the backend API endpoints for all BabyLog premium features. The API includes:
+This guide covers setting up the backend API endpoints for all Cradlyn premium features. The API includes:
 
 - **Health Alerts** - Epidemic/outbreak tracking
 - **Doctor Reports** - PDF generation with QR codes

@@ -1,7 +1,7 @@
 {
-  "name": "Bud & Bloom",
-  "short_name": "Bud&Bloom",
-  "description": "Bud & Bloom — smart baby tracking, caregiver sync, and care records.",
+  "name": "Cradlyn",
+  "short_name": "Cradlyn",
+  "description": "Cradlyn — smart baby tracking, caregiver sync, and care records.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
