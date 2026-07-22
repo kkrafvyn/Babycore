@@ -1,4 +1,4 @@
-package com.babylog.app;
+package com.cradlyn.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
