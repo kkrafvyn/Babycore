@@ -31,7 +31,7 @@
     "lighthouse": "lighthouse http://localhost:5173 --output-path=./lighthouse/report.html",
     "db:seed": "tsx scripts/seed.ts",
     "db:sync-migrations": "node scripts/sync-supabase-migrations.mjs",
-    "auth:email-templates": "node scripts/generate-supabase-auth-templates.mjs",
+    "auth:email-templates": "tsx scripts/generate-supabase-auth-templates.ts",
     "supabase:linked": "node scripts/run-supabase-linked.mjs",
     "supabase:client": "node scripts/run-supabase-client.mjs",
     "db:migration:list": "node scripts/apply-migrations-linked.mjs --dry-run",

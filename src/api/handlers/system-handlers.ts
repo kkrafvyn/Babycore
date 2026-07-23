@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
-import { renderInviteEmail } from '../utils/email-templates.js';
+import { resolveEmailBranding } from '../utils/app-branding.js';
+import { renderInviteEmail, wrapEmailHtml } from '../utils/email-templates.js';
 import { sendTransactionalEmail } from '../utils/email.js';
 import { supabase } from '../utils/supabase.js';
 import { applyFullSync, buildSyncSnapshot } from '../utils/sync-data.js';
@@ -493,10 +494,17 @@ export async function sendEmailHandler(req: AuthRequest, res: Response): Promise
   }
 
   try {
+    const branding = resolveEmailBranding({ req });
+    const wrappedHtml = wrapEmailHtml(html, {
+      preview: subject,
+      title: subject,
+      branding,
+    });
+
     const result = await sendTransactionalEmail({
       to,
       subject,
-      html,
+      html: wrappedHtml,
       text,
       from,
     });
