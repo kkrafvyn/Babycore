@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
+import { resolveAiProviderConfig, requestAiChatCompletion } from '../utils/ai-provider.js';
 import { resolveBabyAccessForIdentity } from '../utils/baby-access.js';
 
 const router = Router();
@@ -398,48 +399,34 @@ export async function careCopilot(req: Request, res: Response) {
 
     let answer = buildFallbackCopilotResponse(String(prompt), contextSummary);
     let usedModel = 'built-in-rules';
+    let usedProvider = 'rules';
 
-    const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY;
-    if (openaiKey) {
-      const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-      const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openaiKey}`,
+    const aiProvider = resolveAiProviderConfig();
+    if (aiProvider) {
+      const completion = await requestAiChatCompletion(aiProvider, [
+        {
+          role: 'system',
+          content:
+            'You are Cradlyn Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
         },
-        body: JSON.stringify({
-          model,
-          temperature: 0.25,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are Cradlyn Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
-            },
-            {
-              role: 'system',
-              content: `Baby profile context:\n${contextSummary}`,
-            },
-            ...safeHistory,
-            {
-              role: 'user',
-              content: String(prompt).slice(0, 1500),
-            },
-          ],
-        }),
-      });
+        {
+          role: 'system',
+          content: `Baby profile context:\n${contextSummary}`,
+        },
+        ...safeHistory.map((item) => ({
+          role: item.role as 'user' | 'assistant',
+          content: item.content,
+        })),
+        {
+          role: 'user',
+          content: String(prompt).slice(0, 1500),
+        },
+      ]);
 
-      if (response.ok) {
-        const payload = await response.json();
-        const content = payload?.choices?.[0]?.message?.content;
-        if (content) {
-          answer = String(content).trim();
-          usedModel = model;
-        }
-      } else {
-        console.warn('Care copilot model request failed:', response.status);
+      if (completion?.content) {
+        answer = completion.content;
+        usedModel = completion.model;
+        usedProvider = completion.provider;
       }
     }
 
@@ -447,6 +434,7 @@ export async function careCopilot(req: Request, res: Response) {
       success: true,
       response: answer,
       usedModel,
+      usedProvider,
       generatedAt: new Date().toISOString(),
     });
   } catch (error: any) {

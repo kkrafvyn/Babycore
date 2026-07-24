@@ -15,7 +15,8 @@ import {
   signInWithSocialProvider,
   type SocialAuthProvider,
 } from '../../lib/supabase';
-import { getOnboardingCache } from '../../lib/onboarding-storage';
+import { getOnboardingCache, clearOnboardingCache } from '../../lib/onboarding-storage';
+import { consumeAuthModeHint, markAuthModeHint } from '../../lib/auth-mode-hint';
 import { i18nT } from '../../lib/i18n';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
 
@@ -26,21 +27,8 @@ interface AuthScreenProps {
 }
 
 type AuthMode = 'signin' | 'signup';
-const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
 
-const consumeAuthModeHint = (): AuthMode => {
-  if (typeof window === 'undefined') {
-    return 'signin';
-  }
-
-  const hintedMode = window.sessionStorage.getItem(AUTH_MODE_HINT_KEY);
-  if (hintedMode === 'signup' || hintedMode === 'signin') {
-    window.sessionStorage.removeItem(AUTH_MODE_HINT_KEY);
-    return hintedMode;
-  }
-
-  return 'signin';
-};
+const readInitialAuthMode = (): AuthMode => consumeAuthModeHint() || 'signin';
 
 const MotionDiv = motion.div as any;
 const socialProviders: Array<{
@@ -60,7 +48,7 @@ export function AuthScreen({
 }: AuthScreenProps) {
   const appName = getClientAppName();
   const logoSrc = getClientLogoSrc();
-  const [mode, setMode] = useState<AuthMode>(() => consumeAuthModeHint());
+  const [mode, setMode] = useState<AuthMode>(() => readInitialAuthMode());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -86,9 +74,12 @@ export function AuthScreen({
 
     try {
       if (mode === 'signin') {
+        clearOnboardingCache();
+        markAuthModeHint('signin');
         await signInWithEmail(email, password);
         onSuccess(false);
       } else {
+        markAuthModeHint('signup');
         const onboarding = getOnboardingCache();
         const profileType = onboarding.profileType;
         const profileName =
@@ -144,6 +135,8 @@ export function AuthScreen({
     setSocialLoadingProvider(provider);
 
     try {
+      markAuthModeHint('signin');
+      clearOnboardingCache();
       await signInWithSocialProvider(provider);
     } catch (err: any) {
       setError(err?.message || i18nT('auth.socialAuthFailed', 'Social authentication failed. Please try again.'));

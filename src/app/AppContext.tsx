@@ -34,6 +34,7 @@ import {
   getOnboardingCache,
   clearOnboardingCache,
 } from '../lib/onboarding-storage';
+import { consumeAuthModeHint } from '../lib/auth-mode-hint';
 import { BabyLogNotification, NotificationsManager } from '../lib/notifications';
 import { getApiBaseUrl } from '../lib/api-base-url';
 import { readJsonResponse } from '../lib/http-json';
@@ -102,6 +103,7 @@ interface AppContextType {
   setCurrentView: (view: View) => void;
   isLoading: boolean;
   error: string | null;
+  retryProfileLoad: () => Promise<void>;
   
   // Navigation
   goToOnboarding: () => void;
@@ -291,6 +293,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       }
     } catch (error) {
       console.warn('Remote hydration skipped due to sync error:', error);
+      throw error;
     } finally {
       isApplyingRemoteSnapshotRef.current = false;
     }
@@ -427,6 +430,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         setSettings(null);
         setMilestones([]);
         setIsLoading(false);
+        setError(null);
       }
     });
 
@@ -462,17 +466,23 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     const initialize = async () => {
       try {
         setIsLoading(true);
+        setError(null);
+
+        const authModeHint = consumeAuthModeHint();
+        const shouldSyncOnboardingBaby = authModeHint === 'signup';
         
         // Check if there's onboarding data to sync
         const { baby: onboardingBaby, settings: onboardingSettings } = getOnboardingCache();
         
-        if (onboardingBaby) {
+        if (shouldSyncOnboardingBaby && onboardingBaby) {
           try {
             await addBaby(onboardingBaby);
             clearOnboardingCache();
           } catch (err) {
             console.error('Failed to sync onboarding baby data:', err);
           }
+        } else if (authModeHint === 'signin') {
+          clearOnboardingCache();
         }
 
         try {
@@ -582,8 +592,31 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       cancelled = true;
       clearInterval(syncInterval);
       realtimeUnsubscribe?.();
+      if (initializedUserIdRef.current !== userId) {
+        initializePromiseRef.current = null;
+      }
     };
   }, [user?.id]);
+
+  const retryProfileLoad = async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await mergeRemoteSnapshotIntoLocal();
+      await refreshBabies();
+      setError(null);
+    } catch (err) {
+      console.error('Failed to reload profile data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load your profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const syncSubscriptionStatusFromBackend = async (userId: string) => {
     try {
@@ -848,6 +881,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     setCurrentView,
     isLoading,
     error,
+    retryProfileLoad,
     goToOnboarding,
   };
 

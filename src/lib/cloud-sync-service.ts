@@ -135,6 +135,24 @@ const getActiveSessionAccessToken = async (): Promise<string | null> => {
   return session?.access_token || null;
 };
 
+const waitForActiveSessionAccessToken = async (
+  maxAttempts = 6,
+  delayMs = 200,
+): Promise<string | null> => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const accessToken = await getActiveSessionAccessToken();
+    if (accessToken) {
+      return accessToken;
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+
+  return null;
+};
+
 const callSyncBackend = async <TPayload>(
   path: string,
   init: RequestInit,
@@ -143,9 +161,9 @@ const callSyncBackend = async <TPayload>(
     return null;
   }
 
-  const accessToken = await getActiveSessionAccessToken();
+  const accessToken = await waitForActiveSessionAccessToken();
   if (!accessToken) {
-    return null;
+    throw new Error('Authentication session is not ready yet. Please try again.');
   }
 
   const headers = new Headers(init.headers || {});
@@ -452,6 +470,14 @@ export async function pullFromCloud(): Promise<any> {
 
     if (backendSnapshot?.snapshot) {
       return backendSnapshot.snapshot;
+    }
+
+    if (!shouldAllowDirectSupabaseFallback()) {
+      throw new Error(
+        backendSnapshot === null
+          ? 'Unable to reach the profile sync service. Check your API configuration and try again.'
+          : 'Profile sync returned no data for this account.',
+      );
     }
 
     const { data: userSettingsRow, error: userSettingsError } = await supabase

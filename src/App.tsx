@@ -12,6 +12,7 @@ import {
   saveSettingsToOnboarding,
 } from './lib/onboarding-storage';
 import { deriveSettingsFromCareProfile } from './lib/care-profile';
+import { markAuthModeHint } from './lib/auth-mode-hint';
 import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
@@ -68,7 +69,6 @@ const markMobileSplashSeen = () => {
   window.localStorage.setItem(MOBILE_SPLASH_SESSION_KEY, 'true');
   window.sessionStorage.setItem(MOBILE_SPLASH_SESSION_KEY, 'true');
 };
-const AUTH_MODE_HINT_KEY = 'babylog_auth_mode';
 const LEGACY_GUEST_SESSION_KEY = 'babylog_guest_session';
 
 const getLegacyRouteFromHash = (): LocationRoute | null => {
@@ -134,13 +134,6 @@ const getCanonicalPathForRoute = (route: LocationRoute): string => {
   return getPublicRoutePath(route.publicRoute);
 };
 
-const setAuthModeHint = (mode: 'signin' | 'signup') => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.sessionStorage.setItem(AUTH_MODE_HINT_KEY, mode);
-};
 
 const formatAppViewLabel = (view: AppView): string =>
   view
@@ -206,7 +199,8 @@ const renderWithSuspense = (node: React.ReactNode, label: string) => (
 );
 
 function AppShell() {
-  const { user, babies, currentBaby, isLoading, refreshBabies, refreshAllLogs } = useAppContext();
+  const { user, babies, currentBaby, isLoading, error, retryProfileLoad, refreshBabies, refreshAllLogs } =
+    useAppContext();
   const handledInviteTokenRef = React.useRef<string | null>(null);
   const lastNativeWearableSyncAtRef = React.useRef(0);
   const lastResumeRefreshAtRef = React.useRef(0);
@@ -222,10 +216,12 @@ function AppShell() {
   const currentAppRouteView = locationRoute.kind === 'app' ? locationRoute.appView : null;
   const effectivePublicRoute = !hasSession && locationRoute.kind === 'app' ? 'login' : publicRoute;
 
-  const cachedOnboardingProfileType = React.useMemo(
-    () => getOnboardingCache().profileType,
-    [effectivePublicRoute, user?.id, appRouteView],
-  );
+  const cachedOnboardingProfileType = React.useMemo(() => {
+    if (user?.user_metadata?.onboarding_profile_type) {
+      return undefined;
+    }
+    return getOnboardingCache().profileType;
+  }, [user?.id, user?.user_metadata?.onboarding_profile_type]);
   const accountProfileType =
     (user?.user_metadata?.onboarding_profile_type as 'baby' | 'doctor' | 'caregiver' | undefined) ||
     cachedOnboardingProfileType;
@@ -570,7 +566,7 @@ function AppShell() {
       careProfilePreferences: personalizedDefaults.careProfilePreferences,
     });
 
-    setAuthModeHint('signup');
+    markAuthModeHint('signup');
     navigateToPublicRoute('login');
   };
 
@@ -636,10 +632,31 @@ function AppShell() {
     }
 
     const shouldForceBabySetup =
+      !error &&
       babies.length === 0 &&
       accountProfileType !== 'doctor' &&
       accountProfileType !== 'caregiver' &&
       !isAdminAccount;
+
+    if (!isLoading && error && babies.length === 0) {
+      return (
+        <div className="fit-screen flex items-center justify-center bg-[#f8f7fb] px-6 text-center text-[#242932]">
+          <div className="max-w-md rounded-[2rem] border border-[#ebeaf0] bg-white p-8 shadow-sm">
+            <h1 className="font-headline text-2xl font-black tracking-tight">Couldn&apos;t load your profile</h1>
+            <p className="mt-3 text-sm leading-6 text-[#686d76]">{error}</p>
+            <button
+              type="button"
+              className="mt-6 inline-flex min-w-[180px] items-center justify-center rounded-full bg-[#55575c] px-6 py-3 text-sm font-bold text-white"
+              onClick={() => {
+                void retryProfileLoad();
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     if (shouldForceBabySetup) {
       return renderWithSuspense(
@@ -667,7 +684,7 @@ function AppShell() {
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
         onSkip={() => {
-          setAuthModeHint('signin');
+          markAuthModeHint('signin');
           navigateToPublicRoute('login');
         }}
         onViewPolicies={openPolicies}
@@ -694,7 +711,7 @@ function AppShell() {
     <Material3Welcome
       onGetStarted={() => navigateToPublicRoute('onboarding')}
       onLogIn={() => {
-        setAuthModeHint('signin');
+        markAuthModeHint('signin');
         navigateToPublicRoute('login');
       }}
       onViewPolicies={openPolicies}
