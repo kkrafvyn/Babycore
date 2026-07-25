@@ -345,8 +345,29 @@ const mapDoctorAssignedBabyApiRow = (row: DoctorAssignedBabyApiRow): Baby => ({
   createdAt: row.babyCreatedAt || new Date().toISOString(),
 });
 
+const canAccessDoctorPortal = (user: {
+  app_metadata?: { role?: string };
+  user_metadata?: { onboarding_profile_type?: string };
+} | null): boolean => {
+  if (!user) {
+    return false;
+  }
+
+  const appRole = String(user.app_metadata?.role || '').trim().toLowerCase();
+  if (appRole === 'doctor' || appRole === 'admin') {
+    return true;
+  }
+
+  return String(user.user_metadata?.onboarding_profile_type || '').trim().toLowerCase() === 'doctor';
+};
+
 const getDoctorAssignedBabiesViaBackend = async (): Promise<Baby[] | null> => {
   if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const user = await getCurrentUser();
+  if (!canAccessDoctorPortal(user)) {
     return null;
   }
 
@@ -363,7 +384,7 @@ const getDoctorAssignedBabiesViaBackend = async (): Promise<Baby[] | null> => {
       },
     });
 
-    if (response.status === 404 || response.status === 405) {
+    if (response.status === 403 || response.status === 404 || response.status === 405) {
       return null;
     }
 
@@ -431,6 +452,11 @@ const getDoctorAssignedBabiesDirect = async (): Promise<Baby[]> => {
 };
 
 const getDoctorAssignedBabies = async (): Promise<Baby[]> => {
+  const user = await getCurrentUser();
+  if (!canAccessDoctorPortal(user)) {
+    return [];
+  }
+
   const backendBabies = await getDoctorAssignedBabiesViaBackend();
   if (backendBabies !== null) {
     return backendBabies;
