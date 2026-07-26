@@ -823,24 +823,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
         )}
 
-        {premiumTestingAccessOpen && (
-          <div className="rounded-[1.75rem] border border-emerald-200/80 bg-emerald-50/90 p-4 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-950/20">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white">
-                <Zap size={18} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-300">
-                  Premium testing is open
-                </p>
-                <p className="mt-1 text-sm font-bold leading-6 text-emerald-950 dark:text-emerald-50">
-                  Premium tools are available while payments or package enforcement are paused for QA.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {isViewerReadOnly && (
           <div className="rounded-[1.75rem] border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
             <div className="flex items-start gap-3">
