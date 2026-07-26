@@ -24,7 +24,7 @@ import {
 } from '../utils/role-manager.js';
 import { logger } from '../../utils/logger.js';
 import { MAX_AUTOMATED_PAYMENT_RETRIES, planNextPaymentRetry } from '../../lib/billing-retry.js';
-import { createAdminManagedUser } from '../utils/admin-users.js';
+import { createAdminManagedUser, resetAdminManagedUserPassword } from '../utils/admin-users.js';
 import { getManagedSubscriptionPricing, updateManagedSubscriptionPricing } from '../utils/payment-pricing.js';
 import {
   DEFAULT_PAYMENT_COLLECTION_REASON,
@@ -696,6 +696,63 @@ router.get('/logs', requireRole('admin'), async (req: AuthRequest, res: Response
     res.status(500).json({
       success: false,
       error: 'Failed to fetch logs',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/users/:userId/reset-password
+ * Reset a user's password via temporary password or recovery link.
+ */
+router.post('/users/:userId/reset-password', requireRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const mode = String(req.body?.mode || 'temporary').trim().toLowerCase();
+
+    if (mode !== 'temporary' && mode !== 'recovery_link') {
+      return res.status(400).json({
+        success: false,
+        error: 'mode must be temporary or recovery_link',
+      });
+    }
+
+    const result = await resetAdminManagedUserPassword(
+      {
+        adminUserId: req.user.id,
+        targetUserId: userId,
+        mode,
+        password: req.body?.password ? String(req.body.password) : undefined,
+        redirectTo: req.body?.redirectTo ? String(req.body.redirectTo) : undefined,
+      },
+      supabase,
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to reset password',
+      });
+    }
+
+    logger.info('Admin reset user password', 'ADMIN', {
+      adminId: req.user.id,
+      targetUserId: userId,
+      mode,
+    });
+
+    return res.json({
+      success: true,
+      message:
+        mode === 'temporary'
+          ? 'Temporary password set successfully'
+          : 'Password reset link generated successfully',
+      data: result,
+    });
+  } catch (error: any) {
+    logger.error('Failed to reset user password', error as Error, 'ADMIN');
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to reset password',
     });
   }
 });

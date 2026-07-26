@@ -4,6 +4,7 @@ import {
   BarChart3,
   ChevronLeft,
   CheckCircle2,
+  Copy,
   CreditCard,
   Database,
   Power,
@@ -30,6 +31,7 @@ import {
   fetchAdminOverview,
   fetchAdminUsers,
   promoteAdminUser,
+  resetAdminUserPassword,
   resolveAdminBillingEvent,
   retryAdminBillingEvent,
   saveAdminPaymentConfig,
@@ -45,6 +47,7 @@ import {
   DEFAULT_PREMIUM_ACCESS_REASON,
   type PaymentCollectionConfig,
 } from "../../lib/payment-config";
+import { AdminUserManagementCard } from "./AdminUserManagementCard";
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -103,16 +106,16 @@ const ADMIN_SECTIONS: Array<{
     eyebrow: "User Directory",
     title: "Platform Users",
     description:
-      "Search accounts and inspect profile status without changing roles from this page.",
+      "Search accounts, reset passwords, change roles, and manage access from one place.",
     Icon: Users,
   },
   {
     id: "settings",
-    label: "Settings",
-    eyebrow: "Role Settings",
-    title: "Admin Settings",
+    label: "Team",
+    eyebrow: "Admin Team",
+    title: "Admin Team Setup",
     description:
-      "Create admin accounts and switch user roles from one intentional control page.",
+      "Create full admin or limited manager accounts for your operations team.",
     Icon: Settings2,
   },
   {
@@ -255,6 +258,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
     null,
   );
+  const [passwordResetResult, setPasswordResetResult] = useState<{
+    userId: string;
+    email: string;
+    mode: "temporary" | "recovery_link";
+    temporaryPassword?: string;
+    recoveryLink?: string;
+  } | null>(null);
   const [teamMemberDraft, setTeamMemberDraft] = useState({
     name: "",
     email: "",
@@ -714,6 +724,172 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await Promise.all([loadUsers(), loadAdminLogs(), loadOverview()]);
   };
 
+  const copyText = async (value: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(successMessage);
+    } catch {
+      toast.error("Could not copy to clipboard.");
+    }
+  };
+
+  const handleResetTemporaryPassword = async (user: AdminUserRecord) => {
+    const customPassword = window.prompt(
+      `Set a temporary password for ${user.email} (leave blank to auto-generate):`,
+      "",
+    );
+    if (customPassword === null) {
+      return;
+    }
+
+    setActingUserId(user.id);
+    const result = await resetAdminUserPassword(user.id, {
+      mode: "temporary",
+      ...(customPassword.trim() ? { password: customPassword.trim() } : {}),
+    });
+    setActingUserId(null);
+
+    if (!result.success || !result.data) {
+      toast.error(result.error || `Failed to reset password for ${user.name}.`);
+      return;
+    }
+
+    setPasswordResetResult({
+      userId: user.id,
+      email: result.data.email || user.email,
+      mode: "temporary",
+      temporaryPassword: result.data.temporaryPassword,
+    });
+    toast.success(`Temporary password set for ${user.email}.`);
+    await loadAdminLogs();
+  };
+
+  const handleGenerateRecoveryLink = async (user: AdminUserRecord) => {
+    const confirmed = window.confirm(
+      `Generate a password reset link for ${user.email}? Copy and share it securely with the user.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setActingUserId(user.id);
+    const result = await resetAdminUserPassword(user.id, {
+      mode: "recovery_link",
+    });
+    setActingUserId(null);
+
+    if (!result.success || !result.data?.recoveryLink) {
+      toast.error(result.error || `Failed to create reset link for ${user.name}.`);
+      return;
+    }
+
+    setPasswordResetResult({
+      userId: user.id,
+      email: result.data.email || user.email,
+      mode: "recovery_link",
+      recoveryLink: result.data.recoveryLink,
+    });
+    toast.success(`Reset link generated for ${user.email}.`);
+    await loadAdminLogs();
+  };
+
+  const renderUserDirectory = (options?: { showPasswordBanner?: boolean }) => (
+    <>
+      {options?.showPasswordBanner && passwordResetResult && (
+        <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+                {passwordResetResult.mode === "temporary"
+                  ? "Temporary password ready"
+                  : "Password reset link ready"}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {passwordResetResult.email}
+              </p>
+              <p className="mt-2 break-all font-mono text-xs text-text-dim">
+                {passwordResetResult.mode === "temporary"
+                  ? passwordResetResult.temporaryPassword
+                  : passwordResetResult.recoveryLink}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                void copyText(
+                  String(
+                    passwordResetResult.mode === "temporary"
+                      ? passwordResetResult.temporaryPassword
+                      : passwordResetResult.recoveryLink,
+                  ),
+                  "Copied to clipboard.",
+                )
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white dark:bg-amber-300 dark:text-amber-950"
+            >
+              <Copy size={14} />
+              Copy
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950 sm:p-5">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search users by name, email, role, or profile type"
+          className="w-full rounded-xl border border-border-gray bg-background px-4 py-3 text-sm font-semibold text-foreground outline-none transition-all focus:border-secondary dark:border-zinc-700 dark:bg-zinc-900"
+        />
+
+        {usersLoading && (
+          <p className="mt-4 text-sm font-bold text-text-light">Loading users...</p>
+        )}
+
+        {!usersLoading && usersError && (
+          <p className="mt-4 text-sm font-bold text-red-500">{usersError}</p>
+        )}
+
+        {!usersLoading && !usersError && filteredUsers.length === 0 && (
+          <div className="mt-4">
+            <EmptyStateCard
+              Icon={Users}
+              title={search.trim() ? "No users match that search" : "No users loaded yet"}
+              description={
+                search.trim()
+                  ? "Try a different name, email, profile type, or role."
+                  : "New accounts will appear here after they sign up or are created by an admin."
+              }
+            />
+          </div>
+        )}
+
+        {!usersLoading && !usersError && filteredUsers.length > 0 && (
+          <div className="mt-4 space-y-4 max-h-[720px] overflow-y-auto pr-1">
+            {filteredUsers.map((user) => (
+              <AdminUserManagementCard
+                key={user.id}
+                user={user}
+                selectedRole={roleDrafts[user.id] || user.role}
+                isActing={actingUserId === user.id}
+                formatDateTime={formatDateTime}
+                onRoleChange={(userId, role) =>
+                  setRoleDrafts((prev) => ({ ...prev, [userId]: role }))
+                }
+                onApplyRole={handleApplyRole}
+                onPromote={handlePromote}
+                onDemote={handleDemote}
+                onDelete={handleDeleteUser}
+                onResetTemporaryPassword={handleResetTemporaryPassword}
+                onGenerateRecoveryLink={handleGenerateRecoveryLink}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   const handleRetryBilling = async (reference: string) => {
     setBillingActingReference(reference);
     const result = await retryAdminBillingEvent(reference);
@@ -1068,7 +1244,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 type="button"
                 aria-pressed={isActive}
                 onClick={() => handleSectionChange(section.id)}
-                className={`flex h-12 min-w-[5rem] flex-col items-center justify-center gap-1 rounded-[8px] text-[7px] font-black uppercase tracking-[0.08em] transition-all ${
+                className={`flex h-12 min-w-[5.5rem] flex-col items-center justify-center gap-1 rounded-[8px] text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
                   isActive
                     ? "bg-[#111827] text-white dark:bg-white dark:text-zinc-950"
                     : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
@@ -1082,7 +1258,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         </div>
       </nav>
 
-      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 sm:py-6 lg:grid-cols-[7.5rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 sm:py-6 lg:grid-cols-[9rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
         <aside className="hidden lg:block">
           <nav className="sticky top-[6.25rem]" aria-label="Admin sections">
             <div className="flex w-full flex-col gap-1 rounded-[8px] border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-zinc-950">
@@ -1100,7 +1276,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     aria-pressed={isActive}
                     title={section.label}
                     onClick={() => handleSectionChange(section.id)}
-                    className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-[8px] px-2 py-2 text-[8px] font-black uppercase tracking-[0.08em] transition-all ${
+                    className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-[8px] px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
                       isActive
                         ? "bg-[#111827] text-white shadow-sm shadow-slate-950/10 dark:bg-white dark:text-zinc-950"
                         : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
@@ -1815,16 +1991,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
                       Admin Team
                     </h3>
-                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                      manager = limited admin
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSectionChange("users")}
+                      className="text-[10px] font-black text-secondary uppercase tracking-widest hover:underline"
+                    >
+                      Manage all users
+                    </button>
                   </div>
 
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950 space-y-3">
-                    <p className="text-[10px] font-semibold text-text-light leading-relaxed">
-                      Create full admins or limited admins. Use{" "}
-                      <span className="font-black text-secondary">manager</span>{" "}
-                      when you want a restricted admin account.
+                  <div className="rounded-[1.35rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950 space-y-3">
+                    <p className="text-sm font-semibold leading-relaxed text-text-dim">
+                      Create full admins or limited managers. Use{" "}
+                      <span className="font-black text-secondary">manager</span> for restricted admin access.
+                      Password resets and role changes live in the{" "}
+                      <span className="font-black text-foreground">Users</span> section.
                     </p>
                     <div className="grid grid-cols-1 gap-3">
                       <input
@@ -1909,175 +2090,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
                     {temporaryPassword && (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-800 dark:bg-amber-950/20">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                          Generated Temporary Password
-                        </p>
-                        <p className="mt-2 break-all font-mono text-sm font-semibold text-foreground">
-                          {temporaryPassword}
-                        </p>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                              Generated Temporary Password
+                            </p>
+                            <p className="mt-2 break-all font-mono text-sm font-semibold text-foreground">
+                              {temporaryPassword}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyText(temporaryPassword, "Password copied.")}
+                            className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white dark:bg-amber-300 dark:text-amber-950"
+                          >
+                            <Copy size={14} />
+                            Copy
+                          </button>
+                        </div>
                       </div>
                     )}
-                  </div>
-
-                  <div className="flex items-center justify-between px-1 gap-3">
-                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                      Role Switcher
-                    </h3>
-                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
-                      {filteredUsers.length}/{usersTotal}
-                    </span>
-                  </div>
-
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-zinc-950">
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search users by name or email"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-
-                    {usersLoading && (
-                      <p className="text-sm font-bold text-text-light">
-                        Loading users...
-                      </p>
-                    )}
-
-                    {!usersLoading && usersError && (
-                      <p className="text-sm font-bold text-red-500">
-                        {usersError}
-                      </p>
-                    )}
-
-                    {!usersLoading &&
-                      !usersError &&
-                      filteredUsers.length === 0 && (
-                        <EmptyStateCard
-                          Icon={Users}
-                          title={
-                            search.trim()
-                              ? "No users match that search"
-                              : "No users loaded yet"
-                          }
-                          description={
-                            search.trim()
-                              ? "Try a different name, email, profile type, or role."
-                              : "New accounts will appear here after they sign up or are created by an admin."
-                          }
-                        />
-                      )}
-
-                    {!usersLoading &&
-                      !usersError &&
-                      filteredUsers.length > 0 && (
-                        <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                          {filteredUsers.map((user) => {
-                            const selectedRole =
-                              roleDrafts[user.id] || user.role;
-                            const isActing = actingUserId === user.id;
-                            const canPromoteManager = user.role !== "manager";
-                            const canPromoteAdmin = user.role !== "admin";
-                            const canDemote = user.role !== "user";
-
-                            return (
-                              <div
-                                key={user.id}
-                                className="rounded-xl border border-border-gray dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 p-3 space-y-3"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-black text-foreground truncate">
-                                      {user.name}
-                                    </p>
-                                    <p className="text-[10px] font-semibold text-text-light truncate">
-                                      {user.email}
-                                    </p>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
-                                      {user.role} | {user.profileType || "baby"}{" "}
-                                      | Babies {user.babiesCount || 0}
-                                    </p>
-                                  </div>
-                                  <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
-                                    {formatDateTime(
-                                      user.lastSignInAt ||
-                                        user.createdAt ||
-                                        undefined,
-                                    )}
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <select
-                                    value={selectedRole}
-                                    onChange={(event) =>
-                                      setRoleDrafts((prev) => ({
-                                        ...prev,
-                                        [user.id]: event.target.value,
-                                      }))
-                                    }
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 px-2 py-2 text-[11px] font-black uppercase tracking-wider text-foreground outline-none"
-                                    disabled={isActing}
-                                  >
-                                    {ROLE_OPTIONS.map((role) => (
-                                      <option key={role} value={role}>
-                                        {role}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => handleApplyRole(user)}
-                                    disabled={
-                                      isActing || selectedRole === user.role
-                                    }
-                                    className="rounded-lg bg-secondary text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 disabled:opacity-50"
-                                  >
-                                    Apply Role
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handlePromote(user, "manager")
-                                    }
-                                    disabled={
-                                      isActing || !canPromoteManager
-                                    }
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Promote Manager
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handlePromote(user, "admin")
-                                    }
-                                    disabled={isActing || !canPromoteAdmin}
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Promote Admin
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() => handleDemote(user)}
-                                    disabled={isActing || !canDemote}
-                                    className="rounded-lg border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-950 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-foreground disabled:opacity-50"
-                                  >
-                                    Demote User
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUser(user)}
-                                    disabled={isActing}
-                                    className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-[10px] font-black uppercase tracking-widest px-3 py-2 text-red-600 dark:text-red-300 disabled:opacity-50"
-                                  >
-                                    Delete User
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                   </div>
                 </div>
 
@@ -2088,95 +2120,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   }
                 >
                   <div className="flex items-center justify-between px-1 gap-3">
-                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                      User Directory
-                    </h3>
-                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                    <div>
+                      <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                        User Directory
+                      </h3>
+                      <p className="mt-1 text-sm font-semibold text-text-dim">
+                        Reset passwords, update roles, and manage every account.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-secondary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-secondary">
                       {filteredUsers.length}/{usersTotal}
                     </span>
                   </div>
 
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-zinc-950">
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search users by name or email"
-                      className="w-full rounded-xl border border-border-gray dark:border-zinc-700 bg-background dark:bg-zinc-900 px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-secondary transition-all"
-                    />
-
-                    {usersLoading && (
-                      <p className="text-sm font-bold text-text-light">
-                        Loading users...
-                      </p>
-                    )}
-
-                    {!usersLoading && usersError && (
-                      <p className="text-sm font-bold text-red-500">
-                        {usersError}
-                      </p>
-                    )}
-
-                    {!usersLoading &&
-                      !usersError &&
-                      filteredUsers.length === 0 && (
-                        <EmptyStateCard
-                          Icon={Users}
-                          title={
-                            search.trim()
-                              ? "No users match that search"
-                              : "No users loaded yet"
-                          }
-                          description={
-                            search.trim()
-                              ? "Try a different name, email, profile type, or role."
-                              : "New accounts will appear here after they sign up or are created by an admin."
-                          }
-                        />
-                      )}
-
-                    {!usersLoading &&
-                      !usersError &&
-                      filteredUsers.length > 0 && (
-                        <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                          {filteredUsers.map((user) => (
-                            <div
-                              key={user.id}
-                              className="rounded-xl border border-border-gray dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 p-3"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-black text-foreground truncate">
-                                    {user.name}
-                                  </p>
-                                  <p className="text-[10px] font-semibold text-text-light truncate">
-                                    {user.email}
-                                  </p>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1">
-                                    {user.role} | {user.profileType || "baby"}{" "}
-                                    | Babies {user.babiesCount || 0}
-                                  </p>
-                                </div>
-                                <span className="text-[9px] font-black text-text-light uppercase tracking-widest whitespace-nowrap">
-                                  {formatDateTime(
-                                    user.lastSignInAt ||
-                                      user.createdAt ||
-                                      undefined,
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                    <button
-                      type="button"
-                      onClick={() => handleSectionChange("settings")}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-foreground transition-all hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                    >
-                      Manage roles in Settings
-                    </button>
-                  </div>
+                  {renderUserDirectory({ showPasswordBanner: true })}
                 </div>
 
                 <div

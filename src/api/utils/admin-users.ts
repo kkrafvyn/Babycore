@@ -146,3 +146,134 @@ export const createAdminManagedUser = async (
     temporaryPassword: suppliedPassword ? undefined : temporaryPassword,
   };
 };
+
+export type AdminPasswordResetMode = 'temporary' | 'recovery_link';
+
+export interface ResetAdminManagedUserPasswordInput {
+  adminUserId: string;
+  targetUserId: string;
+  mode: AdminPasswordResetMode;
+  password?: string;
+  redirectTo?: string;
+}
+
+export interface ResetAdminManagedUserPasswordResult {
+  success: boolean;
+  error?: string;
+  email?: string;
+  mode?: AdminPasswordResetMode;
+  temporaryPassword?: string;
+  recoveryLink?: string;
+}
+
+const resolvePasswordResetRedirect = (override?: string): string => {
+  const candidate =
+    String(override || process.env.VITE_APP_URL || process.env.CLIENT_URL || 'https://www.cradlyn.com').trim() ||
+    'https://www.cradlyn.com';
+
+  try {
+    const url = new URL(candidate.includes('://') ? candidate : `https://${candidate}`);
+    url.pathname = '/login';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return 'https://www.cradlyn.com/login';
+  }
+};
+
+export const resetAdminManagedUserPassword = async (
+  input: ResetAdminManagedUserPasswordInput,
+  supabase = defaultSupabase,
+): Promise<ResetAdminManagedUserPasswordResult> => {
+  const targetUserId = String(input.targetUserId || '').trim();
+  const mode = input.mode === 'recovery_link' ? 'recovery_link' : 'temporary';
+
+  if (!targetUserId) {
+    return { success: false, error: 'User id is required' };
+  }
+
+  const authAdmin = (supabase.auth as any).admin;
+  const { data: targetUserData, error: targetUserError } = await authAdmin.getUserById(targetUserId);
+
+  if (targetUserError || !targetUserData?.user) {
+    return {
+      success: false,
+      error: targetUserError?.message || 'User not found',
+    };
+  }
+
+  const email = String(targetUserData.user.email || '').trim().toLowerCase();
+  if (!email) {
+    return { success: false, error: 'User does not have an email address' };
+  }
+
+  const now = new Date().toISOString();
+  let temporaryPassword: string | undefined;
+  let recoveryLink: string | undefined;
+
+  if (mode === 'temporary') {
+    const suppliedPassword = normalizePassword(input.password);
+    temporaryPassword = suppliedPassword || generateTemporaryPassword();
+
+    if (temporaryPassword.length < 8) {
+      return { success: false, error: 'Password must be at least 8 characters long' };
+    }
+
+    const { error: updateError } = await authAdmin.updateUserById(targetUserId, {
+      password: temporaryPassword,
+    });
+
+    if (updateError) {
+      return {
+        success: false,
+        error: updateError.message || 'Failed to set temporary password',
+      };
+    }
+  } else {
+    const { data: linkData, error: linkError } = await authAdmin.generateLink({
+      type: 'recovery',
+      email,
+      options: {
+        redirectTo: resolvePasswordResetRedirect(input.redirectTo),
+      },
+    });
+
+    if (linkError) {
+      return {
+        success: false,
+        error: linkError.message || 'Failed to generate password reset link',
+      };
+    }
+
+    recoveryLink = String(
+      linkData?.properties?.action_link || linkData?.action_link || linkData?.link || '',
+    ).trim();
+
+    if (!recoveryLink) {
+      return {
+        success: false,
+        error: 'Password reset link was not returned by Supabase',
+      };
+    }
+  }
+
+  await supabase.from('admin_actions_log').insert({
+    admin_id: input.adminUserId,
+    action: mode === 'temporary' ? 'password_reset_temporary' : 'password_reset_link',
+    target_user_id: targetUserId,
+    details: {
+      email,
+      mode,
+    },
+    created_at: now,
+  });
+
+  return {
+    success: true,
+    email,
+    mode,
+    temporaryPassword,
+    recoveryLink,
+  };
+};

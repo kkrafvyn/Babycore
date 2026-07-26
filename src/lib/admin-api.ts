@@ -364,6 +364,30 @@ export const deleteAdminUser = async (userId: string): Promise<AdminMutationResp
     method: 'DELETE',
   });
 
+export const resetAdminUserPassword = async (
+  userId: string,
+  input: {
+    mode: 'temporary' | 'recovery_link';
+    password?: string;
+  },
+): Promise<
+  AdminMutationResponse & {
+    data?: {
+      email?: string;
+      mode?: 'temporary' | 'recovery_link';
+      temporaryPassword?: string;
+      recoveryLink?: string;
+    };
+  }
+> =>
+  adminRequest<any>(`/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
 export const fetchAdminLogs = async (input?: {
   limit?: number;
   offset?: number;
