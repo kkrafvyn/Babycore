@@ -93,9 +93,19 @@ export async function sendWelcomeEmailHandler(req: AuthRequest, res: Response): 
       result,
     });
   } catch (error: any) {
+    const message = String(error?.message || 'Failed to send welcome email');
+    if (/Resend request failed \(401\)/.test(message) || /API key is invalid/i.test(message)) {
+      res.status(200).json({
+        success: true,
+        skipped: true,
+        message: 'Welcome email skipped because email service is not configured',
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to send welcome email',
+      error: message,
     });
   }
 }

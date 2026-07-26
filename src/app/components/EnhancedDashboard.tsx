@@ -43,19 +43,11 @@ import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 import { fetchPaymentFeatureConfig } from '../../lib/payment-config';
 import { canOpenAppViewForRole, isReadOnlyViewerRole, isViewerAllowedView } from '../../lib/role-access';
+import { lazyNamed } from '../../lib/lazy-named';
 
 type ViewMode = AppView;
 
 const MotionDiv = motion.div as any;
-
-const lazyNamed = <TModule extends Record<string, unknown>>(
-  loader: () => Promise<TModule>,
-  exportName: keyof TModule,
-) =>
-  React.lazy(async () => {
-    const module = await loader();
-    return { default: module[exportName] as React.ComponentType<any> };
-  });
 
 const FeedingTracker = lazyNamed(() => import('./FeedingTracker'), 'FeedingTracker');
 const SleepTracker = lazyNamed(() => import('./SleepTracker'), 'SleepTracker');

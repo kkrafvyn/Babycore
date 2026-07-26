@@ -1,4 +1,5 @@
 import React from 'react';
+import { isStaleChunkLoadError, reloadAfterStaleChunk } from '../../lib/chunk-reload';
 
 interface AppErrorBoundaryProps {
   children: React.ReactNode;
@@ -21,11 +22,16 @@ export class AppErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    if (isStaleChunkLoadError(error)) {
+      reloadAfterStaleChunk();
+      return;
+    }
+
     console.error('App render failed:', error, errorInfo);
   }
 
   private handleReload = () => {
-    window.location.reload();
+    reloadAfterStaleChunk();
   };
 
   render() {

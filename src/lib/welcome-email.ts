@@ -17,7 +17,7 @@ export async function requestWelcomeEmail(): Promise<void> {
       },
     });
 
-    if (!response.ok && response.status !== 401) {
+    if (!response.ok && response.status !== 401 && response.status !== 200) {
       console.warn('Welcome email request failed:', response.status, await response.text());
     }
   } catch (error) {

@@ -1,6 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const buildId = String(Date.now())
+
+const injectBuildId = () => ({
+  name: 'inject-build-id',
+  transformIndexHtml(html: string) {
+    return html.replace(
+      '<head>',
+      `<head>\n    <meta name="cradlyn-build" content="${buildId}" />`,
+    )
+  },
+})
+
 const resolveFromRoot = (relativePath: string) =>
   decodeURIComponent(new URL(relativePath, import.meta.url).pathname.replace(/^\/([A-Za-z]:\/)/, '$1'))
 
@@ -9,7 +21,7 @@ const framerMotionEntry = resolveFromRoot('./node_modules/framer-motion/dist/es/
 const lucideReactEntry = resolveFromRoot('./node_modules/lucide-react/dist/esm/lucide-react.mjs')
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), injectBuildId()],
   resolve: {
     alias: {
       '@': srcAlias,
