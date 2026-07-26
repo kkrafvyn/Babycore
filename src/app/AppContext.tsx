@@ -29,6 +29,12 @@ import {
   updateJournalEntry,
 } from '../lib/supabase-storage';
 import { getCurrentUser, onAuthStateChange } from '../lib/supabase';
+import {
+  clearPasswordRecoveryRequired,
+  detectPasswordRecoveryFromUrl,
+  markPasswordRecoveryRequired,
+  scrubAuthTokensFromUrl,
+} from '../lib/password-recovery';
 import { requestWelcomeEmail } from '../lib/welcome-email';
 import {
   getOnboardingCache,
@@ -406,7 +412,12 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
 
   // Listen for auth state changes
   useEffect(() => {
-    const { data: { subscription } } = onAuthStateChange((authUser) => {
+    const { data: { subscription } } = onAuthStateChange((authUser, event) => {
+      if (event === 'PASSWORD_RECOVERY' || detectPasswordRecoveryFromUrl()) {
+        markPasswordRecoveryRequired();
+        scrubAuthTokensFromUrl();
+      }
+
       setUser((previous) => {
         if (!authUser) {
           return null;
@@ -424,6 +435,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
       if (!authUser) {
         initializedUserIdRef.current = null;
         initializePromiseRef.current = null;
+        clearPasswordRecoveryRequired();
         // Clear app state on logout
         setBabies([]);
         setCurrentBaby(null);

@@ -13,6 +13,7 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithSocialProvider,
+  updateCurrentUserPassword,
   type SocialAuthProvider,
 } from '../../lib/supabase';
 import { getOnboardingCache, clearOnboardingCache } from '../../lib/onboarding-storage';
@@ -24,6 +25,7 @@ interface AuthScreenProps {
   onSuccess: (newUserCreated?: boolean) => void;
   onViewPolicies: () => void;
   postAuthDestinationLabel?: string | null;
+  recoveryMode?: boolean;
 }
 
 type AuthMode = 'signin' | 'signup';
@@ -45,13 +47,16 @@ export function AuthScreen({
   onSuccess,
   onViewPolicies,
   postAuthDestinationLabel,
+  recoveryMode = false,
 }: AuthScreenProps) {
   const appName = getClientAppName();
   const logoSrc = getClientLogoSrc();
   const [mode, setMode] = useState<AuthMode>(() => readInitialAuthMode());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [socialLoadingProvider, setSocialLoadingProvider] = useState<SocialAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,39 @@ export function AuthScreen({
     'auth.continueAfterSignIn',
     'Continue to {destination} after sign in',
   ).replace('{destination}', postAuthDestinationLabel || '');
+
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isAuthBusy) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await updateCurrentUserPassword(password);
+      setPassword('');
+      setConfirmPassword('');
+      onSuccess(false);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to update password. Please request a new reset link.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,17 +217,23 @@ export function AuthScreen({
                 </div>
               </div>
               <p className="mt-8 text-[10px] font-black uppercase tracking-[0.24em] text-[#49697a] sm:text-[11px]">
-                {mode === 'signin'
-                  ? i18nT('auth.identityVerification', 'Identity Verification')
-                  : i18nT('auth.provisionAccess', 'Provision Access')}
+                {recoveryMode
+                  ? 'Secure Password Reset'
+                  : mode === 'signin'
+                    ? i18nT('auth.identityVerification', 'Identity Verification')
+                    : i18nT('auth.provisionAccess', 'Provision Access')}
               </p>
               <h1 className="mx-auto mt-4 max-w-lg text-5xl font-black leading-[0.98] tracking-[0] text-[#242932] [text-shadow:0_3px_0_rgba(0,0,0,0.09)] sm:text-6xl">
-                {mode === 'signin'
-                  ? i18nT('auth.welcomeBack', 'Welcome Back')
-                  : i18nT('auth.joinApp', 'Join Cradlyn')}
+                {recoveryMode
+                  ? 'Choose a New Password'
+                  : mode === 'signin'
+                    ? i18nT('auth.welcomeBack', 'Welcome Back')
+                    : i18nT('auth.joinApp', 'Join Cradlyn')}
               </h1>
               <p className="mx-auto mt-6 max-w-md text-lg leading-8 text-[#5f646d]">
-                A calm space for tracking every milestone, feeding, and nap with professional clarity.
+                {recoveryMode
+                  ? 'Your reset link is valid. Set a new password before continuing to your account.'
+                  : 'A calm space for tracking every milestone, feeding, and nap with professional clarity.'}
               </p>
               {postAuthDestinationLabel && (
                 <div className="mx-auto mt-7 max-w-sm rounded-[1.75rem] border border-[#dbeef6] bg-white/70 px-5 py-4 text-[10px] font-black uppercase tracking-widest text-[#45697d]">
@@ -253,7 +297,8 @@ export function AuthScreen({
           )}
         </AnimatePresence>
 
-        <form onSubmit={handleAuth} className="w-full space-y-5">
+        <form onSubmit={recoveryMode ? handlePasswordRecovery : handleAuth} className="w-full space-y-5">
+          {!recoveryMode && (
           <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8a909a]">
               {i18nT('auth.registryEmail', 'Registry Email')}
@@ -273,10 +318,11 @@ export function AuthScreen({
               />
             </div>
           </div>
+          )}
 
           <div className="space-y-2.5 sm:space-y-3">
             <span className="ml-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8a909a]">
-              {i18nT('auth.accessKey', 'Access Key')}
+              {recoveryMode ? 'New Password' : i18nT('auth.accessKey', 'Access Key')}
             </span>
             <div className="group relative">
               <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[#45697d] transition-colors">
@@ -302,6 +348,37 @@ export function AuthScreen({
             </div>
           </div>
 
+          {recoveryMode && (
+            <div className="space-y-2.5 sm:space-y-3">
+              <span className="ml-4 text-[10px] font-black uppercase tracking-[0.22em] text-[#8a909a]">
+                Confirm Password
+              </span>
+              <div className="group relative">
+                <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[#45697d] transition-colors">
+                  <Lock size={18} />
+                </div>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Re-enter your new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isAuthBusy}
+                  className="h-16 w-full rounded-[1.75rem] border border-[#e7e9ef] bg-[#f4f5f9] pl-16 pr-14 font-bold text-[#242932] outline-none transition-all placeholder:text-[#9aa3b2] focus:border-[#dbeef6] focus:bg-white focus:ring-4 focus:ring-[#dff8ff] sm:h-[4.5rem] sm:rounded-[2rem]"
+                  required
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isAuthBusy}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 text-[#8a909a] transition-colors hover:text-[#242932]"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isAuthBusy}
@@ -310,21 +387,24 @@ export function AuthScreen({
             {loading ? (
                 <div className="flex items-center gap-3">
                   <ShieldCheck className="animate-pulse" />
-                  <span>{i18nT('auth.authorizing', 'Authorizing...')}</span>
+                  <span>{recoveryMode ? 'Updating password...' : i18nT('auth.authorizing', 'Authorizing...')}</span>
                 </div>
               ) : (
               <div className="flex items-center gap-3">
                 <Fingerprint size={24} />
                 <span>
-                  {mode === 'signin'
-                    ? i18nT('auth.signInAction', 'Sign In')
-                    : i18nT('auth.createAccountAction', 'Create Account')}
+                  {recoveryMode
+                    ? 'Save New Password'
+                    : mode === 'signin'
+                      ? i18nT('auth.signInAction', 'Sign In')
+                      : i18nT('auth.createAccountAction', 'Create Account')}
                 </span>
               </div>
             )}
           </button>
         </form>
 
+        {!recoveryMode && (
         <div className="mt-5 w-full space-y-3 text-center sm:hidden">
           <button
             type="button"
@@ -353,7 +433,9 @@ export function AuthScreen({
             </span>
           </button>
         </div>
+        )}
 
+        {!recoveryMode && (
         <div className="mt-7 w-full space-y-3">
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-[#e7e9ef]" />
@@ -387,7 +469,9 @@ export function AuthScreen({
             ))}
           </div>
         </div>
+        )}
 
+        {!recoveryMode && (
         <div className="mt-8 hidden w-full space-y-3 text-center sm:block">
           <button
             type="button"
@@ -423,6 +507,7 @@ export function AuthScreen({
             </p>
           </div>
         </div>
+        )}
             </MotionDiv>
           </section>
         </main>

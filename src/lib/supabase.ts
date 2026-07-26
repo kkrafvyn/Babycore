@@ -270,6 +270,54 @@ export const updateCurrentUserMetadata = async (metadata: SignUpMetadata) => {
   return data?.user || null;
 };
 
+export const updateCurrentUserPassword = async (password: string) => {
+  if (!hasSupabaseConfig) {
+    throw missingSupabaseConfigError();
+  }
+
+  const normalizedPassword = String(password || '').trim();
+  if (normalizedPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters long.');
+  }
+
+  const auth = supabase.auth as any;
+  const { data, error } = await auth.updateUser({
+    password: normalizedPassword,
+  });
+
+  if (error) throw error;
+  return data?.user || null;
+};
+
+export type AuthStateChangeEvent =
+  | 'INITIAL_SESSION'
+  | 'SIGNED_IN'
+  | 'SIGNED_OUT'
+  | 'TOKEN_REFRESHED'
+  | 'USER_UPDATED'
+  | 'PASSWORD_RECOVERY'
+  | string;
+
+export const onAuthStateChange = (
+  callback: (user: AuthenticatedUser | null, event?: AuthStateChangeEvent) => void,
+) => {
+  if (!hasSupabaseConfig) {
+    return {
+      data: {
+        subscription: {
+          unsubscribe: () => undefined,
+        },
+      },
+    };
+  }
+
+  const auth = supabase.auth as any;
+
+  return auth.onAuthStateChange((event: AuthStateChangeEvent, session: { user?: AuthenticatedUser | null } | null) => {
+    callback(session?.user || null, event);
+  });
+};
+
 export const signInWithSocialProvider = async (provider: SocialAuthProvider) => {
   if (!hasSupabaseConfig) {
     throw missingSupabaseConfigError();
@@ -310,22 +358,4 @@ export const signOut = async () => {
   const auth = supabase.auth as any;
   const { error } = await auth.signOut();
   if (error) throw error;
-};
-
-export const onAuthStateChange = (callback: (user: AuthenticatedUser | null) => void) => {
-  if (!hasSupabaseConfig) {
-    return {
-      data: {
-        subscription: {
-          unsubscribe: () => undefined,
-        },
-      },
-    };
-  }
-
-  const auth = supabase.auth as any;
-
-  return auth.onAuthStateChange((_event: unknown, session: { user?: AuthenticatedUser | null } | null) => {
-    callback(session?.user || null);
-  });
 };

@@ -13,6 +13,13 @@ import {
 } from './lib/onboarding-storage';
 import { deriveSettingsFromCareProfile } from './lib/care-profile';
 import { markAuthModeHint } from './lib/auth-mode-hint';
+import {
+  clearPasswordRecoveryRequired,
+  detectPasswordRecoveryFromUrl,
+  isPasswordRecoveryRequired,
+  markPasswordRecoveryRequired,
+  PASSWORD_RECOVERY_EVENT,
+} from './lib/password-recovery';
 import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
 import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
@@ -209,6 +216,9 @@ function AppShell() {
   const [policyReturnRoute, setPolicyReturnRoute] = React.useState<PublicRoute>('welcome');
   const [accountRole, setAccountRole] = React.useState('user');
   const [isAccountRoleLoading, setIsAccountRoleLoading] = React.useState(false);
+  const [passwordRecoveryRequired, setPasswordRecoveryRequired] = React.useState(
+    () => isPasswordRecoveryRequired() || detectPasswordRecoveryFromUrl(),
+  );
 
   const hasSession = Boolean(user);
   const publicRoute = locationRoute.kind === 'public' ? locationRoute.publicRoute : 'welcome';
@@ -231,6 +241,22 @@ function AppShell() {
   const isAdminAccount = accountRole === 'admin' || primaryAdminModeActive;
   const shouldUseAdminHome =
     Boolean(user) && primaryAdminModeActive;
+
+  React.useEffect(() => {
+    if (detectPasswordRecoveryFromUrl()) {
+      markPasswordRecoveryRequired();
+      setPasswordRecoveryRequired(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const syncRecoveryState = () => {
+      setPasswordRecoveryRequired(isPasswordRecoveryRequired());
+    };
+
+    window.addEventListener(PASSWORD_RECOVERY_EVENT, syncRecoveryState);
+    return () => window.removeEventListener(PASSWORD_RECOVERY_EVENT, syncRecoveryState);
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -409,14 +435,14 @@ function AppShell() {
   }, []);
 
   React.useEffect(() => {
-    if (!hasSession) {
+    if (!hasSession || passwordRecoveryRequired) {
       return;
     }
 
     if (locationRoute.kind === 'public' && locationRoute.publicRoute !== 'policies') {
       navigateToAppView('dashboard', { replace: true, preserveSearch: true });
     }
-  }, [hasSession, locationRoute.kind, locationRoute.kind === 'public' ? locationRoute.publicRoute : null]);
+  }, [hasSession, locationRoute.kind, locationRoute.kind === 'public' ? locationRoute.publicRoute : null, navigateToAppView, passwordRecoveryRequired]);
 
   React.useEffect(() => {
     if (!hasSession) {
@@ -613,6 +639,21 @@ function AppShell() {
     return renderWithSuspense(
       <PublicEmergencyShareCard token={locationRoute.token} />,
       'Loading emergency card...',
+    );
+  }
+
+  if (passwordRecoveryRequired) {
+    return renderWithSuspense(
+      <AuthScreen
+        recoveryMode
+        onSuccess={() => {
+          clearPasswordRecoveryRequired();
+          setPasswordRecoveryRequired(false);
+          navigateToAppView('dashboard', { replace: true, preserveSearch: true });
+        }}
+        onViewPolicies={openPolicies}
+      />,
+      'Loading password reset...',
     );
   }
 
