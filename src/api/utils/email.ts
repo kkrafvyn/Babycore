@@ -1,4 +1,4 @@
-import { APP_NOREPLY_EMAIL } from '../../lib/app-domain.js';
+import { APP_NOREPLY_EMAIL, normalizeTransactionalFromAddress } from '../../lib/app-domain.js';
 import nodemailer from 'nodemailer';
 
 export type EmailProvider = 'resend' | 'sendgrid' | 'smtp' | 'dry-run';
@@ -18,12 +18,14 @@ export interface TransactionalEmailResult {
 }
 
 const resolveFromAddress = (provided?: string): string =>
-  provided ||
-  process.env.SMTP_FROM ||
-  process.env.RESEND_FROM_EMAIL ||
-  process.env.SENDGRID_FROM_EMAIL ||
-  process.env.EMAIL_FROM ||
-  APP_NOREPLY_EMAIL;
+  normalizeTransactionalFromAddress(
+    provided ||
+      process.env.SMTP_FROM ||
+      process.env.RESEND_FROM_EMAIL ||
+      process.env.SENDGRID_FROM_EMAIL ||
+      process.env.EMAIL_FROM ||
+      APP_NOREPLY_EMAIL,
+  );
 
 const resolveSmtpConfig = (): {
   host: string;
@@ -67,7 +69,7 @@ export async function sendTransactionalEmail(
 
   const from = resolveFromAddress(options.from);
 
-  const resendKey = process.env.RESEND_API_KEY;
+  const resendKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (resendKey) {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',

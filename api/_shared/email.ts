@@ -1,4 +1,4 @@
-import { APP_NOREPLY_EMAIL } from '../../src/lib/app-domain.js';
+import { APP_NOREPLY_EMAIL, normalizeTransactionalFromAddress } from '../../src/lib/app-domain.js';
 import nodemailer from 'nodemailer';
 
 type SendEmailInput = {
@@ -17,14 +17,16 @@ type SendEmailResult = {
 };
 
 const getFromAddress = (override?: string): string =>
-  (
-    override ||
-    process.env.SMTP_FROM ||
-    process.env.RESEND_FROM_EMAIL ||
-    process.env.SENDGRID_FROM_EMAIL ||
-    process.env.EMAIL_FROM ||
-    APP_NOREPLY_EMAIL
-  ).trim();
+  normalizeTransactionalFromAddress(
+    (
+      override ||
+      process.env.SMTP_FROM ||
+      process.env.RESEND_FROM_EMAIL ||
+      process.env.SENDGRID_FROM_EMAIL ||
+      process.env.EMAIL_FROM ||
+      APP_NOREPLY_EMAIL
+    ).trim(),
+  );
 
 const toPlainText = (html: string): string =>
   html
@@ -74,7 +76,7 @@ export const sendTransactionalEmail = async (
     text: input.text || toPlainText(input.html),
   };
 
-  const resendKey = process.env.RESEND_API_KEY;
+  const resendKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (resendKey) {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
