@@ -47,7 +47,7 @@ import {
   DEFAULT_PREMIUM_ACCESS_REASON,
   type PaymentCollectionConfig,
 } from "../../lib/payment-config";
-import { AdminUserManagementCard } from "./AdminUserManagementCard";
+import { AdminUserManagementCard, type UserPasswordResetResult } from "./AdminUserManagementCard";
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -258,13 +258,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
     null,
   );
-  const [passwordResetResult, setPasswordResetResult] = useState<{
-    userId: string;
-    email: string;
-    mode: "temporary" | "recovery_link";
-    temporaryPassword?: string;
-    recoveryLink?: string;
-  } | null>(null);
+  const [passwordResetResults, setPasswordResetResults] = useState<
+    Record<string, UserPasswordResetResult>
+  >({});
   const [teamMemberDraft, setTeamMemberDraft] = useState({
     name: "",
     email: "",
@@ -733,19 +729,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
   };
 
-  const handleResetTemporaryPassword = async (user: AdminUserRecord) => {
-    const customPassword = window.prompt(
-      `Set a temporary password for ${user.email} (leave blank to auto-generate):`,
-      "",
-    );
-    if (customPassword === null) {
-      return;
-    }
-
+  const handleResetPassword = async (user: AdminUserRecord, password?: string) => {
     setActingUserId(user.id);
     const result = await resetAdminUserPassword(user.id, {
       mode: "temporary",
-      ...(customPassword.trim() ? { password: customPassword.trim() } : {}),
+      ...(password ? { password } : {}),
     });
     setActingUserId(null);
 
@@ -754,24 +742,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       return;
     }
 
-    setPasswordResetResult({
-      userId: user.id,
-      email: result.data.email || user.email,
-      mode: "temporary",
-      temporaryPassword: result.data.temporaryPassword,
-    });
-    toast.success(`Temporary password set for ${user.email}.`);
+    setPasswordResetResults((prev) => ({
+      ...prev,
+      [user.id]: {
+        email: result.data?.email || user.email,
+        mode: "temporary",
+        temporaryPassword: result.data?.temporaryPassword,
+      },
+    }));
+    toast.success(`Password reset for ${user.email}.`);
     await loadAdminLogs();
   };
 
   const handleGenerateRecoveryLink = async (user: AdminUserRecord) => {
-    const confirmed = window.confirm(
-      `Generate a password reset link for ${user.email}? Copy and share it securely with the user.`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
     setActingUserId(user.id);
     const result = await resetAdminUserPassword(user.id, {
       mode: "recovery_link",
@@ -783,111 +766,74 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       return;
     }
 
-    setPasswordResetResult({
-      userId: user.id,
-      email: result.data.email || user.email,
-      mode: "recovery_link",
-      recoveryLink: result.data.recoveryLink,
-    });
-    toast.success(`Reset link generated for ${user.email}.`);
+    setPasswordResetResults((prev) => ({
+      ...prev,
+      [user.id]: {
+        email: result.data?.email || user.email,
+        mode: "recovery_link",
+        recoveryLink: result.data?.recoveryLink,
+      },
+    }));
+    toast.success(`Reset link ready for ${user.email}.`);
     await loadAdminLogs();
   };
 
-  const renderUserDirectory = (options?: { showPasswordBanner?: boolean }) => (
-    <>
-      {options?.showPasswordBanner && passwordResetResult && (
-        <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-                {passwordResetResult.mode === "temporary"
-                  ? "Temporary password ready"
-                  : "Password reset link ready"}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-foreground">
-                {passwordResetResult.email}
-              </p>
-              <p className="mt-2 break-all font-mono text-xs text-text-dim">
-                {passwordResetResult.mode === "temporary"
-                  ? passwordResetResult.temporaryPassword
-                  : passwordResetResult.recoveryLink}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                void copyText(
-                  String(
-                    passwordResetResult.mode === "temporary"
-                      ? passwordResetResult.temporaryPassword
-                      : passwordResetResult.recoveryLink,
-                  ),
-                  "Copied to clipboard.",
-                )
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white dark:bg-amber-300 dark:text-amber-950"
-            >
-              <Copy size={14} />
-              Copy
-            </button>
-          </div>
+  const renderUserDirectory = () => (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 sm:p-5">
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search by name, email, or role"
+        className="w-full rounded-xl border border-slate-200 bg-[#f8f7fb] px-4 py-3 text-sm font-medium text-foreground outline-none transition focus:border-[#45697d] focus:bg-white focus:ring-2 focus:ring-[#45697d]/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:bg-zinc-950"
+      />
+
+      {usersLoading && (
+        <p className="mt-4 text-sm text-text-dim">Loading users…</p>
+      )}
+
+      {!usersLoading && usersError && (
+        <p className="mt-4 text-sm font-medium text-red-500">{usersError}</p>
+      )}
+
+      {!usersLoading && !usersError && filteredUsers.length === 0 && (
+        <div className="mt-4">
+          <EmptyStateCard
+            Icon={Users}
+            title={search.trim() ? "No users match that search" : "No users loaded yet"}
+            description={
+              search.trim()
+                ? "Try a different name, email, profile type, or role."
+                : "New accounts will appear here after they sign up or are created by an admin."
+            }
+          />
         </div>
       )}
 
-      <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-zinc-950 sm:p-5">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search users by name, email, role, or profile type"
-          className="w-full rounded-xl border border-border-gray bg-background px-4 py-3 text-sm font-semibold text-foreground outline-none transition-all focus:border-secondary dark:border-zinc-700 dark:bg-zinc-900"
-        />
-
-        {usersLoading && (
-          <p className="mt-4 text-sm font-bold text-text-light">Loading users...</p>
-        )}
-
-        {!usersLoading && usersError && (
-          <p className="mt-4 text-sm font-bold text-red-500">{usersError}</p>
-        )}
-
-        {!usersLoading && !usersError && filteredUsers.length === 0 && (
-          <div className="mt-4">
-            <EmptyStateCard
-              Icon={Users}
-              title={search.trim() ? "No users match that search" : "No users loaded yet"}
-              description={
-                search.trim()
-                  ? "Try a different name, email, profile type, or role."
-                  : "New accounts will appear here after they sign up or are created by an admin."
+      {!usersLoading && !usersError && filteredUsers.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {filteredUsers.map((user) => (
+            <AdminUserManagementCard
+              key={user.id}
+              user={user}
+              selectedRole={roleDrafts[user.id] || user.role}
+              isActing={actingUserId === user.id}
+              resetResult={passwordResetResults[user.id] || null}
+              formatDateTime={formatDateTime}
+              onRoleChange={(userId, role) =>
+                setRoleDrafts((prev) => ({ ...prev, [userId]: role }))
               }
+              onApplyRole={handleApplyRole}
+              onPromote={handlePromote}
+              onDemote={handleDemote}
+              onDelete={handleDeleteUser}
+              onResetPassword={handleResetPassword}
+              onGenerateRecoveryLink={handleGenerateRecoveryLink}
+              onCopy={copyText}
             />
-          </div>
-        )}
-
-        {!usersLoading && !usersError && filteredUsers.length > 0 && (
-          <div className="mt-4 space-y-4 max-h-[720px] overflow-y-auto pr-1">
-            {filteredUsers.map((user) => (
-              <AdminUserManagementCard
-                key={user.id}
-                user={user}
-                selectedRole={roleDrafts[user.id] || user.role}
-                isActing={actingUserId === user.id}
-                formatDateTime={formatDateTime}
-                onRoleChange={(userId, role) =>
-                  setRoleDrafts((prev) => ({ ...prev, [userId]: role }))
-                }
-                onApplyRole={handleApplyRole}
-                onPromote={handlePromote}
-                onDemote={handleDemote}
-                onDelete={handleDeleteUser}
-                onResetTemporaryPassword={handleResetTemporaryPassword}
-                onGenerateRecoveryLink={handleGenerateRecoveryLink}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </>
+          ))}
+        </div>
+      )}
+    </div>
   );
 
   const handleRetryBilling = async (reference: string) => {
@@ -1193,26 +1139,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     (item) => item.status === "blocked",
   ).length;
 
+  const showCompactHeader = activeSection !== "overview";
+
   return (
-    <div className="admin-panel min-h-[100dvh] overflow-x-hidden bg-[#f5f7fa] text-foreground dark:bg-[#050507]">
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90">
-        <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-300" />
-        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-[1180px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+    <div className="admin-panel min-h-[100dvh] overflow-x-hidden bg-[#f3f4f8] text-foreground dark:bg-[#09090b]">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95">
+        <div className="mx-auto flex min-h-[4rem] w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-all hover:bg-slate-100 active:scale-95 dark:border-white/10 dark:bg-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
               aria-label="Go back"
             >
               <ChevronLeft size={20} />
             </button>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-light">
-                Cradlyn Command
-              </p>
-              <h1 className="truncate text-base font-headline font-black text-foreground sm:text-lg">
-                Admin Console
+              <p className="text-xs font-medium text-text-dim">Cradlyn Admin</p>
+              <h1 className="truncate text-lg font-bold text-foreground">
+                {activeSectionMeta.label}
               </h1>
             </div>
           </div>
@@ -1220,51 +1165,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           <button
             onClick={() => refreshAll(true)}
             disabled={refreshing}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111827] text-white shadow-sm shadow-slate-950/10 transition-all hover:bg-slate-700 active:scale-95 disabled:opacity-60 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-foreground transition hover:bg-slate-50 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
             title="Refresh admin data"
-            aria-label="Refresh admin data"
           >
-            <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </header>
 
-      <nav
-        className="sticky top-[4.75rem] z-30 border-b border-slate-200/80 bg-[#f5f7fa]/95 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050507]/95 lg:hidden"
-        aria-label="Admin sections"
-      >
-        <div className="mx-auto flex max-w-[1180px] gap-1 overflow-x-auto rounded-[12px] border border-slate-200 bg-white p-1.5 shadow-sm no-scrollbar dark:border-white/10 dark:bg-zinc-950">
-          {ADMIN_SECTIONS.map((section) => {
-            const isActive = section.id === activeSection;
-            const SectionIcon = section.Icon;
-
-            return (
-              <button
-                key={section.id}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => handleSectionChange(section.id)}
-                className={`flex h-12 min-w-[5.5rem] flex-col items-center justify-center gap-1 rounded-[8px] text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
-                  isActive
-                    ? "bg-[#111827] text-white dark:bg-white dark:text-zinc-950"
-                    : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
-                }`}
-              >
-                <SectionIcon size={15} />
-                <span>{section.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 sm:py-6 lg:grid-cols-[9rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
+      <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
         <aside className="hidden lg:block">
-          <nav className="sticky top-[6.25rem]" aria-label="Admin sections">
-            <div className="flex w-full flex-col gap-1 rounded-[8px] border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-zinc-950">
-              <p className="px-2 pb-2 pt-1 text-center text-[9px] font-black uppercase tracking-[0.18em] text-text-light">
-                Admin
-              </p>
+          <nav className="sticky top-24" aria-label="Admin sections">
+            <div className="flex flex-col gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
               {ADMIN_SECTIONS.map((section) => {
                 const isActive = section.id === activeSection;
                 const SectionIcon = section.Icon;
@@ -1274,16 +1187,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     key={section.id}
                     type="button"
                     aria-pressed={isActive}
-                    title={section.label}
                     onClick={() => handleSectionChange(section.id)}
-                    className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-[8px] px-2 py-2 text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
+                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
                       isActive
-                        ? "bg-[#111827] text-white shadow-sm shadow-slate-950/10 dark:bg-white dark:text-zinc-950"
-                        : "text-text-light hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/10"
+                        ? "bg-[#45697d] text-white shadow-sm"
+                        : "text-text-dim hover:bg-slate-50 hover:text-foreground dark:hover:bg-zinc-900"
                     }`}
                   >
-                    <SectionIcon size={17} />
-                    <span className="max-w-full truncate">{section.label}</span>
+                    <SectionIcon size={18} />
+                    <span>{section.label}</span>
                   </button>
                 );
               })}
@@ -1291,90 +1203,75 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           </nav>
         </aside>
 
-        <main ref={mainRef} className="min-w-0 space-y-6">
-          <div className="min-w-0 space-y-6">
-            <section className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-zinc-950">
-              <div className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-end">
+        <main ref={mainRef} className="min-w-0 space-y-5">
+          <nav
+            className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:hidden"
+            aria-label="Admin sections"
+          >
+            {ADMIN_SECTIONS.map((section) => {
+              const isActive = section.id === activeSection;
+              const SectionIcon = section.Icon;
+
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => handleSectionChange(section.id)}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-[#45697d] text-white"
+                      : "border border-slate-200 bg-white text-text-dim dark:border-zinc-700 dark:bg-zinc-950"
+                  }`}
+                >
+                  <SectionIcon size={15} />
+                  {section.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {!showCompactHeader ? (
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-end">
                 <div>
-                  <div className="mb-5 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-slate-950 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white dark:bg-white dark:text-zinc-950">
-                      Full admin
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[#45697d] px-3 py-1 text-xs font-semibold text-white">
+                      Admin access
                     </span>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                        premiumAccessEnabled
-                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      }`}
-                    >
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-zinc-800 dark:text-zinc-200">
                       Premium {premiumAccessStatusLabel}
                     </span>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                        paymentCollectionEnabled
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                      }`}
-                    >
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-zinc-800 dark:text-zinc-200">
                       Payments {paymentCollectionStatusLabel}
                     </span>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                        paymentCollectionLoading || !paymentControlsReady
-                          ? "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-zinc-200"
-                          : userPremiumAccessOpen
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            : "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-                      }`}
-                    >
-                      User Premium {userPremiumAccessStatusLabel}
-                    </span>
                   </div>
-
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-text-light">
-                    {activeSectionMeta.eyebrow}
-                  </p>
-                  <h2 className="mt-2 max-w-3xl text-3xl font-headline font-black text-foreground sm:text-4xl">
+                  <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
                     {activeSectionMeta.title}
                   </h2>
-                  <p className="mt-4 max-w-xl text-sm font-semibold leading-6 text-text-dim sm:text-base">
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-text-dim">
                     {activeSectionMeta.description}
                   </p>
-                  <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.12em] text-text-light">
-                    Generated {generatedAt ? formatDateTime(generatedAt) : "-"}
-                  </p>
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 flex min-w-0 items-center justify-between gap-4 rounded-[8px] border border-slate-200 bg-slate-950 p-4 text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-zinc-950">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">
-                        Viewing
-                      </p>
-                      <p className="mt-1 truncate text-lg font-headline font-black">
-                        {activeSectionMeta.label}
-                      </p>
-                    </div>
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] bg-white/10 dark:bg-zinc-950/10">
-                      <ActiveSectionIcon size={20} />
-                    </div>
-                  </div>
                   {heroStats.map((item) => (
                     <div
                       key={item.label}
-                      className="min-w-0 rounded-[8px] border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
+                      className="rounded-xl border border-slate-200 bg-[#f8f7fb] p-4 dark:border-zinc-800 dark:bg-zinc-900"
                     >
-                      <p className="break-words text-[9px] font-black uppercase leading-4 tracking-[0.14em] text-text-light">
-                        {item.label}
-                      </p>
-                      <p className="mt-2 text-2xl font-headline font-black text-foreground">
-                        {item.value}
-                      </p>
+                      <p className="text-xs font-medium text-text-dim">{item.label}</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{item.value}</p>
                     </div>
                   ))}
                 </div>
               </div>
             </section>
+          ) : (
+            <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+              <h2 className="text-xl font-bold text-foreground">{activeSectionMeta.title}</h2>
+              <p className="mt-1 text-sm text-text-dim">{activeSectionMeta.description}</p>
+            </section>
+          )}
 
             {error && (
               <MotionDiv
@@ -2119,21 +2016,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                     activeSection === "users" ? "space-y-4" : "hidden"
                   }
                 >
-                  <div className="flex items-center justify-between px-1 gap-3">
-                    <div>
-                      <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                        User Directory
-                      </h3>
-                      <p className="mt-1 text-sm font-semibold text-text-dim">
-                        Reset passwords, update roles, and manage every account.
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-secondary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-secondary">
-                      {filteredUsers.length}/{usersTotal}
+                  <div className="flex items-center justify-between gap-3 px-1">
+                    <p className="text-sm text-text-dim">
+                      Each user card has its own password reset — set a new password or copy a reset link right there.
+                    </p>
+                    <span className="shrink-0 rounded-full bg-[#45697d]/10 px-3 py-1 text-xs font-semibold text-[#45697d]">
+                      {filteredUsers.length}/{usersTotal} users
                     </span>
                   </div>
 
-                  {renderUserDirectory({ showPasswordBanner: true })}
+                  {renderUserDirectory()}
                 </div>
 
                 <div
@@ -2518,7 +2410,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   </div>
                 </div>
             </>
-          </div>
         </main>
       </div>
     </div>
