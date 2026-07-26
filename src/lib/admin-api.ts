@@ -380,6 +380,7 @@ export const resetAdminUserPassword = async (
       recoveryLink?: string;
       emailSent?: boolean;
       emailError?: string;
+      emailProvider?: 'resend' | 'supabase';
     };
   }
 > =>

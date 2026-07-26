@@ -170,7 +170,11 @@ export interface ResetAdminManagedUserPasswordResult {
   recoveryLink?: string;
   emailSent?: boolean;
   emailError?: string;
+  emailProvider?: 'resend' | 'supabase';
 }
+
+const isResendDomainVerificationError = (message: string): boolean =>
+  /domain is not verified|not verified/i.test(String(message || ''));
 
 export const extractRecoveryLink = (linkData: unknown): string => {
   const payload = linkData as {
@@ -231,6 +235,7 @@ export const resetAdminManagedUserPassword = async (
   let recoveryLink: string | undefined;
   let emailSent: boolean | undefined;
   let emailError: string | undefined;
+  let emailProvider: 'resend' | 'supabase' | undefined;
 
   if (mode === 'temporary') {
     const suppliedPassword = normalizePassword(input.password);
@@ -288,8 +293,12 @@ export const resetAdminManagedUserPassword = async (
             text: emailContent.text,
           });
           emailSent = true;
+          emailProvider = 'resend';
         } catch (error: any) {
           emailError = error?.message || 'Failed to send reset email';
+          if (isResendDomainVerificationError(emailError)) {
+            emailError = `${emailError} Verify cradlyn.com at https://resend.com/domains (use the same Resend account as RESEND_API_KEY).`;
+          }
         }
       }
 
@@ -300,6 +309,7 @@ export const resetAdminManagedUserPassword = async (
 
         if (!recoverError) {
           emailSent = true;
+          emailProvider = 'supabase';
           emailError = undefined;
         } else if (!recoveryLink) {
           return {
@@ -342,5 +352,6 @@ export const resetAdminManagedUserPassword = async (
     recoveryLink,
     emailSent,
     emailError,
+    emailProvider,
   };
 };

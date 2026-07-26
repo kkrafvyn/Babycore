@@ -771,7 +771,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       return;
     }
 
-    const { emailSent, recoveryLink, emailError } = result.data;
+    const { emailSent, recoveryLink, emailError, emailProvider } = result.data;
 
     if (!emailSent && !recoveryLink) {
       toast.error(emailError || result.error || `Failed to send reset link for ${user.name}.`);
@@ -786,11 +786,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         recoveryLink: result.data?.recoveryLink,
         emailSent,
         emailError,
+        emailProvider,
       },
     }));
 
     if (emailSent) {
-      toast.success(`Reset link emailed to ${user.email}.`);
+      toast.success(
+        emailProvider === 'supabase'
+          ? `Reset link emailed to ${user.email} via Supabase (verify cradlyn.com in Resend to use branded email).`
+          : `Reset link emailed to ${user.email}.`,
+      );
     } else {
       toast.warning(
         emailError
