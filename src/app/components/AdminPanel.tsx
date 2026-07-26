@@ -47,6 +47,10 @@ import {
   DEFAULT_PREMIUM_ACCESS_REASON,
   type PaymentCollectionConfig,
 } from "../../lib/payment-config";
+import {
+  buildPremiumAccessMatrix,
+  resolveUserPremiumAccessSnapshot,
+} from "../../lib/premium-access-control";
 import { AdminUserManagementCard, type UserPasswordResetResult } from "./AdminUserManagementCard";
 
 interface AdminPanelProps {
@@ -95,9 +99,9 @@ const ADMIN_SECTIONS: Array<{
     id: "payments",
     label: "Payments",
     eyebrow: "Revenue Control",
-    title: "Payment Settings",
+    title: "Premium & Payments",
     description:
-      "Pause checkout, open premium testing access, and tune plan pricing before launch.",
+      "Control whether users need a paid plan, can checkout live, and see who gets premium access right now.",
     Icon: CreditCard,
   },
   {
@@ -936,25 +940,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const premiumAccessStatusLabel = paymentCollectionLoading
     ? "Checking"
     : premiumAccessEnabled
-      ? "Restricted"
-      : "Open";
-  const paymentControlsReady = Boolean(paymentCollection && premiumAccess);
-  const userPremiumAccessOpen =
-    paymentControlsReady &&
-    (!paymentCollectionEnabled || !premiumAccessEnabled);
-  const userPremiumAccessStatusLabel =
-    paymentCollectionLoading || !paymentControlsReady
-      ? "Checking"
-      : userPremiumAccessOpen
-        ? "Open"
-        : "Plan Required";
-  const userPremiumAccessReason = !paymentControlsReady
-    ? "Checking latest payment controls."
-    : !paymentCollectionEnabled
-      ? "Payments are paused, so premium tools are open automatically during QA."
-      : !premiumAccessEnabled
-        ? "Premium access is explicitly open for user testing."
-        : "Payments and premium enforcement are both on.";
+      ? "Enforcement on"
+      : "Enforcement off";
+  const userPremiumAccess = useMemo(
+    () =>
+      resolveUserPremiumAccessSnapshot(
+        paymentCollection,
+        premiumAccess,
+        paymentCollectionLoading,
+      ),
+    [paymentCollection, premiumAccess, paymentCollectionLoading],
+  );
+  const premiumAccessMatrix = useMemo(
+    () => buildPremiumAccessMatrix(userPremiumAccess),
+    [userPremiumAccess],
+  );
+  const userPremiumAccessOpen = userPremiumAccess.usersGetFreePremium;
+  const userPremiumAccessStatusLabel = userPremiumAccess.statusLabel;
+  const userPremiumAccessReason = userPremiumAccess.reason;
   const activeSectionMeta = useMemo(
     () =>
       ADMIN_SECTIONS.find((section) => section.id === activeSection) ||
@@ -973,6 +976,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     },
     { label: "Admins", value: adminRoleCount },
     { label: "Managers", value: managerRoleCount },
+    { label: "User premium", value: userPremiumAccessStatusLabel },
     { label: "Failed billing", value: billingSummary.failed },
   ];
   const launchReadinessItems = [
@@ -980,8 +984,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       label: "Premium testing",
       status: userPremiumAccessOpen ? "ready" : "blocked",
       title: userPremiumAccessOpen
-        ? "Premium tools are open for QA"
-        : "Users still need an active plan",
+        ? "Users get premium for free right now"
+        : "Users need a paid plan for premium",
       description: userPremiumAccessReason,
       action: "Open Payments",
       section: "payments" as AdminSectionId,
@@ -1520,9 +1524,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   }
                 >
                   <div className="flex items-center justify-between px-1 gap-3">
-                    <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
-                      Payment Collection
-                    </h3>
+                    <div>
+                      <h3 className="text-[10px] font-black text-text-light uppercase tracking-[0.3em]">
+                        User premium access
+                      </h3>
+                      <p className="mt-1 text-sm font-semibold text-text-dim">
+                        See whether normal users can open premium packages without paying.
+                      </p>
+                    </div>
                     <span
                       className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
                         paymentCollectionEnabled
@@ -1530,13 +1539,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           : "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                       }`}
                     >
-                      {paymentCollectionStatusLabel}
+                      Payments {paymentCollectionStatusLabel}
                     </span>
                   </div>
 
                   <div
                     className={`relative overflow-hidden rounded-[2.35rem] border p-5 shadow-xl backdrop-blur-xl ${
-                      paymentCollectionLoading || !paymentControlsReady
+                      userPremiumAccess.loading
                         ? "border-white/70 bg-white/80 shadow-slate-950/5 dark:border-white/10 dark:bg-zinc-950/70"
                         : userPremiumAccessOpen
                           ? "border-emerald-200/80 bg-emerald-50/85 shadow-emerald-950/5 dark:border-emerald-400/20 dark:bg-emerald-950/20"
@@ -1557,19 +1566,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
-                            Effective user access
+                            What users get today
                           </p>
                           <p className="mt-1 text-lg font-headline font-black tracking-tight text-foreground">
-                            {userPremiumAccessOpen
-                              ? "Users can open premium tools"
-                              : paymentCollectionLoading ||
-                                  !paymentControlsReady
-                                ? "Checking premium access"
-                                : "Users need an active plan"}
+                            {userPremiumAccess.headline}
                           </p>
                           <p className="mt-1 max-w-xl text-xs font-semibold leading-relaxed text-text-dim">
                             {userPremiumAccessReason}
                           </p>
+                          {!userPremiumAccess.loading && userPremiumAccessOpen && (
+                            <p className="mt-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-emerald-900 dark:bg-white/10 dark:text-emerald-100">
+                              Turning payments off OR premium enforcement off keeps premium open for all users.
+                              To require paid plans, turn payments on and choose Require Premium below.
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center sm:w-80">
@@ -1583,7 +1593,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </div>
                         <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
                           <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
-                            Premium
+                            Enforcement
                           </p>
                           <p className="mt-1 text-xs font-black text-foreground">
                             {premiumAccessStatusLabel}
@@ -1591,13 +1601,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </div>
                         <div className="rounded-[1.15rem] bg-white/70 px-3 py-3 dark:bg-white/10">
                           <p className="text-[8px] font-black uppercase tracking-widest text-text-light">
-                            Result
+                            Users
                           </p>
                           <p className="mt-1 text-xs font-black text-foreground">
                             {userPremiumAccessStatusLabel}
                           </p>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[2.25rem] border border-white/70 bg-white/75 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
+                      Access rules
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-text-dim">
+                      Premium packages stay free unless both live payments and premium enforcement are on.
+                    </p>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="min-w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200/80 text-[10px] font-black uppercase tracking-widest text-text-light dark:border-zinc-700">
+                            <th className="px-3 py-2">Payments</th>
+                            <th className="px-3 py-2">Enforcement</th>
+                            <th className="px-3 py-2">Users get premium</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {premiumAccessMatrix.map((row) => (
+                            <tr
+                              key={`${row.paymentsOn}-${row.enforcementOn}`}
+                              className={`border-b border-slate-100/80 dark:border-zinc-800 ${
+                                row.isCurrent ? "bg-[#45697d]/10 font-bold" : ""
+                              }`}
+                            >
+                              <td className="px-3 py-3">{row.paymentsOn ? "On" : "Off"}</td>
+                              <td className="px-3 py-3">{row.enforcementOn ? "On" : "Off"}</td>
+                              <td className="px-3 py-3">
+                                <span
+                                  className={
+                                    row.usersGetPremium
+                                      ? "text-emerald-700 dark:text-emerald-300"
+                                      : "text-rose-700 dark:text-rose-300"
+                                  }
+                                >
+                                  {row.usersGetPremium ? "Yes, free" : "No, plan required"}
+                                </span>
+                                {row.isCurrent ? (
+                                  <span className="ml-2 rounded-full bg-[#45697d] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                                    Current
+                                  </span>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
@@ -1697,14 +1756,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         <div className="min-w-0">
                           <p className="text-sm font-black text-foreground">
                             {premiumAccessEnabled
-                              ? "Premium requires a plan"
-                              : "Premium is open for user testing"}
+                              ? "Premium enforcement is on"
+                              : "Premium enforcement is off"}
                           </p>
                           <p className="mt-1 text-[10px] font-semibold leading-relaxed text-text-light">
-                            Open access lets normal users enter premium tools
-                            during QA without paying. Payment pause also opens
-                            premium automatically so users are not trapped
-                            behind checkout.
+                            When enforcement is off, every user can open premium packages without a subscription.
+                            When enforcement is on but payments are paused, users still get premium for free.
                           </p>
                         </div>
                       </div>
@@ -1747,7 +1804,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         {premiumAccessSaving
                           ? "Saving..."
                           : premiumAccessEnabled
-                            ? "Open Access"
+                            ? "Turn Enforcement Off"
                             : "Require Premium"}
                       </button>
                       <button

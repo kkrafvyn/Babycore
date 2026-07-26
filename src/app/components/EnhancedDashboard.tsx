@@ -42,6 +42,7 @@ import { getAdminAccountMode, isPrimaryAdminEmail } from '../../lib/admin-accoun
 import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 import { fetchPaymentFeatureConfig } from '../../lib/payment-config';
+import { isPremiumTestingAccessOpen } from '../../lib/premium-access-control';
 import { canOpenAppViewForRole, isReadOnlyViewerRole, isViewerAllowedView } from '../../lib/role-access';
 import { lazyNamed } from '../../lib/lazy-named';
 
@@ -291,11 +292,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     const loadPremiumTestingAccess = async () => {
       const config = await fetchPaymentFeatureConfig();
       if (!cancelled) {
-        const premiumOpen =
-          config.premiumAccess.source !== 'fallback' && !config.premiumAccess.enabled;
-        const paymentsPaused =
-          config.paymentCollection.source !== 'fallback' && !config.paymentCollection.enabled;
-        setPremiumTestingAccessOpen(premiumOpen || paymentsPaused);
+        const premiumOpen = isPremiumTestingAccessOpen(
+          config.paymentCollection,
+          config.premiumAccess,
+        );
+        setPremiumTestingAccessOpen(premiumOpen);
       }
     };
 
