@@ -31,6 +31,7 @@ export interface CareCopilotMessage {
 export interface CareCopilotResponse {
   response: string;
   usedModel: string;
+  usedProvider?: string;
   generatedAt: string;
 }
 
@@ -110,7 +111,8 @@ export async function askCareCopilot(
 
     return {
       response: String(payload.response),
-      usedModel: String(payload.usedModel || 'built-in-rules'),
+      usedModel: String(payload.usedModel || 'cradlyn-guidance'),
+      usedProvider: payload.usedProvider ? String(payload.usedProvider) : undefined,
       generatedAt: String(payload.generatedAt || new Date().toISOString()),
     };
   } catch (error) {

@@ -31,13 +31,15 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
   const [copilotHistory, setCopilotHistory] = React.useState<CareCopilotMessage[]>([
     { role: 'assistant', content: DEFAULT_GREETING },
   ]);
-  const [copilotModel, setCopilotModel] = React.useState('built-in-rules');
+  const [copilotModel, setCopilotModel] = React.useState('cradlyn-guidance');
+  const [copilotProvider, setCopilotProvider] = React.useState<string | null>(null);
   const [copilotLoading, setCopilotLoading] = React.useState(false);
   const transcriptRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     setCopilotHistory([{ role: 'assistant', content: DEFAULT_GREETING }]);
-    setCopilotModel('built-in-rules');
+    setCopilotModel('cradlyn-guidance');
+    setCopilotProvider(null);
     setCopilotPrompt('');
   }, [babyId]);
 
@@ -77,7 +79,8 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
       return;
     }
 
-    setCopilotModel(answer.usedModel || 'built-in-rules');
+    setCopilotModel(answer.usedModel || 'cradlyn-guidance');
+    setCopilotProvider(answer.usedProvider || null);
     setCopilotHistory((prev) => [...prev, { role: 'assistant', content: answer.response }]);
   };
 
@@ -92,6 +95,11 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
       void handleAskCopilot();
     }
   };
+
+  const engineLabel =
+    copilotProvider === 'openai' || copilotProvider === 'qwen'
+      ? copilotModel
+      : i18nT('copilot.engineGuidance', 'Cradlyn guidance');
 
   const isCompact = variant === 'compact';
   const transcriptHeightClass = isCompact ? 'max-h-52' : 'max-h-72';
@@ -124,7 +132,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
           </div>
         </div>
         <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-text-light">
-          {i18nT('copilot.engine', 'Engine')}: {copilotModel}
+          {i18nT('copilot.engine', 'Engine')}: {engineLabel}
         </p>
       </div>
 

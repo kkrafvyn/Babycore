@@ -6,6 +6,13 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import { resolveAiProviderConfig, requestAiChatCompletion } from '../utils/ai-provider.js';
+import {
+  buildCareCopilotBabyContext,
+  buildFallbackCopilotResponse,
+  CARE_COPILOT_SYSTEM_PROMPT,
+  formatCareContextForAi,
+  parseBabyAge,
+} from '../utils/care-copilot.js';
 import { resolveBabyAccessForIdentity } from '../utils/baby-access.js';
 
 const router = Router();
@@ -377,7 +384,7 @@ export async function careCopilot(req: Request, res: Response) {
         .limit(12),
     ]);
 
-    const contextSummary = buildCareContextSummary({
+    const babyContext = buildCareCopilotBabyContext({
       babyName: babyAccess.baby?.name || 'Baby',
       dateOfBirth: babyAccess.baby?.date_of_birth || babyAccess.baby?.dateOfBirth || undefined,
       feeds: recentFeeds.data || [],
@@ -386,6 +393,8 @@ export async function careCopilot(req: Request, res: Response) {
       growth: recentGrowth.data || [],
       vaccines: recentVaccines.data || [],
     });
+
+    const contextSummary = formatCareContextForAi(babyContext);
 
     const safeHistory = Array.isArray(history)
       ? history
@@ -397,17 +406,16 @@ export async function careCopilot(req: Request, res: Response) {
           }))
       : [];
 
-    let answer = buildFallbackCopilotResponse(String(prompt), contextSummary);
-    let usedModel = 'built-in-rules';
-    let usedProvider = 'rules';
+    let answer = buildFallbackCopilotResponse(String(prompt), babyContext, parseBabyAge(babyContext.dateOfBirth));
+    let usedModel = 'cradlyn-guidance';
+    let usedProvider = 'guidance';
 
     const aiProvider = resolveAiProviderConfig();
     if (aiProvider) {
       const completion = await requestAiChatCompletion(aiProvider, [
         {
           role: 'system',
-          content:
-            'You are Cradlyn Care Copilot. Give short, practical, non-alarmist advice for infant care. Never diagnose. Always recommend contacting a pediatrician for urgent/severe concerns.',
+          content: CARE_COPILOT_SYSTEM_PROMPT,
         },
         {
           role: 'system',
@@ -440,81 +448,6 @@ export async function careCopilot(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
-}
-
-// Helper functions
-function summarizeLastTimestamp(rows: any[], field: string): string {
-  if (!rows.length) return 'none';
-  const latest = new Date(rows[0][field] || rows[0].created_at || rows[0].date || Date.now());
-  if (Number.isNaN(latest.getTime())) return 'unknown';
-  return latest.toISOString();
-}
-
-function buildCareContextSummary(context: {
-  babyName: string;
-  dateOfBirth?: string;
-  feeds: any[];
-  sleeps: any[];
-  diapers: any[];
-  growth: any[];
-  vaccines: any[];
-}): string {
-  const overdueVaccines = context.vaccines.filter((item) => item.status === 'overdue').length;
-  const pendingVaccines = context.vaccines.filter((item) => item.status === 'scheduled').length;
-  const latestGrowth = context.growth[0];
-
-  return [
-    `Baby: ${context.babyName}`,
-    `DOB: ${context.dateOfBirth || 'unknown'}`,
-    `Feeds logged: ${context.feeds.length} (latest: ${summarizeLastTimestamp(context.feeds, 'timestamp')})`,
-    `Sleep logs: ${context.sleeps.length} (latest: ${summarizeLastTimestamp(context.sleeps, 'start_time')})`,
-    `Diaper logs: ${context.diapers.length} (latest: ${summarizeLastTimestamp(context.diapers, 'timestamp')})`,
-    `Growth entries: ${context.growth.length}${
-      latestGrowth
-        ? ` (latest weight: ${latestGrowth.weight ?? 'n/a'}, height: ${latestGrowth.height ?? 'n/a'})`
-        : ''
-    }`,
-    `Vaccines pending: ${pendingVaccines}, overdue: ${overdueVaccines}`,
-  ].join('\n');
-}
-
-function buildFallbackCopilotResponse(prompt: string, contextSummary: string): string {
-  const lowerPrompt = prompt.toLowerCase();
-  const bullets: string[] = [];
-
-  if (/(fe(ed|eding)|hungry|bottle|breast)/.test(lowerPrompt)) {
-    bullets.push('Track intervals for 24-48 hours and watch hunger cues before adjusting volume/frequency.');
-    bullets.push('Keep feeds upright and burp midway and after feeds to reduce discomfort.');
-  }
-
-  if (/(sleep|nap|wake|night)/.test(lowerPrompt)) {
-    bullets.push('Use a consistent pre-sleep routine and stable wake windows for the next 3 days.');
-    bullets.push('Aim for a calm wind-down environment: dim lights, lower noise, and predictable sequence.');
-  }
-
-  if (/(vaccine|immuni)/.test(lowerPrompt)) {
-    bullets.push('Prioritize overdue doses first, then schedule the next due vaccines by clinician guidance.');
-    bullets.push('Bring the vaccine record to every visit so the pediatrician can confirm catch-up spacing.');
-  }
-
-  if (/(fever|rash|pain|vomit|blood|breath|seizure|emergency)/.test(lowerPrompt)) {
-    bullets.push('This may need urgent medical review. Please contact your pediatrician or emergency services now.');
-  }
-
-  if (bullets.length === 0) {
-    bullets.push('Log the next 2-3 days of feeds, sleep, diapers, and symptoms to identify reliable patterns.');
-    bullets.push('If behavior changes are persistent or severe, check with your pediatrician for personalized advice.');
-  }
-
-  return [
-    'Here is a practical care plan:',
-    ...bullets.map((item) => `- ${item}`),
-    '',
-    'Context used:',
-    contextSummary,
-    '',
-    'Medical note: This guidance is informational and does not replace professional care.',
-  ].join('\n');
 }
 
 function calculateAverage(data: any[], field: string): number {
