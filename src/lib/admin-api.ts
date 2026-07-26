@@ -369,6 +369,7 @@ export const resetAdminUserPassword = async (
   input: {
     mode: 'temporary' | 'recovery_link';
     password?: string;
+    sendEmail?: boolean;
   },
 ): Promise<
   AdminMutationResponse & {
@@ -377,6 +378,8 @@ export const resetAdminUserPassword = async (
       mode?: 'temporary' | 'recovery_link';
       temporaryPassword?: string;
       recoveryLink?: string;
+      emailSent?: boolean;
+      emailError?: string;
     };
   }
 > =>

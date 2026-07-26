@@ -758,15 +758,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     await loadAdminLogs();
   };
 
-  const handleGenerateRecoveryLink = async (user: AdminUserRecord) => {
+  const handleSendRecoveryLink = async (user: AdminUserRecord) => {
     setActingUserId(user.id);
     const result = await resetAdminUserPassword(user.id, {
       mode: "recovery_link",
+      sendEmail: true,
     });
     setActingUserId(null);
 
-    if (!result.success || !result.data?.recoveryLink) {
-      toast.error(result.error || `Failed to create reset link for ${user.name}.`);
+    if (!result.success || !result.data) {
+      toast.error(result.error || `Failed to send reset link for ${user.name}.`);
+      return;
+    }
+
+    const { emailSent, recoveryLink, emailError } = result.data;
+
+    if (!emailSent && !recoveryLink) {
+      toast.error(emailError || result.error || `Failed to send reset link for ${user.name}.`);
       return;
     }
 
@@ -776,9 +784,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         email: result.data?.email || user.email,
         mode: "recovery_link",
         recoveryLink: result.data?.recoveryLink,
+        emailSent,
+        emailError,
       },
     }));
-    toast.success(`Reset link ready for ${user.email}.`);
+
+    if (emailSent) {
+      toast.success(`Reset link emailed to ${user.email}.`);
+    } else {
+      toast.warning(
+        emailError
+          ? `Email failed (${emailError}). Copy the link below and send it manually.`
+          : `Reset link ready for ${user.email}. Copy and send it manually.`,
+      );
+    }
     await loadAdminLogs();
   };
 
@@ -831,7 +850,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               onDemote={handleDemote}
               onDelete={handleDeleteUser}
               onResetPassword={handleResetPassword}
-              onGenerateRecoveryLink={handleGenerateRecoveryLink}
+              onSendRecoveryLink={handleSendRecoveryLink}
               onCopy={copyText}
             />
           ))}

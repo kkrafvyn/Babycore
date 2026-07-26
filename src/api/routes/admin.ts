@@ -723,6 +723,7 @@ router.post('/users/:userId/reset-password', requireRole('admin'), async (req: A
         mode,
         password: req.body?.password ? String(req.body.password) : undefined,
         redirectTo: req.body?.redirectTo ? String(req.body.redirectTo) : undefined,
+        sendEmail: req.body?.sendEmail !== false,
       },
       supabase,
     );
@@ -745,7 +746,9 @@ router.post('/users/:userId/reset-password', requireRole('admin'), async (req: A
       message:
         mode === 'temporary'
           ? 'Temporary password set successfully'
-          : 'Password reset link generated successfully',
+          : result.emailSent
+            ? 'Password reset email sent successfully'
+            : 'Password reset link generated successfully',
       data: result,
     });
   } catch (error: any) {

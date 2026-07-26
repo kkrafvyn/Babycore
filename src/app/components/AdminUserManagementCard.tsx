@@ -9,6 +9,8 @@ export type UserPasswordResetResult = {
   email: string;
   temporaryPassword?: string;
   recoveryLink?: string;
+  emailSent?: boolean;
+  emailError?: string;
 };
 
 const roleBadgeClass = (role: string): string => {
@@ -48,7 +50,7 @@ export interface AdminUserManagementCardProps {
   onDemote: (user: AdminUserRecord) => void;
   onDelete: (user: AdminUserRecord) => void;
   onResetPassword: (user: AdminUserRecord, password?: string) => void;
-  onGenerateRecoveryLink: (user: AdminUserRecord) => void;
+  onSendRecoveryLink: (user: AdminUserRecord) => void;
   onCopy: (value: string, message: string) => void;
 }
 
@@ -64,7 +66,7 @@ export const AdminUserManagementCard: React.FC<AdminUserManagementCardProps> = (
   onDemote,
   onDelete,
   onResetPassword,
-  onGenerateRecoveryLink,
+  onSendRecoveryLink,
   onCopy,
 }) => {
   const [newPassword, setNewPassword] = useState('');
@@ -75,6 +77,11 @@ export const AdminUserManagementCard: React.FC<AdminUserManagementCardProps> = (
   const canDemote = user.role !== 'user';
   const resetValue =
     resetResult?.mode === 'temporary' ? resetResult.temporaryPassword : resetResult?.recoveryLink;
+  const showResetResult =
+    resetResult &&
+    (resetResult.mode === 'temporary'
+      ? Boolean(resetValue)
+      : Boolean(resetValue) || Boolean(resetResult.emailSent) || Boolean(resetResult.emailError));
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.05)] dark:border-zinc-800 dark:bg-zinc-950">
@@ -127,32 +134,43 @@ export const AdminUserManagementCard: React.FC<AdminUserManagementCardProps> = (
             </button>
             <button
               type="button"
-              onClick={() => onGenerateRecoveryLink(user)}
+              onClick={() => onSendRecoveryLink(user)}
               disabled={isActing}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-[#45697d] hover:text-[#45697d] disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
             >
               <Link2 size={15} />
-              Get reset link
+              {isActing ? 'Sending…' : 'Send reset link'}
             </button>
           </div>
 
-          {resetResult && resetValue && (
+          {showResetResult && (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                    {resetResult.mode === 'temporary' ? 'New password for this user' : 'Reset link for this user'}
+                    {resetResult.mode === 'temporary'
+                      ? 'New password for this user'
+                      : resetResult.emailSent
+                        ? `Reset email sent to ${resetResult.email}`
+                        : 'Reset link for this user'}
                   </p>
-                  <p className="mt-1 break-all font-mono text-sm text-foreground">{resetValue}</p>
+                  {resetResult.emailError && !resetResult.emailSent && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-300">{resetResult.emailError}</p>
+                  )}
+                  {resetValue && (
+                    <p className="mt-1 break-all font-mono text-sm text-foreground">{resetValue}</p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onCopy(resetValue, 'Copied to clipboard.')}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-amber-700 px-2.5 py-1.5 text-xs font-semibold text-white dark:bg-amber-300 dark:text-amber-950"
-                >
-                  <Copy size={13} />
-                  Copy
-                </button>
+                {resetValue && (
+                  <button
+                    type="button"
+                    onClick={() => onCopy(resetValue, 'Copied to clipboard.')}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-amber-700 px-2.5 py-1.5 text-xs font-semibold text-white dark:bg-amber-300 dark:text-amber-950"
+                  >
+                    <Copy size={13} />
+                    Copy
+                  </button>
+                )}
               </div>
             </div>
           )}

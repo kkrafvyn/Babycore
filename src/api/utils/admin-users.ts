@@ -1,5 +1,8 @@
 import { randomBytes } from 'node:crypto';
 
+import { resolveEmailBranding } from './app-branding.js';
+import { renderPasswordResetEmail } from './email-templates.js';
+import { sendTransactionalEmail } from './email.js';
 import { supabase as defaultSupabase } from './supabase.js';
 
 export type AdminCreatableRole = 'admin' | 'manager';
@@ -155,6 +158,7 @@ export interface ResetAdminManagedUserPasswordInput {
   mode: AdminPasswordResetMode;
   password?: string;
   redirectTo?: string;
+  sendEmail?: boolean;
 }
 
 export interface ResetAdminManagedUserPasswordResult {
@@ -164,7 +168,21 @@ export interface ResetAdminManagedUserPasswordResult {
   mode?: AdminPasswordResetMode;
   temporaryPassword?: string;
   recoveryLink?: string;
+  emailSent?: boolean;
+  emailError?: string;
 }
+
+export const extractRecoveryLink = (linkData: unknown): string => {
+  const payload = linkData as {
+    properties?: { action_link?: string };
+    action_link?: string;
+    link?: string;
+  };
+
+  return String(
+    payload?.properties?.action_link || payload?.action_link || payload?.link || '',
+  ).trim();
+};
 
 const resolvePasswordResetRedirect = (override?: string): string => {
   const candidate =
@@ -211,6 +229,8 @@ export const resetAdminManagedUserPassword = async (
   const now = new Date().toISOString();
   let temporaryPassword: string | undefined;
   let recoveryLink: string | undefined;
+  let emailSent: boolean | undefined;
+  let emailError: string | undefined;
 
   if (mode === 'temporary') {
     const suppliedPassword = normalizePassword(input.password);
@@ -231,11 +251,15 @@ export const resetAdminManagedUserPassword = async (
       };
     }
   } else {
+    const redirectTo = resolvePasswordResetRedirect(input.redirectTo);
+    const shouldSendEmail = input.sendEmail !== false;
+    emailSent = false;
+
     const { data: linkData, error: linkError } = await authAdmin.generateLink({
       type: 'recovery',
       email,
       options: {
-        redirectTo: resolvePasswordResetRedirect(input.redirectTo),
+        redirectTo,
       },
     });
 
@@ -246,14 +270,55 @@ export const resetAdminManagedUserPassword = async (
       };
     }
 
-    recoveryLink = String(
-      linkData?.properties?.action_link || linkData?.action_link || linkData?.link || '',
-    ).trim();
+    recoveryLink = extractRecoveryLink(linkData);
 
-    if (!recoveryLink) {
+    if (shouldSendEmail) {
+      if (recoveryLink) {
+        try {
+          const branding = resolveEmailBranding();
+          const emailContent = renderPasswordResetEmail({
+            resetLink: recoveryLink,
+            branding,
+          });
+
+          await sendTransactionalEmail({
+            to: email,
+            subject: `Password Reset - ${branding.appName}`,
+            html: emailContent.html,
+            text: emailContent.text,
+          });
+          emailSent = true;
+        } catch (error: any) {
+          emailError = error?.message || 'Failed to send reset email';
+        }
+      }
+
+      if (!emailSent) {
+        const { error: recoverError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo,
+        });
+
+        if (!recoverError) {
+          emailSent = true;
+          emailError = undefined;
+        } else if (!recoveryLink) {
+          return {
+            success: false,
+            error:
+              emailError ||
+              recoverError.message ||
+              'Failed to generate or email a password reset link',
+          };
+        } else {
+          emailError = emailError || recoverError.message;
+        }
+      }
+    }
+
+    if (!recoveryLink && !emailSent) {
       return {
         success: false,
-        error: 'Password reset link was not returned by Supabase',
+        error: emailError || 'Password reset link was not returned by Supabase',
       };
     }
   }
@@ -275,5 +340,7 @@ export const resetAdminManagedUserPassword = async (
     mode,
     temporaryPassword,
     recoveryLink,
+    emailSent,
+    emailError,
   };
 };
