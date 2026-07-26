@@ -14,6 +14,7 @@ import {
 } from '../../lib/notifications';
 import { useAuthStore } from '@/app/AppContext';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
+import { CareCopilotBubble } from './CareCopilotBubble';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -32,7 +33,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   showTopHeader = true,
   showBottomNav = true,
 }) => {
-  const { settings } = useAuthStore();
+  const { settings, currentBaby } = useAuthStore();
   const reminderPreferences = React.useMemo(() => getReminderPreferences(settings), [settings]);
   const { theme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = React.useState(false);
@@ -301,6 +302,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </div>
         </nav>
       </aside>
+
+      {currentBaby?.id && currentBaby.name ? (
+        <CareCopilotBubble babyId={currentBaby.id} babyName={currentBaby.name} />
+      ) : null}
     </div>
   );
 };

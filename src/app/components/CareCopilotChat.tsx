@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, Send, Sparkles } from 'lucide-react';
+import { Bot, Send, Sparkles, X } from 'lucide-react';
 import { askCareCopilot, type CareCopilotMessage } from '@/lib/ml-insights-service';
 import { i18nT } from '@/lib/i18n';
 
@@ -17,8 +17,9 @@ const SUGGESTED_PROMPTS = [
 interface CareCopilotChatProps {
   babyId: string;
   babyName: string;
-  variant?: 'compact' | 'full';
+  variant?: 'compact' | 'full' | 'panel';
   className?: string;
+  onClose?: () => void;
 }
 
 export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
@@ -26,6 +27,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
   babyName,
   variant = 'full',
   className = '',
+  onClose,
 }) => {
   const [copilotPrompt, setCopilotPrompt] = React.useState('');
   const [copilotHistory, setCopilotHistory] = React.useState<CareCopilotMessage[]>([
@@ -101,42 +103,77 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
       ? copilotModel
       : i18nT('copilot.engineGuidance', 'Cradlyn guidance');
 
+  const isPanel = variant === 'panel';
   const isCompact = variant === 'compact';
-  const transcriptHeightClass = isCompact ? 'max-h-52' : 'max-h-72';
+  const transcriptHeightClass = isPanel
+    ? 'min-h-0 flex-1'
+    : isCompact
+      ? 'max-h-52'
+      : 'max-h-72';
+
+  const shellClass = isPanel
+    ? `flex h-full min-h-0 flex-col bg-surface dark:bg-zinc-950 ${className}`
+    : `rounded-[2rem] border border-border-gray bg-surface shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] ${className}`;
 
   return (
-    <section
-      className={`rounded-[2rem] border border-border-gray bg-surface shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] ${className}`}
-    >
-      <div className="border-b border-border-gray px-5 py-4 dark:border-zinc-800 sm:px-6 sm:py-5">
+    <section className={shellClass}>
+      <div
+        className={`border-b border-border-gray dark:border-zinc-800 ${
+          isPanel ? 'shrink-0 px-4 py-3 sm:px-5' : 'px-5 py-4 sm:px-6 sm:py-5'
+        }`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-secondary">
-              <Sparkles size={16} />
+            <div className="mb-1.5 flex items-center gap-2 text-secondary">
+              <Sparkles size={isPanel ? 14 : 16} />
               <span className="text-[10px] font-black uppercase tracking-[0.2em]">
                 {i18nT('copilot.badge', 'Care Copilot')}
               </span>
             </div>
-            <h3 className="font-headline text-xl font-black tracking-tight text-foreground sm:text-2xl">
+            <h3
+              className={`font-headline font-black tracking-tight text-foreground ${
+                isPanel ? 'text-lg' : 'text-xl sm:text-2xl'
+              }`}
+            >
               {i18nT('copilot.title', 'Ask Cradlyn AI')}
             </h3>
-            <p className="mt-1 text-sm font-semibold text-text-dim">
+            <p className={`mt-0.5 font-semibold text-text-dim ${isPanel ? 'text-xs' : 'text-sm'}`}>
               {i18nT('copilot.subtitle', 'Questions about {name} use your logged care data.').replace(
                 '{name}',
                 babyName,
               )}
             </p>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
-            <Bot size={20} />
+          <div className="flex shrink-0 items-center gap-2">
+            {!isPanel && (
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+                <Bot size={20} />
+              </div>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border-gray bg-surface-gray text-foreground transition hover:bg-surface dark:border-zinc-700 dark:bg-zinc-900"
+                aria-label={i18nT('copilot.close', 'Close Care Copilot')}
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
         </div>
-        <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-text-light">
-          {i18nT('copilot.engine', 'Engine')}: {engineLabel}
-        </p>
+        {!isPanel && (
+          <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-text-light">
+            {i18nT('copilot.engine', 'Engine')}: {engineLabel}
+          </p>
+        )}
       </div>
 
-      <div className="space-y-4 px-5 py-4 sm:px-6 sm:py-5">
+      <div
+        className={`flex min-h-0 flex-1 flex-col ${
+          isPanel ? 'gap-3 px-4 py-3 sm:px-5 sm:py-4' : 'space-y-4 px-5 py-4 sm:px-6 sm:py-5'
+        }`}
+      >
         <div
           ref={transcriptRef}
           className={`${transcriptHeightClass} space-y-2 overflow-y-auto rounded-[1.4rem] border border-border-gray bg-surface-gray p-3 dark:border-zinc-800 dark:bg-zinc-900/60`}
@@ -183,7 +220,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
             value={copilotPrompt}
             onChange={(event) => setCopilotPrompt(event.target.value)}
             onKeyDown={handlePromptKeyDown}
-            rows={isCompact ? 2 : 3}
+            rows={isPanel ? 2 : isCompact ? 2 : 3}
             placeholder={i18nT(
               'copilot.placeholder',
               'Ask something like: Is this sleep pattern normal for their age?',

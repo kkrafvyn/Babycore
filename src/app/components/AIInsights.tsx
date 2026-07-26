@@ -7,7 +7,6 @@ import {
   getSleepRecommendations,
   AIInsight,
 } from '@/lib/ml-insights-service';
-import { CareCopilotChat } from './CareCopilotChat';
 
 interface AIInsightsProps {
   babyId: string;
@@ -89,15 +88,15 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
 
   return (
     <div className="space-y-4">
-      <CareCopilotChat babyId={babyId} babyName={babyName} variant="full" />
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5" />
             Smart Pattern Insights
           </CardTitle>
-          <CardDescription>Built-in analysis of {babyName}'s patterns with no external AI key required</CardDescription>
+          <CardDescription>
+            Built-in analysis of {babyName}&apos;s patterns. Tap the Care Copilot bubble on the right to ask questions.
+          </CardDescription>
         </CardHeader>
       </Card>
 

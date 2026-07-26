@@ -27,7 +27,6 @@ import {
 } from 'lucide-react';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 import { BloomAI } from './BloomAI';
-import { CareCopilotChat } from './CareCopilotChat';
 import { FeedingTimer } from './FeedingTimer';
 import { Paywall } from './Paywall';
 import { addFeedLog } from '../../lib/supabase-storage';
@@ -729,7 +728,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     }
 
     return (
-      <div className="space-y-6 sm:space-y-10">
+      <div className="space-y-5 sm:space-y-8">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter leading-none truncate">
@@ -918,7 +917,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           </div>
         )}
 
-        <div className="relative h-52 sm:h-64 w-full rounded-[2.2rem] sm:rounded-[3.5rem] overflow-hidden shadow-2xl group cursor-pointer bg-surface-gray dark:bg-zinc-900 border border-border-gray dark:border-zinc-800">
+        <div className="relative h-44 sm:h-56 w-full rounded-[2rem] sm:rounded-[3rem] overflow-hidden shadow-xl group cursor-pointer bg-surface-gray dark:bg-zinc-900 border border-border-gray dark:border-zinc-800">
           <img
             src={currentBaby?.photoUrl || getDefaultAvatar(currentBaby?.gender, currentBaby?.name)}
             alt="Baby"
@@ -951,10 +950,6 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         </div>
 
         <BloomAI feeds={feedLogs} sleeps={sleepLogs} />
-
-        {currentBaby && (
-          <CareCopilotChat babyId={currentBaby.id} babyName={currentBaby.name} variant="compact" />
-        )}
 
         {settings?.careProfilePreferences && (
           <div className="rounded-[2rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] sm:p-6">
