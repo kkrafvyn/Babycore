@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, Send, Sparkles, X } from 'lucide-react';
+import { Bot, GripHorizontal, Send, Sparkles, X } from 'lucide-react';
 import { askCareCopilot, type CareCopilotMessage } from '@/lib/ml-insights-service';
 import { i18nT } from '@/lib/i18n';
 
@@ -20,6 +20,7 @@ interface CareCopilotChatProps {
   variant?: 'compact' | 'full' | 'panel';
   className?: string;
   onClose?: () => void;
+  onHeaderPointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
 }
 
 export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
@@ -28,6 +29,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
   variant = 'full',
   className = '',
   onClose,
+  onHeaderPointerDown,
 }) => {
   const [copilotPrompt, setCopilotPrompt] = React.useState('');
   const [copilotHistory, setCopilotHistory] = React.useState<CareCopilotMessage[]>([
@@ -120,8 +122,17 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
       <div
         className={`border-b border-border-gray dark:border-zinc-800 ${
           isPanel ? 'shrink-0 px-4 py-3 sm:px-5' : 'px-5 py-4 sm:px-6 sm:py-5'
-        }`}
+        } ${isPanel && onHeaderPointerDown ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
+        onPointerDown={isPanel ? onHeaderPointerDown : undefined}
       >
+        {isPanel && onHeaderPointerDown && (
+          <div className="mb-2 flex items-center justify-center text-text-light">
+            <GripHorizontal size={18} aria-hidden="true" />
+            <span className="ml-2 text-[10px] font-black uppercase tracking-[0.18em]">
+              {i18nT('copilot.dragToMove', 'Drag to move')}
+            </span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="mb-1.5 flex items-center gap-2 text-secondary">
@@ -154,6 +165,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
               <button
                 type="button"
                 onClick={onClose}
+                onPointerDown={(event) => event.stopPropagation()}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-border-gray bg-surface-gray text-foreground transition hover:bg-surface dark:border-zinc-700 dark:bg-zinc-900"
                 aria-label={i18nT('copilot.close', 'Close Care Copilot')}
               >
@@ -170,7 +182,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
       </div>
 
       <div
-        className={`flex min-h-0 flex-1 flex-col ${
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
           isPanel ? 'gap-3 px-4 py-3 sm:px-5 sm:py-4' : 'space-y-4 px-5 py-4 sm:px-6 sm:py-5'
         }`}
       >
@@ -197,6 +209,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
           )}
         </div>
 
+        <div className={`shrink-0 space-y-3 ${isPanel ? 'pb-[env(safe-area-inset-bottom)]' : ''}`}>
         <div className="flex flex-wrap gap-2">
           {SUGGESTED_PROMPTS.map((prompt) => (
             <button
@@ -245,6 +258,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
             'Care Copilot offers general guidance only. Contact your pediatrician for urgent or medical concerns.',
           )}
         </p>
+        </div>
       </div>
     </section>
   );
