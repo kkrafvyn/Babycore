@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { PWAInstallPrompt } from './PWAInstallPrompt';
 import { BloomAI } from './BloomAI';
+import { CareCopilotChat } from './CareCopilotChat';
 import { FeedingTimer } from './FeedingTimer';
 import { Paywall } from './Paywall';
 import { addFeedLog } from '../../lib/supabase-storage';
@@ -976,6 +977,10 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
         <BloomAI feeds={feedLogs} sleeps={sleepLogs} />
 
+        {currentBaby && (
+          <CareCopilotChat babyId={currentBaby.id} babyName={currentBaby.name} variant="compact" />
+        )}
+
         {settings?.careProfilePreferences && (
           <div className="rounded-[2rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:rounded-[2.5rem] sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1117,7 +1122,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
               },
               {
                 id: 'ai-insights',
-                label: 'AI Insights',
+                label: 'Ask AI',
                 icon: <Sparkles size={20} />,
                 bg: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-500',
               },

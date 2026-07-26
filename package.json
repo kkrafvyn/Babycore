@@ -24,6 +24,7 @@
     "check:prod-config": "node scripts/check-prod-config.mjs",
     "check:schema": "node scripts/check-supabase-schema.mjs",
     "check:production": "node scripts/check-supabase-production.mjs",
+    "check:ai": "node scripts/check-ai-providers.mjs",
     "smoke:cold-start": "node scripts/smoke-cold-start.mjs",
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "start": "node dist/api/server.js",
