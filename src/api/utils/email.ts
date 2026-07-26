@@ -17,16 +17,6 @@ export interface TransactionalEmailResult {
   id?: string;
 }
 
-const resolveFromAddress = (provided?: string): string =>
-  normalizeTransactionalFromAddress(
-    provided ||
-      process.env.SMTP_FROM ||
-      process.env.RESEND_FROM_EMAIL ||
-      process.env.SENDGRID_FROM_EMAIL ||
-      process.env.EMAIL_FROM ||
-      APP_NOREPLY_EMAIL,
-  );
-
 const resolveSmtpConfig = (): {
   host: string;
   port: number;
@@ -56,6 +46,19 @@ const resolveSmtpConfig = (): {
   };
 };
 
+const resolveFromAddress = (provided?: string, useSmtpFrom = false): string => {
+  const configuredFrom =
+    provided ||
+    (useSmtpFrom ? process.env.SMTP_FROM : undefined) ||
+    process.env.RESEND_FROM_EMAIL ||
+    process.env.EMAIL_FROM ||
+    process.env.SENDGRID_FROM_EMAIL ||
+    process.env.SMTP_FROM ||
+    APP_NOREPLY_EMAIL;
+
+  return normalizeTransactionalFromAddress(configuredFrom);
+};
+
 const toRecipientList = (to: string | string[]): string[] =>
   (Array.isArray(to) ? to : [to]).map((item) => item.trim()).filter(Boolean);
 
@@ -67,10 +70,9 @@ export async function sendTransactionalEmail(
     throw new Error('No email recipients provided');
   }
 
-  const from = resolveFromAddress(options.from);
-
   const resendKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (resendKey) {
+    const from = resolveFromAddress(options.from, false);
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -99,8 +101,9 @@ export async function sendTransactionalEmail(
     };
   }
 
-  const sendgridKey = process.env.SENDGRID_API_KEY;
+  const sendgridKey = process.env.SENDGRID_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (sendgridKey) {
+    const from = resolveFromAddress(options.from, false);
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
@@ -146,7 +149,7 @@ export async function sendTransactionalEmail(
     });
 
     const info = await transporter.sendMail({
-      from,
+      from: resolveFromAddress(options.from, true),
       to: recipients,
       subject: options.subject,
       html: options.html,
@@ -161,7 +164,7 @@ export async function sendTransactionalEmail(
   }
 
   console.warn(
-    `[email:dry-run] No SENDGRID_API_KEY, RESEND_API_KEY, or SMTP_* configured. Intended recipients: ${recipients.join(', ')}`,
+    `[email:dry-run] No RESEND_API_KEY, SENDGRID_API_KEY, or SMTP_* configured. Intended recipients: ${recipients.join(', ')}`,
   );
   return { provider: 'dry-run' };
 }

@@ -16,14 +16,15 @@ type SendEmailResult = {
   message?: string;
 };
 
-const getFromAddress = (override?: string): string =>
+const getFromAddress = (override?: string, useSmtpFrom = false): string =>
   normalizeTransactionalFromAddress(
     (
       override ||
-      process.env.SMTP_FROM ||
+      (useSmtpFrom ? process.env.SMTP_FROM : undefined) ||
       process.env.RESEND_FROM_EMAIL ||
-      process.env.SENDGRID_FROM_EMAIL ||
       process.env.EMAIL_FROM ||
+      process.env.SENDGRID_FROM_EMAIL ||
+      process.env.SMTP_FROM ||
       APP_NOREPLY_EMAIL
     ).trim(),
   );
@@ -68,16 +69,16 @@ const resolveSmtpConfig = (): {
 export const sendTransactionalEmail = async (
   input: SendEmailInput,
 ): Promise<SendEmailResult> => {
-  const payload = {
-    from: getFromAddress(input.from),
-    to: [input.to],
-    subject: input.subject,
-    html: input.html,
-    text: input.text || toPlainText(input.html),
-  };
-
   const resendKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (resendKey) {
+    const payload = {
+      from: getFromAddress(input.from, false),
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text || toPlainText(input.html),
+    };
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -99,7 +100,7 @@ export const sendTransactionalEmail = async (
     };
   }
 
-  const sendgridKey = process.env.SENDGRID_API_KEY;
+  const sendgridKey = process.env.SENDGRID_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
   if (sendgridKey) {
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -109,7 +110,7 @@ export const sendTransactionalEmail = async (
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: input.to }] }],
-        from: { email: getFromAddress(input.from) },
+        from: { email: getFromAddress(input.from, false) },
         subject: input.subject,
         content: [{ type: 'text/html', value: input.html }],
       }),
@@ -139,11 +140,11 @@ export const sendTransactionalEmail = async (
     });
 
     const info = await transporter.sendMail({
-      from: payload.from,
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
+      from: getFromAddress(input.from, true),
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text || toPlainText(input.html),
     });
 
     return {

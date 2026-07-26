@@ -65,7 +65,7 @@ export const resolveEmailBranding = (
   const contactFromEnv =
     normalizeUrl(String(process.env.APP_CONTACT_URL || process.env.SUPPORT_URL || ''), 'https') ||
     normalizeUrl(String(process.env.VAPID_SUBJECT || '').replace(/^mailto:/i, ''), 'mailto') ||
-    `mailto:${String(process.env.SUPPORT_EMAIL || process.env.SMTP_FROM || APP_SUPPORT_EMAIL).trim()}`;
+    `mailto:${String(process.env.SUPPORT_EMAIL || process.env.VITE_SUPPORT_EMAIL || APP_SUPPORT_EMAIL).trim()}`;
 
   return {
     appName: overrides?.appName || resolveAppDisplayName(),
