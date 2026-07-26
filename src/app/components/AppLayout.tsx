@@ -108,7 +108,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
-    <div className="fit-screen flex min-h-[100dvh] flex-col overflow-hidden bg-background">
+    <div className="fit-screen app-viewport-shell flex flex-col overflow-hidden bg-background">
       {/* Top Header */}
       {showTopHeader && (
         <header className="fixed top-0 w-full z-50 h-16 sm:h-20 border-b border-border-gray bg-background/85 backdrop-blur-xl dark:border-zinc-800/50">

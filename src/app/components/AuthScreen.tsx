@@ -146,8 +146,8 @@ export function AuthScreen({
   };
 
   return (
-    <div className="fit-screen page-scroll overflow-x-hidden bg-[#f8f7fb] text-[#242932]">
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8 sm:py-8">
+    <div className="page-scroll min-h-[100dvh] overflow-x-hidden bg-[#f8f7fb] text-[#242932]">
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8 sm:py-8">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5f8ff] text-[#45697d]">
@@ -165,7 +165,7 @@ export function AuthScreen({
           </button>
         </header>
 
-        <main className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-10">
+        <main className="grid items-center gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-10">
           <section className="mx-auto w-full max-w-xl lg:max-w-none">
             <MotionDiv
               initial={{ y: 18, opacity: 0 }}

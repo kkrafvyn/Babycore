@@ -31,7 +31,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-background"
+      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] bg-background"
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-secondary-fixed/30 blur-[120px]" />
@@ -39,8 +39,8 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
         <div className="absolute -right-24 bottom-0 h-[22rem] w-[22rem] rounded-full bg-tertiary-fixed/35 blur-[120px]" />
       </div>
 
-      <main className="relative h-full">
-        <section className="flex h-full flex-col px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
+      <main className="relative min-h-[100dvh]">
+        <section className="flex min-h-[100dvh] flex-col px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/70 bg-white/85 p-2.5 shadow-[0_18px_40px_rgba(69,98,125,0.12)] backdrop-blur">
               <img alt={`${appName} logo`} className="h-full w-full object-contain logo-theme-fix" src={logoUrl} />
