@@ -9,6 +9,7 @@ export type EmailBranding = {
   baseUrl: string;
   privacyUrl: string;
   termsUrl: string;
+  deleteAccountUrl: string;
   contactUrl: string;
 };
 
@@ -73,6 +74,7 @@ export const resolveEmailBranding = (
     baseUrl,
     privacyUrl: overrides?.privacyUrl || `${baseUrl}/policies#privacy-policy`,
     termsUrl: overrides?.termsUrl || `${baseUrl}/policies#terms-of-service`,
+    deleteAccountUrl: overrides?.deleteAccountUrl || `${baseUrl}/delete-account`,
     contactUrl: overrides?.contactUrl || contactFromEnv,
   };
 };

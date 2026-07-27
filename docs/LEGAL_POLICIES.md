@@ -10,6 +10,7 @@ Last updated: April 26, 2026
 - Data ownership statement: Baby data belongs to the parent/legal guardian, not Cradlyn.
 - Retention and deletion: active account data is retained while service is in use; deletion requests trigger removal from active systems and scheduled backup expiration according to operational retention windows.
 - Users can export and request deletion of data, subject to legal obligations.
+- Account deletion instructions: https://cradlyn.com/delete-account
 
 ## 2) Terms of Service
 - Users are responsible for account security and accurate data entry.

@@ -30,8 +30,9 @@ const androidTargets = [
 
 const targets = [...iosTargets, ...androidTargets];
 
-const logoSvg = await fs.readFile(path.join(rootDir, 'public', 'logo.svg'), 'utf8');
-const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString('base64')}`;
+const logoPath = path.join(rootDir, 'public', 'splash-logo.png');
+const logoBuffer = await fs.readFile(logoPath);
+const logoDataUri = `data:image/png;base64,${logoBuffer.toString('base64')}`;
 
 const html = `<!doctype html>
 <html lang="en">
@@ -74,9 +75,8 @@ const html = `<!doctype html>
         height: 100vh;
         overflow: hidden;
         background:
-          radial-gradient(circle at 82% 8%, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.16) 29%, rgba(255, 255, 255, 0) 56%),
-          radial-gradient(circle at 50% 54%, rgba(171, 199, 212, 0.42) 0%, rgba(171, 199, 212, 0.14) 24%, rgba(171, 199, 212, 0) 52%),
-          linear-gradient(180deg, #eef6fa 0%, #e7f1f5 48%, #dbe7e5 100%);
+          radial-gradient(circle at 50% 38%, rgba(223, 248, 255, 0.55) 0%, rgba(248, 247, 251, 0) 58%),
+          linear-gradient(180deg, #f8f7fb 0%, #eef0f5 100%);
       }
 
       .frame::before {
@@ -88,7 +88,7 @@ const html = `<!doctype html>
         height: 58vmin;
         transform: translate(-50%, -50%);
         border-radius: 999px;
-        background: rgba(207, 225, 233, 0.75);
+        background: rgba(219, 238, 246, 0.75);
         filter: blur(88px);
       }
 
@@ -152,7 +152,7 @@ const html = `<!doctype html>
 
       .title {
         margin: 5.5vmin 0 0;
-        color: #2a3034;
+        color: #45697d;
         font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
         font-size: clamp(54px, 6.6vmin, 136px);
         font-weight: 800;
@@ -162,10 +162,11 @@ const html = `<!doctype html>
 
       .subtitle {
         margin-top: 1.3vmin;
-        color: #647c97;
-        font-size: clamp(22px, 2.25vmin, 46px);
-        font-weight: 600;
-        letter-spacing: -0.02em;
+        color: #686d76;
+        font-size: clamp(14px, 1.45vmin, 28px);
+        font-weight: 700;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
       }
 
       .progress {
@@ -177,7 +178,7 @@ const html = `<!doctype html>
         transform: translateX(-50%);
         overflow: hidden;
         border-radius: 999px;
-        background: rgba(140, 163, 171, 0.22);
+        background: rgba(69, 105, 125, 0.18);
       }
 
       .progress::before {
@@ -186,33 +187,43 @@ const html = `<!doctype html>
         inset: 0 auto 0 0;
         width: 36%;
         border-radius: inherit;
-        background: rgba(140, 163, 171, 0.66);
+        background: #45697d;
       }
 
       .footer {
         position: absolute;
-        left: 7%;
-        right: 7%;
+        left: 50%;
         bottom: 8%;
+        width: min(52vw, 760px);
+        transform: translateX(-50%);
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
-        color: rgba(125, 141, 146, 0.72);
+        color: rgba(138, 144, 154, 0.92);
       }
 
-      .shield,
-      .spacer {
-        width: clamp(18px, 2vmin, 42px);
-        height: clamp(18px, 2vmin, 42px);
-        flex: 0 0 auto;
+      .footer-line {
+        width: clamp(120px, 18vw, 220px);
+        height: clamp(2px, 0.35vmin, 4px);
+        margin-bottom: 1.4vmin;
+        border-radius: 999px;
+        background: #dbeef6;
+        overflow: hidden;
+      }
+
+      .footer-line::before {
+        content: '';
+        display: block;
+        width: 72%;
+        height: 100%;
+        border-radius: inherit;
+        background: #45697d;
       }
 
       .footer-text {
-        flex: 1;
-        padding: 0 4vmin;
-        font-size: clamp(14px, 1.45vmin, 42px);
-        font-weight: 500;
-        letter-spacing: 0.42em;
+        font-size: clamp(12px, 1.2vmin, 24px);
+        font-weight: 700;
+        letter-spacing: 0.28em;
         text-align: center;
         text-transform: uppercase;
       }
@@ -254,21 +265,12 @@ const html = `<!doctype html>
           <img class="logo" src="${logoDataUri}" alt="Cradlyn logo" />
         </div>
         <div class="title">Cradlyn</div>
-        <div class="subtitle">Nurturing with intention.</div>
+        <div class="subtitle">Nurturing with intention</div>
       </div>
       <div class="progress"></div>
       <div class="footer">
-        <svg class="shield" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <div class="footer-text">Premium Nursery Intelligence</div>
-        <div class="spacer"></div>
+        <div class="footer-line"></div>
+        <div class="footer-text">Preparing your sanctuary</div>
       </div>
     </div>
   </body>

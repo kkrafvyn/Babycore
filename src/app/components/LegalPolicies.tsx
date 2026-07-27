@@ -27,6 +27,7 @@ const POLICY_SECTIONS: PolicySection[] = [
       'Parent/guardian data ownership: baby data belongs to the parent or legal guardian, not Cradlyn.',
       'Retention and deletion: active account data is retained while service is in use; deletion requests trigger removal from active systems and scheduled backup expiration according to operational retention windows.',
       'Users can request export or deletion of records through in-app controls where available and account support channels.',
+      'Full account deletion instructions: https://cradlyn.com/delete-account',
     ],
   },
   {
@@ -239,6 +240,12 @@ export const LegalPolicies: React.FC<LegalPoliciesProps> = ({ onBack }) => {
               </p>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-text-light">
                 Last Updated: {LAST_UPDATED}
+              </p>
+              <p className="text-sm font-bold text-text-dim">
+                Need to delete your account?{' '}
+                <a href="/delete-account" className="font-black text-secondary underline">
+                  Account deletion instructions
+                </a>
               </p>
             </div>
           </div>

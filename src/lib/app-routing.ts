@@ -1,10 +1,11 @@
-export type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies';
+export type PublicRoute = 'welcome' | 'onboarding' | 'login' | 'policies' | 'delete-account';
 
 export const PUBLIC_ROUTE_PATHS: Record<PublicRoute, string> = {
   welcome: '/',
   onboarding: '/onboarding',
   login: '/login',
   policies: '/policies',
+  'delete-account': '/delete-account',
 };
 
 export const APP_VIEWS = [

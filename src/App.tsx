@@ -93,6 +93,10 @@ const getLegacyRouteFromHash = (): LocationRoute | null => {
     return { kind: 'public', publicRoute: 'policies' };
   }
 
+  if (hash === '#delete-account') {
+    return { kind: 'public', publicRoute: 'delete-account' };
+  }
+
   if (hash === '#app') {
     const queryView = new URLSearchParams(window.location.search).get('view');
     const resolvedQueryView = queryView ? resolveAppViewIntent(queryView) : null;
@@ -194,6 +198,9 @@ const Material3Welcome = React.lazy(() =>
 );
 const LegalPolicies = React.lazy(() =>
   import('./app/components/LegalPolicies').then((module) => ({ default: module.LegalPolicies })),
+);
+const DeleteAccountPage = React.lazy(() =>
+  import('./app/components/DeleteAccountPage').then((module) => ({ default: module.DeleteAccountPage })),
 );
 const PublicEmergencyShareCard = React.lazy(() =>
   import('./app/components/PublicEmergencyShareCard').then((module) => ({
@@ -439,7 +446,7 @@ function AppShell() {
       return;
     }
 
-    if (locationRoute.kind === 'public' && locationRoute.publicRoute !== 'policies') {
+    if (locationRoute.kind === 'public' && !['policies', 'delete-account'].includes(locationRoute.publicRoute)) {
       navigateToAppView('dashboard', { replace: true, preserveSearch: true });
     }
   }, [hasSession, locationRoute.kind, locationRoute.kind === 'public' ? locationRoute.publicRoute : null, navigateToAppView, passwordRecoveryRequired]);
@@ -632,6 +639,21 @@ function AppShell() {
         }}
       />,
       'Loading policies...',
+    );
+  }
+
+  if (publicRoute === 'delete-account') {
+    return renderWithSuspense(
+      <DeleteAccountPage
+        onBack={() => {
+          if (hasSession) {
+            navigateToAppView(appRouteView, { replace: true, preserveSearch: true });
+            return;
+          }
+          navigateToPublicRoute(policyReturnRoute, { replace: true });
+        }}
+      />,
+      'Loading account deletion...',
     );
   }
 

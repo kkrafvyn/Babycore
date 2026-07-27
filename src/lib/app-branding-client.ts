@@ -29,3 +29,5 @@ export const clientAppPath = (path: string): string => {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${getClientAppBaseUrl()}${normalizedPath}`;
 };
+
+export const getDeleteAccountUrl = (): string => clientAppPath('/delete-account');

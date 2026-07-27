@@ -3,7 +3,7 @@
 ## Current Release Identity
 
 - Application ID: `com.cradlyn.app`
-- Version code: `2`
+- Version code: `3`
 - Version name: `1.0.1`
 - Min SDK: `26`
 - Target SDK: `36`
@@ -71,6 +71,8 @@ Expected outputs:
 
 - `android/app/build/outputs/apk/release/app-release.apk`
 - `android/app/build/outputs/bundle/release/app-release.aab`
+- `android/app/build/outputs/mapping/release/mapping.txt` (upload to Play as deobfuscation file)
+- `android/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip` (upload to Play as native debug symbols)
 
 ## Native App Config
 
