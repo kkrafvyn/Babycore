@@ -1,6 +1,6 @@
 # Cradlyn Legal Policy Pack
 
-Last updated: April 26, 2026
+Last updated: July 27, 2026
 
 ## 1) Privacy Policy
 - Cradlyn collects caregiver-entered baby care records such as feeding logs, sleep logs, diaper logs, growth tracking, vaccine tracking, optional photos, notes, reminders, and account settings.
@@ -11,6 +11,7 @@ Last updated: April 26, 2026
 - Retention and deletion: active account data is retained while service is in use; deletion requests trigger removal from active systems and scheduled backup expiration according to operational retention windows.
 - Users can export and request deletion of data, subject to legal obligations.
 - Account deletion instructions: https://cradlyn.com/delete-account
+- Optional Android Health Connect access is described in section 17 below.
 
 ## 2) Terms of Service
 - Users are responsible for account security and accurate data entry.
@@ -74,22 +75,34 @@ Last updated: April 26, 2026
 - Development rates vary naturally between children.
 - Clinical interpretation requires qualified pediatric guidance.
 
-## 13) Subscription & Refund Policy
+## 13) Android Health Connect & Wearables Policy
+- Health Connect access is optional, user-initiated, and read-only. Cradlyn does not request write access to Health Connect.
+- When enabled in Settings → Wearables, Cradlyn may read heart rate, steps, sleep sessions, exercise or activity duration, and body temperature that you explicitly allow through Health Connect permissions.
+- **Exercise (READ_EXERCISE):** imported only to show caregiver-approved activity readings in wearable summaries and the care timeline. Not used for advertising and not sold.
+- **Steps (READ_STEPS):** imported only to show caregiver-approved daily movement trends in wearable dashboards alongside baby care logs. Not used for advertising and not sold.
+- **Sleep (READ_SLEEP):** imported only to show caregiver-approved sleep readings in wearable summaries and care context views. Not used for advertising and not sold.
+- **Body temperature (READ_BODY_TEMPERATURE):** imported only when you sync a supported source, to display caregiver-approved readings in wearable and health summary views. Cradlyn is not a medical device.
+- **Heart rate (READ_HEART_RATE):** imported only to show caregiver-approved heart rate readings in wearable summaries and health trend views. Not used for advertising and not sold.
+- Imported Health Connect data is used only for caregiving history, trend display, reminders, and summaries inside the app.
+- You can stop Health Connect imports at any time by disconnecting the source in Wearables or revoking Health Connect permissions on your device. Denying permission does not block core app features.
+- Full policy: https://cradlyn.com/policies#health-connect
+
+## 14) Subscription & Refund Policy
 - Billing cycle, renewal behavior, and pricing are disclosed at checkout.
 - Free trials and refunds follow platform/provider/local-law rules.
 - Premium access may be limited after non-renewal.
 
-## 14) Offline Mode & Data Sync Policy
+## 15) Offline Mode & Data Sync Policy
 - Some records can be captured offline and synchronized later.
 - Sync conflicts are resolved by reconciliation rules and may need user review.
 - Users should verify critical logs after reconnecting.
 
-## 15) Notification & Reminder Policy
+## 16) Notification & Reminder Policy
 - Reminders may include feeds, sleep, vaccines, routines, and health events.
 - Delivery depends on user settings, permissions, and device/network state.
 - Users can customize or disable reminders at any time.
 
-## 16) Emergency Use Disclaimer
+## 17) Emergency Use Disclaimer
 - Cradlyn is not an emergency response system.
 - Do not delay emergency care while waiting for app confirmation or reminders.
 - Any advisory content or professional collaboration does not replace direct clinical care.

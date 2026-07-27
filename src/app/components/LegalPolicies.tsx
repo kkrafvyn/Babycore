@@ -12,7 +12,7 @@ type PolicySection = {
   points: string[];
 };
 
-const LAST_UPDATED = 'April 26, 2026';
+const LAST_UPDATED = 'July 27, 2026';
 
 const POLICY_SECTIONS: PolicySection[] = [
   {
@@ -28,6 +28,7 @@ const POLICY_SECTIONS: PolicySection[] = [
       'Retention and deletion: active account data is retained while service is in use; deletion requests trigger removal from active systems and scheduled backup expiration according to operational retention windows.',
       'Users can request export or deletion of records through in-app controls where available and account support channels.',
       'Full account deletion instructions: https://cradlyn.com/delete-account',
+      'Optional Android Health Connect access is described in section 13 below. Cradlyn may read heart rate, steps, sleep, exercise duration, and body temperature only when a caregiver explicitly connects a source in Wearables.',
     ],
   },
   {
@@ -150,8 +151,25 @@ const POLICY_SECTIONS: PolicySection[] = [
     ],
   },
   {
+    id: 'health-connect',
+    title: '13. Android Health Connect & Wearables Policy',
+    purpose:
+      'How Cradlyn uses optional read-only Health Connect permissions on Android and imported wearable data.',
+    points: [
+      'Health Connect access is optional, user-initiated, and read-only. Cradlyn does not request write access to Health Connect.',
+      'When enabled in Settings → Wearables, Cradlyn may read heart rate, steps, sleep sessions, exercise or activity duration, and body temperature that you explicitly allow through Health Connect permissions.',
+      'Exercise and activity duration (READ_EXERCISE): imported only to show caregiver-approved activity readings in wearable summaries and the care timeline. Not used for advertising and not sold.',
+      'Steps (READ_STEPS): imported only to show caregiver-approved daily movement trends in wearable dashboards alongside baby care logs. Not used for advertising and not sold.',
+      'Sleep sessions (READ_SLEEP): imported only to show caregiver-approved sleep readings in wearable summaries and care context views. Not used for advertising and not sold.',
+      'Body temperature (READ_BODY_TEMPERATURE): imported only when you sync a supported source, to display caregiver-approved readings in wearable and health summary views. Cradlyn is not a medical device.',
+      'Heart rate (READ_HEART_RATE): imported only to show caregiver-approved heart rate readings in wearable summaries and health trend views. Not used for advertising and not sold.',
+      'Imported Health Connect data is used only for caregiving history, trend display, reminders, and summaries inside the app. It is stored according to your account settings and our retention policy.',
+      'You can stop Health Connect imports at any time by disconnecting the source in Wearables or revoking Health Connect permissions on your device. Denying permission does not block core app features.',
+    ],
+  },
+  {
     id: 'subscription-refunds',
-    title: '13. Subscription & Refund Policy',
+    title: '14. Subscription & Refund Policy',
     purpose: 'Billing expectations for premium features.',
     points: [
       'Subscription billing cycles, renewal behavior, and payment methods are shown at checkout.',
@@ -161,7 +179,7 @@ const POLICY_SECTIONS: PolicySection[] = [
   },
   {
     id: 'offline-sync',
-    title: '14. Offline Mode & Data Sync Policy',
+    title: '15. Offline Mode & Data Sync Policy',
     purpose: 'Behavior when internet connectivity is unavailable.',
     points: [
       'Some logging features may work offline and sync when connectivity is restored.',
@@ -171,7 +189,7 @@ const POLICY_SECTIONS: PolicySection[] = [
   },
   {
     id: 'notification-policy',
-    title: '15. Notification & Reminder Policy',
+    title: '16. Notification & Reminder Policy',
     purpose: 'How reminders are generated and controlled.',
     points: [
       'Notifications can include feeding, sleep, vaccine, medication, and routine reminders.',
@@ -181,7 +199,7 @@ const POLICY_SECTIONS: PolicySection[] = [
   },
   {
     id: 'emergency-advisory',
-    title: '16. Emergency Use & Advisory Note',
+    title: '17. Emergency Use & Advisory Note',
     purpose: 'Extra protection statement for high-stakes care scenarios.',
     points: [
       'Cradlyn is not an emergency response tool.',

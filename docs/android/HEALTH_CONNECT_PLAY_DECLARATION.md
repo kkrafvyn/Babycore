@@ -24,12 +24,22 @@ Add a section to the production privacy policy that says:
 
 > If you choose to connect Android Health Connect, Cradlyn may read heart rate, steps, sleep sessions, exercise duration, and body temperature that you explicitly allow through Health Connect permissions. This data is used only to import health information into the baby's care records, display health trends, and support caregiver features inside the app. Cradlyn does not request write access to Health Connect for this feature.
 
+**Live policy URL:** https://cradlyn.com/policies#health-connect
+
+Per-permission summaries (matching Play Console declarations):
+
+- **READ_EXERCISE:** caregiver-approved activity duration for wearable summaries and care timeline context.
+- **READ_STEPS:** caregiver-approved step trends in wearable dashboards.
+- **READ_SLEEP:** caregiver-approved sleep sessions in wearable summaries and care context.
+- **READ_BODY_TEMPERATURE:** caregiver-approved temperature readings in health summaries (not a medical device).
+- **READ_HEART_RATE:** caregiver-approved heart rate readings in wearable summaries and trend views.
+
 ## Play Console Declaration Notes
 
 - Declare that Health Connect access is optional and user initiated.
 - Declare that the app reads health or fitness data for caregiving, history, and trend display.
 - Match the exact data types listed above.
-- Link the production privacy policy URL that contains matching Health Connect disclosure language.
+- Link the production privacy policy URL that contains matching Health Connect disclosure language: https://cradlyn.com/policies#health-connect
 - Keep store listing screenshots and app copy consistent with the in-app rationale.
 
 ## Manual Android Verification
