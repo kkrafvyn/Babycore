@@ -3,8 +3,8 @@
 ## Current Release Identity
 
 - Application ID: `com.cradlyn.app`
-- Version code: `3`
-- Version name: `1.0.1`
+- Version code: `5`
+- Version name: `1.0.3`
 - Min SDK: `26`
 - Target SDK: `36`
 - Compile SDK: `36`
@@ -90,6 +90,8 @@ Run this on a physical Android device before upload:
 - Health Connect: if shipping wearable sync, complete a permission grant and verify imported readings appear in Wearables.
 
 See [HEALTH_CONNECT_PLAY_DECLARATION.md](./HEALTH_CONNECT_PLAY_DECLARATION.md) for the release disclosure and Play Console copy.
+
+See [PLAY_PERSONAL_ACCOUNT_COMPLIANCE.md](./PLAY_PERSONAL_ACCOUNT_COMPLIANCE.md) for Personal-account Play Console category and health declaration guidance.
 
 ## Remaining Production Gaps
 

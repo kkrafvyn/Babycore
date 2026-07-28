@@ -9,6 +9,7 @@ import {
   HealthNewsItem,
 } from '@/lib/health-alerts-service';
 import { useAuthStore } from '@/app/AppContext';
+import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 
 interface HealthAlertsProps {
   countryCode?: string;
@@ -252,6 +253,7 @@ export function HealthAlerts({ countryCode, babyName }: HealthAlertsProps) {
 
   return (
     <div className="space-y-8 pb-16">
+      <MedicalDisclaimerBanner />
       <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
         <aside className="rounded-[2.5rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 lg:sticky lg:top-6 lg:self-start">
           <div>

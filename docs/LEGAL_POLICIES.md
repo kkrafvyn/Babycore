@@ -21,7 +21,9 @@ Last updated: July 27, 2026
 - Limitation of liability: Cradlyn is not liable for reliance on app suggestions, missing logs, delayed notifications, or interrupted availability.
 
 ## 3) Medical Disclaimer
-- Cradlyn is not a medical provider and does not provide diagnosis or treatment.
+- Cradlyn is not a medical provider and does not provide diagnosis, treatment, cure, or prevention of any condition.
+- This app is for general wellness and informational purposes only and does not replace professional medical advice.
+- Always consult licensed pediatric or healthcare professionals for medical concerns, treatment decisions, and emergencies.
 - Insights, reminders, and AI summaries are informational only.
 - Users should consult licensed pediatric professionals for clinical decisions.
 - In emergencies, contact local emergency services immediately.

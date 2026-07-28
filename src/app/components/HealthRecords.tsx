@@ -48,6 +48,7 @@ import {
   type MedicationSchedule,
   type RefillAlert,
 } from '@/lib/care-advanced-api';
+import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 
 interface HealthRecordsProps {
   babyId: string;
@@ -582,6 +583,7 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
         <CardDescription>Track medical history for {babyName}</CardDescription>
       </CardHeader>
       <CardContent>
+        <MedicalDisclaimerBanner className="mb-4" />
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>

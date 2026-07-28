@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bot, GripHorizontal, Send, Sparkles, X } from 'lucide-react';
 import { askCareCopilot, type CareCopilotMessage } from '@/lib/ml-insights-service';
+import { MEDICAL_DISCLAIMER_COPILOT } from '@/lib/medical-disclaimer';
 import { i18nT } from '@/lib/i18n';
 
 const DEFAULT_GREETING = i18nT(
@@ -255,7 +256,7 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
         <p className="text-[11px] leading-relaxed text-text-light">
           {i18nT(
             'copilot.disclaimer',
-            'Care Copilot offers general guidance only. Contact your pediatrician for urgent or medical concerns.',
+            MEDICAL_DISCLAIMER_COPILOT,
           )}
         </p>
         </div>

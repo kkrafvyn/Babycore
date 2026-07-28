@@ -150,11 +150,11 @@ const feedingGuidanceForAge = (ageMonths: number | null, ageWeeks: number | null
     return 'At this age, aim for feeds roughly every 2–3 hours (8–12 feeds/day). Cluster feeding in the evening is common. Offer a feed when you see early hunger cues.';
   }
 
-  if (ageMonths < 4) {
+  if ((ageMonths ?? 0) < 4) {
     return 'Many babies this age still feed every 2–3 hours, often 7–9 times/day. Follow hunger/fullness cues; some days they will want more during growth spurts.';
   }
 
-  if (ageMonths < 6) {
+  if ((ageMonths ?? 0) < 6) {
     return 'Feeding often settles to about every 3–4 hours (6–8 feeds/day) for many babies, though breastfed infants may still cluster feed. Let appetite lead unless your pediatrician gave a specific plan.';
   }
 
@@ -170,11 +170,11 @@ const sleepGuidanceForAge = (ageMonths: number | null, ageWeeks: number | null):
     return 'Newborns often have late bedtimes and frequent night wakes—that is normal. Focus on safe sleep (back, firm surface, empty crib) and a calm, repeatable bedtime routine rather than a strict clock time.';
   }
 
-  if (ageMonths < 4) {
+  if ((ageMonths ?? 0) < 4) {
     return 'Many babies this age do well with bedtime around 7:30–9:00 PM after wake windows of roughly 60–90 minutes. Keep the routine consistent for several nights before shifting bedtime earlier or later by 15 minutes.';
   }
 
-  if (ageMonths < 12) {
+  if ((ageMonths ?? 0) < 12) {
     return 'Bedtime often works best between 7:00–8:30 PM with 2–3 naps depending on age. If nights are rough, try an earlier bedtime by 15–20 minutes for a few nights—not a big jump all at once.';
   }
 

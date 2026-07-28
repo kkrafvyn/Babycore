@@ -32,6 +32,7 @@ import {
 } from '../../lib/care-profile';
 import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 import { CareProfileEditorModal } from './CareProfileEditorModal';
+import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 import { updateCurrentUserMetadata } from '../../lib/supabase';
 import {
   getAdminAccountMode,
@@ -1249,6 +1250,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <Check size={20} className="text-emerald-500 shrink-0" />
                  </div>
+                 <MedicalDisclaimerBanner className="mx-4 mb-2 sm:mx-8" />
                  <button
                    onClick={() => {
                      window.history.pushState(null, '', '/policies');

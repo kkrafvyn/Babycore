@@ -144,4 +144,4 @@ export function AIInsights({ babyId, babyName }: AIInsightsProps) {
       )}
     </div>
   );
-};
+}

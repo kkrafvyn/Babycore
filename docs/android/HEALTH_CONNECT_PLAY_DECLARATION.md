@@ -38,6 +38,7 @@ Per-permission summaries (matching Play Console declarations):
 
 - Declare that Health Connect access is optional and user initiated.
 - Declare that the app reads health or fitness data for caregiving, history, and trend display.
+- For **Personal** developer accounts, select wellness categories only (activity/fitness, nutrition, sleep). Do **not** select healthcare services or medication/treatment management. See [PLAY_PERSONAL_ACCOUNT_COMPLIANCE.md](./PLAY_PERSONAL_ACCOUNT_COMPLIANCE.md).
 - Match the exact data types listed above.
 - Link the production privacy policy URL that contains matching Health Connect disclosure language: https://cradlyn.com/policies#health-connect
 - Keep store listing screenshots and app copy consistent with the in-app rationale.

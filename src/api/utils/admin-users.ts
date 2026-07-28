@@ -296,7 +296,7 @@ export const resetAdminManagedUserPassword = async (
           emailProvider = 'resend';
         } catch (error: any) {
           emailError = error?.message || 'Failed to send reset email';
-          if (isResendDomainVerificationError(emailError)) {
+          if (emailError && isResendDomainVerificationError(emailError)) {
             emailError = `${emailError} Verify cradlyn.com at https://resend.com/domains (use the same Resend account as RESEND_API_KEY).`;
           }
         }

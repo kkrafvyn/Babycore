@@ -3,6 +3,7 @@ import { ArrowRight, HeartHandshake, MoonStar, ShieldCheck, Sparkles } from 'luc
 import { motion } from 'motion/react';
 import { i18nT } from '../../lib/i18n';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
+import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -142,6 +143,8 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                 {i18nT('public.privacyTermsPolicies', 'Privacy, Terms & Policies')}
               </button>
             </div>
+
+            <MedicalDisclaimerBanner className="mx-auto w-full max-w-md text-left" />
           </div>
         </section>
 
@@ -305,6 +308,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                     Privacy, Terms & Policies
                   </button>
                 </div>
+                <MedicalDisclaimerBanner className="max-w-[22rem]" />
               </motion.div>
             </section>
           </div>
