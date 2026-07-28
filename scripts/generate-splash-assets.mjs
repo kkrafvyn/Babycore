@@ -148,6 +148,8 @@ const html = `<!doctype html>
         width: 36%;
         min-width: 70px;
         max-width: 220px;
+        border-radius: 999px;
+        mix-blend-mode: multiply;
       }
 
       .title {
@@ -163,37 +165,18 @@ const html = `<!doctype html>
       .subtitle {
         margin-top: 1.3vmin;
         color: #686d76;
-        font-size: clamp(14px, 1.45vmin, 28px);
+        font-size: clamp(11px, 1.25vmin, 24px);
         font-weight: 700;
-        letter-spacing: 0.34em;
+        letter-spacing: 0.18em;
+        line-height: 1.45;
         text-transform: uppercase;
-      }
-
-      .progress {
-        position: absolute;
-        left: 50%;
-        top: 72%;
-        width: min(52vw, 760px);
-        height: clamp(4px, 0.55vmin, 10px);
-        transform: translateX(-50%);
-        overflow: hidden;
-        border-radius: 999px;
-        background: rgba(69, 105, 125, 0.18);
-      }
-
-      .progress::before {
-        content: '';
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 36%;
-        border-radius: inherit;
-        background: #45697d;
+        max-width: 92vw;
       }
 
       .footer {
         position: absolute;
         left: 50%;
-        bottom: 8%;
+        bottom: 7%;
         width: min(52vw, 760px);
         transform: translateX(-50%);
         display: flex;
@@ -244,16 +227,11 @@ const html = `<!doctype html>
         }
 
         .subtitle {
-          font-size: clamp(18px, 1.8vmin, 36px);
-        }
-
-        .progress {
-          top: 78%;
-          width: min(42vw, 640px);
+          font-size: clamp(12px, 1.4vmin, 22px);
         }
 
         .footer {
-          bottom: 7%;
+          bottom: 6%;
         }
       }
     </style>
@@ -267,7 +245,6 @@ const html = `<!doctype html>
         <div class="title">Cradlyn</div>
         <div class="subtitle">Nurturing with intention</div>
       </div>
-      <div class="progress"></div>
       <div class="footer">
         <div class="footer-line"></div>
         <div class="footer-text">Preparing your sanctuary</div>

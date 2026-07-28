@@ -51,6 +51,8 @@
     "cap:add:ios": "node scripts/run-capacitor.mjs add ios",
     "cap:add:android": "node scripts/run-capacitor.mjs add android",
     "generate:vapid": "web-push generate-vapid-keys",
+    "generate:play-store-assets": "node scripts/generate-play-store-assets.mjs",
+    "generate:splash-assets": "node scripts/generate-splash-assets.mjs",
     "clean": "node scripts/clean.mjs"
   },
   "dependencies": {

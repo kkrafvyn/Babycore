@@ -8,7 +8,7 @@ interface SplashScreenProps {
   logoSrc?: string;
 }
 
-const SPLASH_DURATION = 3400;
+const SPLASH_DURATION = 2800;
 const SPLASH_LOGO_SRC = '/splash-logo.png';
 
 const palette = {
@@ -105,7 +105,7 @@ export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
             <motion.img
               src={logoSrc}
               alt={`${appName} logo`}
-              className="relative z-10 h-32 w-32 object-contain sm:h-36 sm:w-36"
+              className="relative z-10 h-32 w-32 object-contain sm:h-36 sm:w-36 logo-theme-fix [mix-blend-mode:multiply]"
               initial={{ opacity: 0, filter: 'blur(8px)' }}
               animate={{
                 opacity: isExiting ? 0 : 1,
@@ -126,7 +126,7 @@ export const Material3SplashScreen: React.FC<SplashScreenProps> = ({
           </motion.h1>
 
           <motion.p
-            className="mt-3 max-w-xs text-[0.72rem] font-bold uppercase tracking-[0.34em] sm:text-xs"
+            className="mt-3 max-w-xs text-[0.72rem] font-bold uppercase tracking-[0.22em] sm:text-xs sm:tracking-[0.28em]"
             style={{ color: palette.tagline }}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: isExiting ? 0 : 1, y: 0 }}

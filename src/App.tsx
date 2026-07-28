@@ -166,6 +166,10 @@ const shouldShowMobileSplash = () => {
     return false;
   }
 
+  if (Capacitor.isNativePlatform()) {
+    return true;
+  }
+
   return window.matchMedia('(max-width: 767px)').matches;
 };
 
@@ -190,9 +194,7 @@ const Material3AddBaby = React.lazy(() =>
 const Material3Onboarding = React.lazy(() =>
   import('./app/components/Material3Onboarding').then((module) => ({ default: module.Material3Onboarding })),
 );
-const Material3SplashScreen = React.lazy(() =>
-  import('./app/components/Material3SplashScreen').then((module) => ({ default: module.Material3SplashScreen })),
-);
+import { Material3SplashScreen } from './app/components/Material3SplashScreen';
 const Material3Welcome = React.lazy(() =>
   import('./app/components/Material3Welcome').then((module) => ({ default: module.Material3Welcome })),
 );
@@ -617,10 +619,7 @@ function AppShell() {
   }, []);
 
   if (showMobileSplash) {
-    return renderWithSuspense(
-      <Material3SplashScreen onSplashComplete={handleSplashComplete} />,
-      'Loading splash...',
-    );
+    return <Material3SplashScreen onSplashComplete={handleSplashComplete} />;
   }
 
   if (hasSession && isLoading && babies.length === 0) {
