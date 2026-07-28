@@ -19,6 +19,39 @@ const MOBILE_AUTH_CALLBACK_HOST = 'auth';
 const MOBILE_AUTH_CALLBACK_PATH = '/callback';
 export const MOBILE_AUTH_CALLBACK_URL = `${MOBILE_AUTH_CALLBACK_SCHEME}://${MOBILE_AUTH_CALLBACK_HOST}${MOBILE_AUTH_CALLBACK_PATH}`;
 
+type PendingMobileOAuth = {
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
+
+let pendingMobileOAuth: PendingMobileOAuth | null = null;
+
+const settlePendingMobileOAuth = (error?: Error) => {
+  const pending = pendingMobileOAuth;
+  pendingMobileOAuth = null;
+  if (!pending) {
+    return;
+  }
+
+  if (error) {
+    pending.reject(error);
+    return;
+  }
+
+  pending.resolve();
+};
+
+const waitForPendingMobileOAuth = () =>
+  new Promise<void>((resolve, reject) => {
+    pendingMobileOAuth = { resolve, reject };
+    window.setTimeout(() => {
+      if (!pendingMobileOAuth) {
+        return;
+      }
+      settlePendingMobileOAuth(new Error('Sign-in timed out. Please try again.'));
+    }, 120_000);
+  });
+
 // Avoid navigator.locks contention from React Strict Mode double-mount and parallel getSession calls.
 const supabaseAuthLock = async <T>(
   _name: string,
@@ -85,13 +118,34 @@ const getAuthRedirectError = (params: URLSearchParams) =>
 export const isMobileAuthCallbackUrl = (url: string) => {
   try {
     const parsed = new URL(url);
-    return (
-      parsed.protocol === `${MOBILE_AUTH_CALLBACK_SCHEME}:` &&
-      parsed.host === MOBILE_AUTH_CALLBACK_HOST &&
-      parsed.pathname === MOBILE_AUTH_CALLBACK_PATH
-    );
+    if (parsed.protocol !== `${MOBILE_AUTH_CALLBACK_SCHEME}:`) {
+      return false;
+    }
+
+    const hostMatches = parsed.host === MOBILE_AUTH_CALLBACK_HOST || parsed.host === '';
+    const pathMatches =
+      parsed.pathname === MOBILE_AUTH_CALLBACK_PATH ||
+      parsed.pathname === MOBILE_AUTH_CALLBACK_PATH.replace(/^\//, '');
+
+    return hostMatches && pathMatches;
   } catch {
     return false;
+  }
+};
+
+export const handleMobileAuthCallbackUrl = async (url: string) => {
+  if (!isMobileAuthCallbackUrl(url)) {
+    return false;
+  }
+
+  try {
+    await completeMobileAuthSession(url);
+    settlePendingMobileOAuth();
+    return true;
+  } catch (error) {
+    const authError = error instanceof Error ? error : new Error('Unable to complete sign in.');
+    settlePendingMobileOAuth(authError);
+    throw authError;
   }
 };
 
@@ -142,6 +196,11 @@ const getOAuthRedirectUrl = () => {
 export const completeMobileAuthSession = async (url: string) => {
   if (!hasSupabaseConfig || !isMobileAuthCallbackUrl(url)) {
     return false;
+  }
+
+  const existingUser = await getCurrentUser();
+  if (existingUser) {
+    return true;
   }
 
   const parsedUrl = new URL(url);
@@ -344,7 +403,37 @@ export const signInWithSocialProvider = async (provider: SocialAuthProvider) => 
     }
 
     const { Browser } = await import('@capacitor/browser');
-    await Browser.open({ url: data.url });
+    const authCompletion = waitForPendingMobileOAuth();
+    const browserListener = await Browser.addListener('browserFinished', async () => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const user = await getCurrentUser();
+        if (user) {
+          settlePendingMobileOAuth();
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      }
+
+      if (pendingMobileOAuth) {
+        settlePendingMobileOAuth(
+          new Error(
+            'Google sign-in did not finish. In Supabase, allow redirect URL com.cradlyn.app://auth/callback and enable the Google provider.',
+          ),
+        );
+      }
+    });
+
+    try {
+      await Browser.open({
+        url: data.url,
+        windowName: Capacitor.getPlatform() === 'android' ? '_system' : undefined,
+      });
+      await authCompletion;
+    } finally {
+      await browserListener.remove().catch(() => undefined);
+      await Browser.close().catch(() => undefined);
+      pendingMobileOAuth = null;
+    }
   }
 
   return data;

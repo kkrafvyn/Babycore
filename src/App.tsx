@@ -22,7 +22,7 @@ import {
 } from './lib/password-recovery';
 import type { CareProfilePreferences } from './types';
 import { acceptFamilySharingInvite } from './lib/family-sharing-service';
-import { completeMobileAuthSession, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
+import { handleMobileAuthCallbackUrl, isMobileAuthCallbackUrl, signOut } from './lib/supabase';
 import { getCurrentUserRole } from './lib/admin-api';
 import { getAdminAccountMode, isPrimaryAdminEmail } from './lib/admin-account-mode';
 import {
@@ -807,7 +807,7 @@ function App() {
 
         if (isMobileAuthCallbackUrl(url)) {
           try {
-            await completeMobileAuthSession(url);
+            await handleMobileAuthCallbackUrl(url);
           } catch (error) {
             console.error('Failed to complete mobile auth session:', error);
             toast.error(error instanceof Error ? error.message : 'Unable to complete sign in.');
