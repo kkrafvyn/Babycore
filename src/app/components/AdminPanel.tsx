@@ -92,7 +92,7 @@ const ADMIN_SECTIONS: Array<{
     eyebrow: "Readiness",
     title: "Launch Readiness",
     description:
-      "Check payment gates, premium test access, migrations, errors, and operational blockers before marketing.",
+      "Check payment gates, premium access, migrations, errors, and operational blockers before marketing.",
     Icon: CheckCircle2,
   },
   {
@@ -464,7 +464,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setBillingError(null);
     setBillingEvents(response.data.events || []);
-    setBillingSummary(response.data.summary);
+    setBillingSummary(
+      response.data.summary || {
+        total: 0,
+        failed: 0,
+        retrying: 0,
+        recovered: 0,
+        abandoned: 0,
+      },
+    );
     setBillingTotal(response.data.total || response.data.events.length || 0);
     setBillingLoading(false);
   };
@@ -575,7 +583,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const handleSavePremiumAccess = async (enabled: boolean) => {
     if (enabled && !premiumAccessEnabled) {
       const confirmed = window.confirm(
-        "Require an active premium plan again? Users without an active or test subscription will see the paywall.",
+        "Require an active premium plan again? Users without an active subscription will see the paywall.",
       );
       if (!confirmed) return;
     }
@@ -1005,7 +1013,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   ];
   const launchReadinessItems = [
     {
-      label: "Premium testing",
+      label: "Premium access",
       status: userPremiumAccessOpen ? "ready" : "blocked",
       title: userPremiumAccessOpen
         ? "Users get premium for free right now"
@@ -1021,7 +1029,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         ? "Live checkout is paused"
         : "Live checkout is enabled",
       description: !paymentCollectionEnabled
-        ? "Safe for full-app testing before marketing."
+        ? "Checkout is paused while you prepare for launch."
         : "Users can complete real checkout. Confirm this is intentional before launch QA.",
       action: "Open Payments",
       section: "payments" as AdminSectionId,
@@ -1170,7 +1178,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const showCompactHeader = activeSection !== "overview";
 
   return (
-    <div className="admin-panel min-h-[100dvh] overflow-x-hidden bg-[#f3f4f8] text-foreground dark:bg-[#09090b]">
+    <div className="admin-panel flex h-[100dvh] flex-col overflow-hidden bg-[#f3f4f8] text-foreground dark:bg-[#09090b]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95">
         <div className="mx-auto flex min-h-[4rem] w-full max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -1202,6 +1210,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         </div>
       </header>
 
+      <div className="admin-panel-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
       <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
         <aside className="hidden lg:block">
           <nav className="sticky top-24" aria-label="Admin sections">
@@ -1416,7 +1425,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         <h3 className="mt-2 text-3xl font-headline font-black tracking-[-0.05em] text-foreground">
                           {launchBlockerCount > 0
                             ? "Fix blockers before marketing"
-                            : "Ready for deeper production testing"}
+                            : "Ready for launch review"}
                         </h3>
                         <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-dim">
                           This page checks the gates that matter before ads or
@@ -2492,6 +2501,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
             </>
         </main>
+      </div>
       </div>
     </div>
   );

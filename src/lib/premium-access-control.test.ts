@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPremiumAccessMatrix,
-  isPremiumTestingAccessOpen,
+  isPremiumAccessOpenForUsers,
   resolveUserPremiumAccessSnapshot,
 } from './premium-access-control';
 import {
@@ -42,12 +42,30 @@ describe('premium-access-control', () => {
     expect(matrix.find((row) => row.isCurrent)?.usersGetPremium).toBe(true);
   });
 
-  it('detects QA open access from live config', () => {
+  it('opens premium access when payments are paused', () => {
     expect(
-      isPremiumTestingAccessOpen(
+      isPremiumAccessOpenForUsers(
         { ...DEFAULT_PAYMENT_COLLECTION_CONFIG, enabled: false, source: 'database' },
         { ...DEFAULT_PREMIUM_ACCESS_CONFIG, enabled: true, source: 'database' },
       ),
     ).toBe(true);
+  });
+
+  it('opens premium access by default before live config loads', () => {
+    expect(
+      isPremiumAccessOpenForUsers(
+        DEFAULT_PAYMENT_COLLECTION_CONFIG,
+        DEFAULT_PREMIUM_ACCESS_CONFIG,
+      ),
+    ).toBe(true);
+  });
+
+  it('requires a plan only when payments and enforcement are both on', () => {
+    expect(
+      isPremiumAccessOpenForUsers(
+        { ...DEFAULT_PAYMENT_COLLECTION_CONFIG, enabled: true, source: 'database' },
+        { ...DEFAULT_PREMIUM_ACCESS_CONFIG, enabled: true, source: 'database' },
+      ),
+    ).toBe(false);
   });
 });

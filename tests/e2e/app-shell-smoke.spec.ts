@@ -29,7 +29,9 @@ test.describe('Seeded app shell smoke', () => {
 
   test('admin shell route renders the admin console frame', async ({ page }) => {
     await page.goto('/admin', { waitUntil: 'networkidle' });
-    await expect(page.getByRole('heading', { name: /Admin Console/i })).toBeVisible();
+    await expect(page.getByText('Cradlyn Admin')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Overview$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Full Platform Overview/i })).toBeVisible();
   });
 
   test('manager shell route renders the manager workspace frame', async ({ page }) => {

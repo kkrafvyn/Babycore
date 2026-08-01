@@ -1,7 +1,6 @@
 import React from 'react';
 import { Bot, GripHorizontal, Send, Sparkles, X } from 'lucide-react';
 import { askCareCopilot, type CareCopilotMessage } from '@/lib/ml-insights-service';
-import { MEDICAL_DISCLAIMER_COPILOT } from '@/lib/medical-disclaimer';
 import { i18nT } from '@/lib/i18n';
 
 const DEFAULT_GREETING = i18nT(
@@ -108,6 +107,8 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
 
   const isPanel = variant === 'panel';
   const isCompact = variant === 'compact';
+  const hasUserMessages = copilotHistory.some((entry) => entry.role === 'user');
+  const showSuggestedPrompts = !hasUserMessages && !copilotLoading;
   const transcriptHeightClass = isPanel
     ? 'min-h-0 flex-1'
     : isCompact
@@ -210,22 +211,27 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
           )}
         </div>
 
-        <div className={`shrink-0 space-y-3 ${isPanel ? 'pb-[env(safe-area-inset-bottom)]' : ''}`}>
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTED_PROMPTS.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => void handleAskCopilot(prompt)}
-              disabled={copilotLoading}
-              className="rounded-full border border-border-gray bg-surface-gray px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-text-dim transition-all hover:border-secondary hover:text-secondary disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
+        <div className={`shrink-0 space-y-2 ${isPanel ? 'pb-[env(safe-area-inset-bottom)]' : ''}`}>
+        {showSuggestedPrompts && (
+          <div
+            className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar snap-x snap-mandatory"
+            aria-label={i18nT('copilot.suggestions', 'Suggested questions')}
+          >
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => void handleAskCopilot(prompt)}
+                disabled={copilotLoading}
+                className="shrink-0 snap-start whitespace-nowrap rounded-full border border-border-gray bg-surface-gray px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-text-dim transition-all hover:border-secondary hover:text-secondary disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-2">
           <label htmlFor="care-copilot-input" className="sr-only">
             {i18nT('copilot.inputLabel', 'Ask a care question')}
           </label>
@@ -252,13 +258,6 @@ export const CareCopilotChat: React.FC<CareCopilotChatProps> = ({
               : i18nT('copilot.ask', 'Ask Copilot')}
           </button>
         </form>
-
-        <p className="text-[11px] leading-relaxed text-text-light">
-          {i18nT(
-            'copilot.disclaimer',
-            MEDICAL_DISCLAIMER_COPILOT,
-          )}
-        </p>
         </div>
       </div>
     </section>

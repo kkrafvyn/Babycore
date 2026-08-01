@@ -41,7 +41,7 @@ import { getAdminAccountMode, isPrimaryAdminEmail } from '../../lib/admin-accoun
 import { resolveAppViewIntent, type AppView } from '../../lib/app-routing';
 import { getCareProfileBadges, getCareProfileSummary } from '../../lib/care-profile';
 import { fetchPaymentFeatureConfig } from '../../lib/payment-config';
-import { isPremiumTestingAccessOpen } from '../../lib/premium-access-control';
+import { isPremiumAccessOpenForUsers } from '../../lib/premium-access-control';
 import { canOpenAppViewForRole, isReadOnlyViewerRole, isViewerAllowedView } from '../../lib/role-access';
 import { lazyNamed } from '../../lib/lazy-named';
 
@@ -149,7 +149,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
   const [pendingPremiumView, setPendingPremiumView] = useState<ViewMode | null>(null);
   const [userRole, setUserRole] = useState<string>('user');
-  const [premiumTestingAccessOpen, setPremiumTestingAccessOpen] = useState(false);
+  const [premiumTestingAccessOpen, setPremiumTestingAccessOpen] = useState(true);
   const [readonlyNotice, setReadonlyNotice] = useState<string | null>(null);
   const hasPremiumAccess = premiumTestingAccessOpen || isPremiumSubscriptionActive(settings?.subscriptionStatus);
   const accountProfileType =
@@ -291,7 +291,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     const loadPremiumTestingAccess = async () => {
       const config = await fetchPaymentFeatureConfig();
       if (!cancelled) {
-        const premiumOpen = isPremiumTestingAccessOpen(
+        const premiumOpen = isPremiumAccessOpenForUsers(
           config.paymentCollection,
           config.premiumAccess,
         );
@@ -728,7 +728,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
     }
 
     return (
-      <div className="space-y-5 sm:space-y-8">
+      <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden sm:space-y-8">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1 min-w-0">
             <h2 className="text-2xl sm:text-3xl font-headline font-black text-foreground tracking-tighter leading-none truncate">
@@ -849,25 +849,25 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
 
         {!isCareTeamProfile && (
-          <div className={`overflow-hidden rounded-[2.4rem] border p-5 shadow-sm sm:p-6 ${nextCareFocus.tone}`}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 shadow-inner dark:bg-white/10">
+          <div className={`overflow-hidden rounded-[2rem] border p-4 shadow-sm sm:rounded-[2.4rem] sm:p-6 ${nextCareFocus.tone}`}>
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
+              <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/70 shadow-inner dark:bg-white/10 sm:h-12 sm:w-12">
                   {nextCareFocus.icon}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">
                     Today's focus
                   </p>
-                  <h3 className="mt-1 text-2xl font-headline font-black tracking-[-0.04em] text-foreground">
+                  <h3 className="mt-1 break-words text-xl font-headline font-black leading-tight tracking-[-0.04em] text-foreground sm:text-2xl">
                     {nextCareFocus.title}
                   </h3>
-                  <p className="mt-1 text-sm font-bold leading-6 text-text-dim">{nextCareFocus.detail}</p>
+                  <p className="mt-1 break-words text-sm font-bold leading-6 text-text-dim">{nextCareFocus.detail}</p>
                 </div>
               </div>
               <button
                 onClick={() => openView(nextCareFocus.view, nextCareFocus.action)}
-                className="rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98]"
+                className="w-full shrink-0 rounded-2xl bg-foreground px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-background shadow-lg transition-all hover:scale-[1.01] active:scale-[0.98] sm:w-auto"
               >
                 {nextCareFocus.action}
               </button>
@@ -876,30 +876,30 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         )}
 
         {!isCareTeamProfile && (
-          <div className="rounded-[2.35rem] border border-border-gray bg-surface p-5 shadow-sm dark:border-zinc-800 sm:p-6">
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
+          <div className="w-full min-w-0 overflow-hidden rounded-[2rem] border border-border-gray bg-surface p-4 shadow-sm dark:border-zinc-800 sm:rounded-[2.35rem] sm:p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-text-light">
                   Today plan
                 </p>
-                <h3 className="mt-1 text-2xl font-headline font-black tracking-[-0.04em] text-foreground">
+                <h3 className="mt-1 break-words text-xl font-headline font-black leading-tight tracking-[-0.04em] text-foreground sm:text-2xl">
                   A calmer checklist for {currentBaby?.name || 'baby'}
                 </h3>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-secondary">
+              <span className="shrink-0 self-start rounded-full bg-secondary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-secondary sm:self-auto">
                 {todayPlanItems.filter((item) => item.completed).length}/{todayPlanItems.length} clear
               </span>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="home-checklist-grid grid grid-cols-1 gap-2.5 md:grid-cols-2">
               {todayPlanItems.map(({ Icon, ...item }) => (
                 <button
                   key={item.label}
                   type="button"
                   onClick={() => openView(item.view, item.label)}
-                  className="flex items-center gap-3 rounded-[1.45rem] border border-border-gray bg-surface-gray p-3 text-left transition-all hover:border-secondary hover:bg-surface dark:border-zinc-800 dark:bg-zinc-900"
+                  className="home-checklist-item flex w-full min-w-0 items-start gap-3 rounded-[1.35rem] border border-border-gray bg-surface-gray p-3.5 text-left transition-all hover:border-secondary hover:bg-surface dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-[1.45rem] sm:p-4"
                 >
                   <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:h-11 sm:w-11 ${
                       item.completed
                         ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300'
                         : 'bg-white text-text-light dark:bg-white/10'
@@ -908,8 +908,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                     {item.completed ? <CheckCircle size={18} /> : <Icon size={18} />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-headline font-black text-foreground">{item.label}</p>
-                    <p className="mt-0.5 truncate text-[11px] font-semibold text-text-light">{item.detail}</p>
+                    <p className="text-sm font-headline font-black leading-tight text-foreground">{item.label}</p>
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold leading-snug text-text-light">{item.detail}</p>
                   </div>
                 </button>
               ))}
@@ -1274,7 +1274,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <button
               onClick={() => openView('sleep', 'Sleep')}
-              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div
@@ -1298,7 +1298,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
             <div
               onClick={() => openView('feeding', 'Feeding')}
-              className="cursor-pointer bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="cursor-pointer bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="w-11 h-11 sm:w-14 sm:h-14 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
@@ -1308,11 +1308,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                   Feed
                 </span>
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[clamp(1.1rem,6vw,1.875rem)] font-headline font-black text-foreground tracking-tight leading-none break-words">
                   {feedLabel}
                 </p>
-                <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.12em] sm:tracking-widest mt-2 leading-tight break-words">
+                <p className="text-[9px] sm:text-[10px] font-black text-text-light uppercase tracking-[0.12em] sm:tracking-widest mt-2 leading-tight break-words line-clamp-2">
                   {feedSub}
                 </p>
               </div>
@@ -1326,7 +1326,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
                   setShowTimer(true);
                 }}
-                className="mt-3 sm:mt-4 py-2.5 sm:py-3 bg-emerald-500/10 text-emerald-500 rounded-xl sm:rounded-2xl text-[8px] sm:text-[9px] font-black uppercase tracking-[0.12em] sm:tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 sm:gap-2"
+                className="mt-auto py-2.5 sm:py-3 bg-emerald-500/10 text-emerald-500 rounded-xl sm:rounded-2xl text-[8px] sm:text-[9px] font-black uppercase tracking-[0.12em] sm:tracking-widest border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 sm:gap-2"
               >
                 <Play size={12} fill="currentColor" />
                 <span>Start Timer</span>
@@ -1335,7 +1335,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
             <button
               onClick={() => openView('diaper', 'Diaper')}
-              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="w-11 h-11 sm:w-14 sm:h-14 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
@@ -1357,7 +1357,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
             <button
               onClick={() => openView('health-records', 'Health records')}
-              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="w-11 h-11 sm:w-14 sm:h-14 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
@@ -1379,7 +1379,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
             <button
               onClick={() => openView('memories', 'Memories')}
-              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div className="w-11 h-11 sm:w-14 sm:h-14 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
@@ -1401,7 +1401,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
 
             <button
               onClick={() => openView('vaccination', 'Vaccines')}
-              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[2rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col justify-between min-h-[11rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
+              className="bg-surface p-4 sm:p-6 lg:p-8 rounded-[1.75rem] sm:rounded-[3.5rem] shadow-sm border border-border-gray dark:border-zinc-800 flex flex-col gap-3 min-h-[9.5rem] sm:min-h-[13rem] text-left hover:shadow-xl hover:border-secondary transition-all active:scale-[0.98] group overflow-hidden"
             >
               <div className="flex justify-between items-start">
                 <div
@@ -1413,8 +1413,8 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
                   Vaccine
                 </span>
               </div>
-              <div>
-                <p className="text-base sm:text-xl font-headline font-black text-foreground tracking-tight leading-tight truncate">
+              <div className="min-w-0">
+                <p className="text-base sm:text-xl font-headline font-black text-foreground tracking-tight leading-tight line-clamp-2 break-words">
                   {nextVaccine ? nextVaccine.name.split('(')[0].trim() : 'All clear'}
                 </p>
                 <p
@@ -1621,7 +1621,11 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         showTopHeader={showShellHeader}
         showBottomNav={showShellBottomNav}
       >
-        <React.Suspense fallback={<ViewLoader />}>{renderContent()}</React.Suspense>
+        <React.Suspense fallback={<ViewLoader />}>
+          <div className={viewsNeedingGlobalBack.has(activeView) ? 'native-floating-back-offset' : undefined}>
+            {renderContent()}
+          </div>
+        </React.Suspense>
       </AppLayout>
       {paywallFeature && (
         <Paywall
@@ -1637,7 +1641,7 @@ export function EnhancedDashboard({ onSignOut, requestedView = 'dashboard', onVi
         <button
           onClick={backToDashboard}
           title="Back to dashboard"
-          className="fixed top-[4.4rem] sm:top-24 left-3 z-[70] h-10 w-10 rounded-full bg-background/95 border border-border-gray dark:border-zinc-700 shadow-lg backdrop-blur flex items-center justify-center text-primary dark:text-zinc-300 hover:scale-105 active:scale-95 transition-all"
+          className="fixed top-[calc(4rem+env(safe-area-inset-top,0px)+0.35rem)] sm:top-[calc(5rem+env(safe-area-inset-top,0px)+0.35rem)] left-3 z-[70] h-10 w-10 rounded-full bg-background border border-border-gray dark:border-zinc-700 shadow-lg flex items-center justify-center text-primary dark:text-zinc-300 hover:scale-105 active:scale-95 transition-all"
         >
           <ChevronLeft size={20} />
         </button>

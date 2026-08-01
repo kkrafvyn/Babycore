@@ -3,6 +3,7 @@
  * PWA push notifications with VAPID keys
  */
 
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 interface NotificationOptions {
@@ -97,7 +98,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
       });
 
       // Send subscription to backend
-      const response = await fetch('/api/notifications/subscribe', {
+      const response = await fetch(resolveApiUrl('/notifications/subscribe'), {
         method: 'POST',
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -129,7 +130,7 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
       await subscription.unsubscribe();
 
       // Notify backend
-      await fetch('/api/notifications/unsubscribe', {
+      await fetch(resolveApiUrl('/notifications/unsubscribe'), {
         method: 'POST',
         headers: await getAuthHeaders(),
         body: JSON.stringify({

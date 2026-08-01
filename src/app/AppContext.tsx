@@ -43,6 +43,7 @@ import {
 import { consumeAuthModeHint } from '../lib/auth-mode-hint';
 import { BabyLogNotification, NotificationsManager } from '../lib/notifications';
 import { getApiBaseUrl } from '../lib/api-base-url';
+import { waitForAuthSession } from '../lib/auth-session';
 import { readJsonResponse } from '../lib/http-json';
 import { supabase } from '../lib/supabase';
 import { subscriptionManager } from '../lib/premium';
@@ -480,6 +481,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         setIsLoading(true);
         setError(null);
 
+        const accessToken = await waitForAuthSession();
+        if (!accessToken) {
+          throw new Error('Your sign-in session is still starting. Please wait a moment and try again.');
+        }
+
         const authModeHint = consumeAuthModeHint();
         const shouldSyncOnboardingBaby = authModeHint === 'signup';
         
@@ -619,6 +625,11 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
     setError(null);
 
     try {
+      const accessToken = await waitForAuthSession();
+      if (!accessToken) {
+        throw new Error('Your sign-in session is still starting. Please wait a moment and try again.');
+      }
+
       await mergeRemoteSnapshotIntoLocal();
       await refreshBabies();
       setError(null);

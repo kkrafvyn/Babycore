@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { Capacitor } from '@capacitor/core'
 import { ensureCryptoRandomUUID } from './lib/utils'
+import { initNativePerformance } from './lib/native-performance'
 import {
   isStaleChunkLoadError,
   registerStaleChunkRecovery,
@@ -11,7 +13,7 @@ import './styles/index.css'
 
 registerStaleChunkRecovery()
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   if (import.meta.env.DEV) {
     navigator.serviceWorker.getRegistrations().then((registrations) => {
       registrations.forEach((registration) => registration.unregister())
@@ -31,15 +33,18 @@ const root = ReactDOM.createRoot(document.getElementById('root')!)
 
 const bootstrap = async () => {
   ensureCryptoRandomUUID()
-  watchForNewDeployments()
+  initNativePerformance()
+
+  if (!Capacitor.isNativePlatform()) {
+    watchForNewDeployments()
+  }
 
   try {
     const { default: App } = await import('./App')
 
+    const app = <App />
     root.render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>,
+      Capacitor.isNativePlatform() ? app : <React.StrictMode>{app}</React.StrictMode>,
     )
   } catch (error) {
     if (isStaleChunkLoadError(error)) {

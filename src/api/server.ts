@@ -76,8 +76,30 @@ const voiceTranscriptionRateLimit = rateLimit(12, '1m');
 // ==================== MIDDLEWARE ====================
 
 // CORS Configuration
+const corsOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+  process.env.CORS_ORIGIN,
+  process.env.VITE_APP_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (
+      !origin ||
+      corsOrigins.some((allowed) => origin === allowed) ||
+      origin.startsWith('capacitor://') ||
+      origin.startsWith('ionic://')
+    ) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
   credentials: true,
   optionsSuccessStatus: 200,
 }));

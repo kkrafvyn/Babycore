@@ -2,13 +2,11 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applyAndroidSdkEnv, getAndroidToolPaths } from './android-sdk.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const sdkRoot =
-  process.env.ANDROID_HOME ||
-  process.env.ANDROID_SDK_ROOT ||
-  path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk');
-const adb = path.join(sdkRoot, 'platform-tools', 'adb.exe');
+applyAndroidSdkEnv();
+const { adb } = getAndroidToolPaths();
 const apk = path.join(rootDir, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const packageName = 'com.cradlyn.app';
 

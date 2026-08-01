@@ -40,6 +40,8 @@ import { isNativeAppUrl, parseNativeAppUrl } from './lib/native-app-links';
 import { importNativeWearableData, getConnectedWearables, syncWearableData } from './lib/wearable-service';
 import { NotificationsManager } from './lib/notifications';
 import { i18nInstance } from './lib/i18n';
+import { hasAcceptedLegalAgreements, recordLegalAgreementsAcceptance } from './lib/legal-agreements';
+import { LegalAgreementsModal } from './app/components/LegalAgreementsModal';
 
 type LocationRoute =
   | {
@@ -227,6 +229,9 @@ function AppShell() {
   const [isAccountRoleLoading, setIsAccountRoleLoading] = React.useState(false);
   const [passwordRecoveryRequired, setPasswordRecoveryRequired] = React.useState(
     () => isPasswordRecoveryRequired() || detectPasswordRecoveryFromUrl(),
+  );
+  const [legalAgreementsAccepted, setLegalAgreementsAccepted] = React.useState(() =>
+    hasAcceptedLegalAgreements(),
   );
 
   const hasSession = Boolean(user);
@@ -618,16 +623,27 @@ function AppShell() {
     }
   }, []);
 
+  const shouldShowLegalAgreementsModal =
+    !legalAgreementsAccepted &&
+    !showMobileSplash &&
+    publicRoute !== 'policies' &&
+    publicRoute !== 'delete-account' &&
+    locationRoute.kind !== 'public-emergency-card' &&
+    !passwordRecoveryRequired;
+
+  const handleAcceptLegalAgreements = () => {
+    recordLegalAgreementsAcceptance();
+    setLegalAgreementsAccepted(true);
+  };
+
+  let shellContent: React.ReactNode;
+
   if (showMobileSplash) {
-    return <Material3SplashScreen onSplashComplete={handleSplashComplete} />;
-  }
-
-  if (hasSession && isLoading && babies.length === 0) {
-    return <FullScreenLoader label="Loading Cradlyn..." />;
-  }
-
-  if (publicRoute === 'policies') {
-    return renderWithSuspense(
+    shellContent = <Material3SplashScreen onSplashComplete={handleSplashComplete} />;
+  } else if (hasSession && isLoading && babies.length === 0) {
+    shellContent = <FullScreenLoader label="Loading Cradlyn..." />;
+  } else if (publicRoute === 'policies') {
+    shellContent = renderWithSuspense(
       <LegalPolicies
         onBack={() => {
           if (hasSession) {
@@ -639,10 +655,8 @@ function AppShell() {
       />,
       'Loading policies...',
     );
-  }
-
-  if (publicRoute === 'delete-account') {
-    return renderWithSuspense(
+  } else if (publicRoute === 'delete-account') {
+    shellContent = renderWithSuspense(
       <DeleteAccountPage
         onBack={() => {
           if (hasSession) {
@@ -654,17 +668,13 @@ function AppShell() {
       />,
       'Loading account deletion...',
     );
-  }
-
-  if (locationRoute.kind === 'public-emergency-card') {
-    return renderWithSuspense(
+  } else if (locationRoute.kind === 'public-emergency-card') {
+    shellContent = renderWithSuspense(
       <PublicEmergencyShareCard token={locationRoute.token} />,
       'Loading emergency card...',
     );
-  }
-
-  if (passwordRecoveryRequired) {
-    return renderWithSuspense(
+  } else if (passwordRecoveryRequired) {
+    shellContent = renderWithSuspense(
       <AuthScreen
         recoveryMode
         onSuccess={() => {
@@ -676,23 +686,18 @@ function AppShell() {
       />,
       'Loading password reset...',
     );
-  }
-
-  if (hasSession) {
+  } else if (hasSession) {
     if (Boolean(user) && primaryAdminModeActive && appRouteView === 'dashboard') {
-      return <FullScreenLoader label="Opening admin panel..." />;
-    }
-
-    if (
+      shellContent = <FullScreenLoader label="Opening admin panel..." />;
+    } else if (
       Boolean(user) &&
       babies.length === 0 &&
       accountProfileType !== 'doctor' &&
       accountProfileType !== 'caregiver' &&
       isAccountRoleLoading
     ) {
-      return <FullScreenLoader label="Checking account role..." />;
-    }
-
+      shellContent = <FullScreenLoader label="Checking account role..." />;
+    } else {
     const shouldForceBabySetup =
       !error &&
       babies.length === 0 &&
@@ -701,7 +706,7 @@ function AppShell() {
       !isAdminAccount;
 
     if (!isLoading && error && babies.length === 0) {
-      return (
+      shellContent = (
         <div className="fit-screen flex items-center justify-center bg-[#f8f7fb] px-6 text-center text-[#242932]">
           <div className="max-w-md rounded-[2rem] border border-[#ebeaf0] bg-white p-8 shadow-sm">
             <h1 className="font-headline text-2xl font-black tracking-tight">Couldn&apos;t load your profile</h1>
@@ -718,18 +723,15 @@ function AppShell() {
           </div>
         </div>
       );
-    }
-
-    if (shouldForceBabySetup) {
-      return renderWithSuspense(
+    } else if (shouldForceBabySetup) {
+      shellContent = renderWithSuspense(
         <Material3AddBaby
           onBabyAdded={() => navigateToAppView(appRouteView, { replace: true, preserveSearch: true })}
         />,
         'Loading baby setup...',
       );
-    }
-
-    return renderWithSuspense(
+    } else {
+      shellContent = renderWithSuspense(
       <PrivacyLock>
         <EnhancedDashboard
           requestedView={appRouteView}
@@ -739,10 +741,10 @@ function AppShell() {
       </PrivacyLock>,
       'Loading dashboard...',
     );
-  }
-
-  if (effectivePublicRoute === 'onboarding') {
-    return renderWithSuspense(
+    }
+    }
+  } else if (effectivePublicRoute === 'onboarding') {
+    shellContent = renderWithSuspense(
       <Material3Onboarding
         onComplete={handleOnboardingComplete}
         onSkip={() => {
@@ -753,10 +755,8 @@ function AppShell() {
       />,
       'Loading onboarding...',
     );
-  }
-
-  if (effectivePublicRoute === 'login') {
-    return renderWithSuspense(
+  } else if (effectivePublicRoute === 'login') {
+    shellContent = renderWithSuspense(
       <AuthScreen
         onSuccess={() => {
           const nextView = locationRoute.kind === 'app' ? locationRoute.appView : 'dashboard';
@@ -767,9 +767,8 @@ function AppShell() {
       />,
       'Loading sign-in...',
     );
-  }
-
-  return renderWithSuspense(
+  } else {
+    shellContent = renderWithSuspense(
     <Material3Welcome
       onGetStarted={() => navigateToPublicRoute('onboarding')}
       onLogIn={() => {
@@ -779,6 +778,19 @@ function AppShell() {
       onViewPolicies={openPolicies}
     />,
     'Loading welcome...',
+  );
+  }
+
+  return (
+    <>
+      {shellContent}
+      {shouldShowLegalAgreementsModal ? (
+        <LegalAgreementsModal
+          onAccept={handleAcceptLegalAgreements}
+          onViewPolicies={openPolicies}
+        />
+      ) : null}
+    </>
   );
 }
 

@@ -14,6 +14,7 @@ import {
 } from '../../lib/notifications';
 import { useAuthStore } from '@/app/AppContext';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
+import { getNativeDrawerTransition, isNativeApp } from '../../lib/native-performance';
 import { CareCopilotBubble } from './CareCopilotBubble';
 
 interface AppLayoutProps {
@@ -72,6 +73,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     () => notifications.filter((notification) => !notification.read).length,
     [notifications],
   );
+
+  const drawerTransition = getNativeDrawerTransition();
+  const notificationOverlayClass = isNativeApp()
+    ? 'fixed inset-0 z-[100] bg-black/50 flex justify-end'
+    : 'fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex justify-end';
 
   const relativeTime = (iso: string) => {
     const diffMs = Date.now() - new Date(iso).getTime();
@@ -159,10 +165,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       <AnimatePresence>
          {showNotifications && (
            <MotionDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex justify-end"
+              className={notificationOverlayClass}
               onClick={() => setShowNotifications(false)}
            >
-              <MotionDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25 }}
+              <MotionDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={drawerTransition}
                 className="w-full max-w-[min(100vw,28rem)] bg-surface h-full shadow-2xl flex flex-col"
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
@@ -238,7 +244,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
       {/* Main Content */}
       <main
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] no-scrollbar pb-8 sm:pb-10 lg:pb-10 ${
+        className={`app-scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] no-scrollbar pb-8 sm:pb-10 lg:pb-10 ${
           showBottomNav
             ? 'mb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:mb-[calc(6rem+env(safe-area-inset-bottom))] lg:mb-0'
             : 'mb-0'
@@ -253,7 +259,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
       {/* Floating Bottom Navigation */}
       {showBottomNav && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-[max(0.6rem,env(safe-area-inset-bottom))] px-2 sm:px-4 flex justify-center lg:hidden">
+        <div className="app-bottom-nav fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-[max(0.6rem,env(safe-area-inset-bottom))] px-2 sm:px-4 flex justify-center lg:hidden">
            <nav className="pointer-events-auto h-16 sm:h-20 bg-[#1a1a1a]/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-[1.9rem] sm:rounded-[2.5rem] flex items-center justify-between gap-1 px-2 sm:px-3 shadow-2xl border border-white/10 max-w-lg w-full">
              {navItems.map((item) => (
                <button

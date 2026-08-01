@@ -518,7 +518,7 @@ router.get('/launch-health', requireRole('admin'), async (_req: AuthRequest, res
         id: 'premium-access',
         label: 'Premium',
         status: premiumAccess.enabled ? 'warning' : 'ready',
-        title: premiumAccess.enabled ? 'Premium package enforcement is on' : 'Premium package testing is open',
+        title: premiumAccess.enabled ? 'Premium package enforcement is on' : 'Premium access is open',
         description: premiumAccess.enabled
           ? 'Users without active subscriptions are blocked from premium features.'
           : premiumAccess.reason || DEFAULT_PREMIUM_ACCESS_REASON,
@@ -1009,7 +1009,7 @@ router.post('/payment-config', requireRole('admin'), async (req: AuthRequest, re
       message: hasPremiumAccessInput
         ? premiumAccess.enabled
           ? 'Premium now requires an active plan.'
-          : 'Premium is now open for user testing.'
+          : 'Premium is now open for all users.'
         : paymentCollection.enabled
           ? 'Payment collection is now enabled.'
           : 'Payment collection is now disabled.',

@@ -412,7 +412,7 @@ export const Material3Onboarding: React.FC<Material3OnboardingProps> = ({
   }
 
   return (
-    <div className="grid min-h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
+    <div className="native-page-scroll grid h-[100dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden bg-[#faf9fc] font-['Manrope',sans-serif] dark:bg-[#0d0e10]">
       <header className="border-b border-gray-100 bg-white/85 backdrop-blur-xl dark:border-zinc-800 dark:bg-[#121315]/85">
         {currentStep !== 'welcome' ? (
           <>

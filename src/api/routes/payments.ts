@@ -18,6 +18,7 @@ import {
   isConfigAddonName,
 } from '../utils/payment-collection-control.js';
 import { getManagedSubscriptionPricing } from '../utils/payment-pricing.js';
+import { isPremiumAccessOpenForUsers } from '../../lib/premium-access-control.js';
 
 const router = Router();
 
@@ -876,9 +877,10 @@ export async function getSubscriptionStatus(req: Request, res: Response) {
       getPaymentCollectionSettings(),
       getPremiumAccessSettings(),
     ]);
-    const premiumTestingAccessOpen =
-      (!premiumAccess.enabled && premiumAccess.source !== 'fallback') ||
-      (!paymentCollection.enabled && paymentCollection.source !== 'fallback');
+    const premiumTestingAccessOpen = isPremiumAccessOpenForUsers(
+      paymentCollection,
+      premiumAccess,
+    );
     if (premiumTestingAccessOpen) {
       const startDate = new Date().toISOString();
       const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();

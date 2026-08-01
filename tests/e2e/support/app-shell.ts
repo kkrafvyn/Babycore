@@ -27,8 +27,8 @@ const MOBILE_SPLASH_SESSION_KEY = 'babylog_mobile_splash_seen';
 const TEST_USER_SCOPE = `user:${TEST_USER.id}`;
 
 const getSupabaseAuthStorageKey = (): string => {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://example.supabase.co';
-  const projectRef = new URL(supabaseUrl).hostname.split('.')[0] || 'example';
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://babycore-demo.supabase.co';
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0] || 'babycore-demo';
   return `sb-${projectRef}-auth-token`;
 };
 
@@ -48,6 +48,17 @@ export const stubAuthenticatedAppNetwork = async (page: Page): Promise<void> => 
     }
 
     await route.continue();
+  });
+
+  await page.route('**/auth/v1/session**', async (route) => {
+    await fulfillJson(route, {
+      access_token: 'playwright-access-token',
+      refresh_token: 'playwright-refresh-token',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: 'bearer',
+      user: TEST_USER,
+    });
   });
 
   await page.route('**/auth/v1/token**', async (route) => {
@@ -94,6 +105,89 @@ export const stubAuthenticatedAppNetwork = async (page: Page): Promise<void> => 
         },
       },
     });
+  });
+
+  await page.route('**/api/admin/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+
+    if (pathname.endsWith('/current-role')) {
+      await fulfillJson(route, { success: true, role: 'admin' });
+      return;
+    }
+
+    if (pathname.endsWith('/overview')) {
+      await fulfillJson(route, {
+        success: true,
+        data: {
+          counts: { users: 1, babies: 1 },
+          roleDistribution: [{ role: 'user', count: 1 }],
+          recent: {},
+          generatedAt: '2026-05-17T12:00:00.000Z',
+        },
+      });
+      return;
+    }
+
+    if (pathname.endsWith('/users')) {
+      await fulfillJson(route, {
+        success: true,
+        data: { users: [], total: 0, limit: 100, offset: 0 },
+      });
+      return;
+    }
+
+    if (pathname.endsWith('/logs') || pathname.endsWith('/audit-logs')) {
+      await fulfillJson(route, { success: true, data: { logs: [] } });
+      return;
+    }
+
+    if (pathname.endsWith('/billing')) {
+      await fulfillJson(route, {
+        success: true,
+        data: {
+          events: [],
+          total: 0,
+          summary: {
+            total: 0,
+            failed: 0,
+            retrying: 0,
+            recovered: 0,
+            abandoned: 0,
+          },
+        },
+      });
+      return;
+    }
+
+    if (pathname.endsWith('/pricing')) {
+      await fulfillJson(route, { success: true, data: { plans: [] } });
+      return;
+    }
+
+    if (pathname.endsWith('/payment-config')) {
+      await fulfillJson(route, {
+        success: true,
+        data: {
+          paymentCollection: { enabled: false, reason: 'Playwright smoke test mode' },
+          premiumAccess: { enabled: false, reason: 'Playwright smoke test mode' },
+        },
+      });
+      return;
+    }
+
+    if (pathname.endsWith('/launch-health')) {
+      await fulfillJson(route, {
+        success: true,
+        data: {
+          checks: [],
+          summary: { ready: 0, warning: 0, blocked: 0, total: 0 },
+          generatedAt: '2026-05-17T12:00:00.000Z',
+        },
+      });
+      return;
+    }
+
+    await fulfillJson(route, { success: true, data: {} });
   });
 };
 

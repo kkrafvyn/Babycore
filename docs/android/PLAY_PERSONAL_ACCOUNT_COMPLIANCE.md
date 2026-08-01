@@ -46,15 +46,9 @@ Cradlyn is a **parenting / wellness tracker**, not a clinical medical product. A
 
 Paste copy from `store-listing/android/store-copy.md` into **Main store listing** (short + full description). Both must include the wellness disclaimer sentence.
 
-## 5. In-app disclaimer (implemented)
+## 5. In-app disclaimer (removed)
 
-- Welcome screen footer
-- Settings → Security & Privacy
-- Health Records and Health Alerts screens
-- Legal Policies → Medical Disclaimer (section 3)
-- Care Copilot chat footer
-
-Shared text: `src/lib/medical-disclaimer.ts`
+Wellness disclaimer banners were removed from the app UI per product direction. Legal policies remain available under Settings → Legal Policies.
 
 ## 6. Resubmit
 

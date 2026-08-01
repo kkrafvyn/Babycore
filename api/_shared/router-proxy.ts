@@ -9,6 +9,68 @@ import { resolveEffectiveRoleForUser, resolveFallbackRoleFromUser } from '../../
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+const CAPACITOR_ORIGINS = new Set([
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+]);
+
+const parseAllowedOrigins = (): Set<string> => {
+  const origins = new Set<string>(CAPACITOR_ORIGINS);
+
+  for (const key of ['CLIENT_URL', 'CORS_ORIGIN', 'VITE_APP_URL']) {
+    const value = process.env[key]?.trim();
+    if (!value) {
+      continue;
+    }
+
+    try {
+      origins.add(new URL(value).origin);
+    } catch {
+      origins.add(value.replace(/\/$/, ''));
+    }
+  }
+
+  return origins;
+};
+
+const resolveCorsOrigin = (request: ApiAdapterRequest, allowed: Set<string>): string | undefined => {
+  const rawOrigin = request.headers?.origin ?? request.headers?.Origin;
+  const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
+
+  if (!origin || typeof origin !== 'string') {
+    return undefined;
+  }
+
+  if (allowed.has(origin)) {
+    return origin;
+  }
+
+  if (origin === 'https://localhost' || origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
+    return origin;
+  }
+
+  return undefined;
+};
+
+const applyCorsHeaders = (
+  request: ApiAdapterRequest,
+  response: ApiAdapterResponse,
+  methods: RequestMethod[],
+): void => {
+  const origin = resolveCorsOrigin(request, parseAllowedOrigins());
+  if (!origin) {
+    return;
+  }
+
+  response.setHeader('Access-Control-Allow-Origin', origin);
+  response.setHeader('Access-Control-Allow-Credentials', 'true');
+  response.setHeader('Access-Control-Allow-Methods', methods.join(', '));
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.setHeader('Vary', 'Origin');
+};
+
 type RouterLike = {
   handle: (request: any, response: any, next: (error?: unknown) => void) => void;
 };
@@ -106,6 +168,7 @@ export const runExpressRouter = async ({
   methods,
   requireAuth = true,
 }: RunExpressRouterOptions): Promise<void> => {
+  applyCorsHeaders(request, response, methods);
   setCommonHeaders(response);
 
   if (request.method === 'OPTIONS') {

@@ -73,26 +73,41 @@ const sanitizeNativeBaseUrl = (configuredUrl: string): string | undefined => {
   return sanitized;
 };
 
+export const resolveApiUrl = (path: string): string => {
+  const base = getApiBaseUrl();
+  let normalized = path.startsWith('/') ? path : `/${path}`;
+
+  // Callers may pass either `/ml/...` or legacy `/api/ml/...`.
+  if (normalized.startsWith('/api/')) {
+    normalized = normalized.slice(4);
+  } else if (normalized === '/api') {
+    normalized = '';
+  }
+
+  return `${base}${normalized}`;
+};
+
 export const getApiBaseUrl = (): string => {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
   const configuredProductionBaseUrl = import.meta.env.VITE_API_BASE_URL_PROD || '';
   const configuredNativeBaseUrl = import.meta.env.VITE_NATIVE_API_BASE_URL || '';
+  const configuredAppUrl = import.meta.env.VITE_APP_URL || '';
 
   if (typeof window !== 'undefined') {
     if (isNativeRuntime()) {
       const safeNativeBaseUrl =
         sanitizeNativeBaseUrl(configuredNativeBaseUrl) ||
         sanitizeNativeBaseUrl(configuredProductionBaseUrl) ||
-        sanitizeNativeBaseUrl(configuredBaseUrl);
+        sanitizeNativeBaseUrl(configuredBaseUrl) ||
+        (configuredAppUrl
+          ? sanitizeNativeBaseUrl(`${configuredAppUrl.replace(/\/$/, '')}/api`)
+          : undefined);
 
       if (safeNativeBaseUrl) {
         return safeNativeBaseUrl;
       }
 
-      warnOnce(
-        'Native app is falling back to "/api". Set VITE_NATIVE_API_BASE_URL to your hosted API root for production mobile builds.',
-      );
-      return '/api';
+      return sanitizeNativeBaseUrl('https://cradlyn.com/api') || 'https://cradlyn.com/api';
     }
 
     const appIsLocal = isLocalHost(window.location.hostname);

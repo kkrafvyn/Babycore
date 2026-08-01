@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api-base-url';
+import { resolveApiUrl } from './api-base-url';
 
 export interface PaymentCollectionConfig {
   enabled: boolean;
@@ -8,9 +8,9 @@ export interface PaymentCollectionConfig {
 }
 
 export const DEFAULT_PAYMENT_COLLECTION_REASON =
-  'Payments are disabled while Cradlyn completes full-app testing before marketing.';
+  'Payments are currently paused. Checkout will be available soon.';
 export const DEFAULT_PREMIUM_ACCESS_REASON =
-  'Premium enforcement is open while Cradlyn completes package testing before marketing.';
+  'Premium features are available without a subscription right now.';
 
 export const DEFAULT_PAYMENT_COLLECTION_CONFIG: PaymentCollectionConfig = {
   enabled: false,
@@ -41,7 +41,7 @@ const normalizePaymentCollectionConfig = (value: any): PaymentCollectionConfig =
 
 export const fetchPaymentFeatureConfig = async (): Promise<PaymentFeatureConfig> => {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/payments/config`, {
+    const response = await fetch(resolveApiUrl('/payments/config'), {
       method: 'GET',
     });
     const payload = await response.json().catch(() => ({}));

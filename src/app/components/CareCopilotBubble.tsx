@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { MessageCircle, Sparkles } from 'lucide-react';
 import { CareCopilotChat } from './CareCopilotChat';
@@ -113,8 +114,8 @@ export const CareCopilotBubble: React.FC<CareCopilotBubbleProps> = ({ babyId, ba
     setOpen(true);
   };
 
-  return (
-    <div ref={boundsRef} className="pointer-events-none fixed inset-0 z-[61]">
+  const layer = (
+    <div ref={boundsRef} className="care-copilot-layer pointer-events-none fixed inset-0 z-[61]">
       <AnimatePresence>
         {open && (
           <>
@@ -139,7 +140,7 @@ export const CareCopilotBubble: React.FC<CareCopilotBubbleProps> = ({ babyId, ba
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-              className="pointer-events-auto absolute right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-[63] flex h-[min(32rem,calc(100dvh-8.5rem))] w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[1.75rem] border border-border-gray bg-surface shadow-2xl dark:border-zinc-800 sm:right-5 sm:bottom-8 sm:h-[min(34rem,calc(100dvh-6rem))] lg:right-8 lg:bottom-10"
+              className="pointer-events-auto absolute right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-[63] flex h-[min(38rem,calc(100dvh-7rem))] w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[1.75rem] border border-border-gray bg-surface shadow-2xl dark:border-zinc-800 sm:right-5 sm:bottom-8 sm:h-[min(40rem,calc(100dvh-5.5rem))] lg:right-8 lg:bottom-10"
               role="dialog"
               aria-modal="true"
               aria-label={i18nT('copilot.title', 'Ask Cradlyn AI')}
@@ -193,4 +194,10 @@ export const CareCopilotBubble: React.FC<CareCopilotBubbleProps> = ({ babyId, ba
       )}
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(layer, document.body);
 };

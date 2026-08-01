@@ -1,3 +1,4 @@
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 import QRCode from 'qrcode';
 
@@ -57,7 +58,7 @@ export async function generateDoctorReport(
     };
 
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/reports/generate', {
+    const response = await fetch(resolveApiUrl('/reports/generate'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -155,7 +156,7 @@ export async function emailReportToDoctor(
 
     // Call backend doctor report email route
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/reports/email', {
+    const response = await fetch(resolveApiUrl('/reports/email'), {
       method: 'POST',
       headers,
       body: JSON.stringify({

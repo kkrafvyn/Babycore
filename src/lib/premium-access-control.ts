@@ -126,13 +126,20 @@ export const buildPremiumAccessMatrix = (
   }));
 };
 
-export const isPremiumTestingAccessOpen = (
+/** True when users may use premium without an active subscription. */
+export const isPremiumAccessOpenForUsers = (
   paymentCollection: PaymentCollectionConfig,
   premiumAccess: PaymentCollectionConfig,
 ): boolean => {
-  const paymentsPaused =
-    paymentCollection.source !== 'fallback' && !paymentCollection.enabled;
-  const enforcementOff =
-    premiumAccess.source !== 'fallback' && !premiumAccess.enabled;
+  // Default/fallback config keeps premium open until admin turns on enforcement + payments.
+  if (paymentCollection.source === 'fallback' || premiumAccess.source === 'fallback') {
+    return true;
+  }
+
+  const paymentsPaused = !paymentCollection.enabled;
+  const enforcementOff = !premiumAccess.enabled;
   return paymentsPaused || enforcementOff;
 };
+
+/** @deprecated Use isPremiumAccessOpenForUsers */
+export const isPremiumTestingAccessOpen = isPremiumAccessOpenForUsers;

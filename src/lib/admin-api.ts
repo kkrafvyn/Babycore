@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api-base-url';
+import { resolveApiUrl } from './api-base-url';
 import { getResponseErrorMessage, readJsonResponse } from './http-json';
 import type { BillingEventRecord } from './payment-api';
 import type { PaymentCollectionConfig } from './payment-config';
@@ -191,8 +191,7 @@ const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { 
     };
   }
 
-  const apiBaseUrl = getApiBaseUrl();
-  const endpoint = `${apiBaseUrl}${path}`;
+  const endpoint = resolveApiUrl(path);
 
   try {
     const response = await fetch(endpoint, {
@@ -221,9 +220,13 @@ const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T & { 
 
     return data;
   } catch (error: any) {
+    const message = error?.message || 'Admin request failed.';
     return {
       success: false,
-      error: error?.message || 'Admin request failed.',
+      error:
+        message === 'Failed to fetch'
+          ? 'Could not reach Cradlyn servers. Check your connection and try again.'
+          : message,
     } as T & { success: boolean; error?: string };
   }
 };
@@ -245,7 +248,7 @@ export const getCurrentUserRole = async (): Promise<string> => {
       return fallbackRole;
     }
 
-    const response = await fetch(`${getApiBaseUrl()}/admin/current-role`, {
+    const response = await fetch(resolveApiUrl('/admin/current-role'), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -525,7 +528,7 @@ export const exportAdminBillingEvents = async (input?: {
   if (input?.recoveryStatus?.trim()) query.set('recoveryStatus', input.recoveryStatus.trim());
 
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  const response = await fetch(`${getApiBaseUrl()}/admin/billing/export${suffix}`, {
+  const response = await fetch(resolveApiUrl(`/admin/billing/export${suffix}`), {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,

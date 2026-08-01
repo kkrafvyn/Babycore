@@ -3,7 +3,6 @@ import { ArrowRight, HeartHandshake, MoonStar, ShieldCheck, Sparkles } from 'luc
 import { motion } from 'motion/react';
 import { i18nT } from '../../lib/i18n';
 import { getClientAppName, getClientLogoSrc } from '../../lib/app-branding-client';
-import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -32,7 +31,7 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] bg-background"
+      className="native-page-scroll relative h-[100dvh] overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] bg-background"
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-secondary-fixed/30 blur-[120px]" />
@@ -144,7 +143,6 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
               </button>
             </div>
 
-            <MedicalDisclaimerBanner className="mx-auto w-full max-w-md text-left" />
           </div>
         </section>
 
@@ -308,7 +306,6 @@ export const Material3Welcome: React.FC<WelcomeScreenProps> = ({
                     Privacy, Terms & Policies
                   </button>
                 </div>
-                <MedicalDisclaimerBanner className="max-w-[22rem]" />
               </motion.div>
             </section>
           </div>

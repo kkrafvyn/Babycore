@@ -169,11 +169,11 @@ export const Paywall: React.FC<PaywallProps> = ({ feature = 'Premium Features', 
               <AlertCircle className="shrink-0 text-emerald-600 dark:text-emerald-300" size={20} />
               <div>
                 <p className="text-sm font-black text-emerald-800 dark:text-emerald-200">
-                  Premium access is open for testing
+                  Premium access is included
                 </p>
                 <p className="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700 dark:text-emerald-300">
                   {premiumAccess.reason ||
-                    'Premium tools are available without checkout while Cradlyn tests packages.'}
+                    'Premium tools are available without checkout right now.'}
                 </p>
               </div>
             </div>
@@ -272,7 +272,7 @@ export const Paywall: React.FC<PaywallProps> = ({ feature = 'Premium Features', 
             ) : premiumAccessLoading ? (
               <>Checking Premium...</>
             ) : !premiumAccess.enabled ? (
-              <>Premium Open For Testing</>
+              <>Premium Included</>
             ) : (
               <>Initialize {selectedPlan} Sanctuary</>
             )}

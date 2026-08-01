@@ -184,7 +184,7 @@ export function AuthScreen({
   };
 
   return (
-    <div className="page-scroll min-h-[100dvh] overflow-x-hidden bg-[#f8f7fb] text-[#242932]">
+    <div className="native-page-scroll page-scroll h-[100dvh] overflow-x-hidden bg-[#f8f7fb] text-[#242932]">
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-8 sm:py-8">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">

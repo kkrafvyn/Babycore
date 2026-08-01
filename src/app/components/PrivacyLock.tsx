@@ -2,27 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Lock, Fingerprint, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useAppContext } from '../AppContext';
 import { motion } from 'framer-motion';
+import { authenticateWithBiometrics, isBiometricAuthAvailable } from '@/lib/native-biometric';
 
 const MotionDiv = motion.div as any;
-
-const canUsePlatformBiometrics = async (): Promise<boolean> => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  if (
-    !('PublicKeyCredential' in window) ||
-    typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable !== 'function'
-  ) {
-    return false;
-  }
-
-  try {
-    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch {
-    return false;
-  }
-};
 
 export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { settings } = useAppContext();
@@ -43,7 +25,7 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     void (async () => {
-      const available = await canUsePlatformBiometrics();
+      const available = await isBiometricAuthAvailable();
       if (cancelled) {
         return;
       }
@@ -54,7 +36,7 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && lockEnabled) {
-        void canUsePlatformBiometrics().then((available) => {
+        void isBiometricAuthAvailable().then((available) => {
           if (available) {
             setIsLocked(true);
           }
@@ -67,7 +49,7 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      void canUsePlatformBiometrics().then((available) => {
+      void isBiometricAuthAvailable().then((available) => {
         if (available) {
           setIsLocked(true);
         }
@@ -88,13 +70,18 @@ export const PrivacyLock: React.FC<{ children: React.ReactNode }> = ({ children 
     setError(null);
 
     try {
-      const available = await canUsePlatformBiometrics();
+      const available = await isBiometricAuthAvailable();
       if (!available) {
         setIsLocked(false);
         return;
       }
 
-      setIsLocked(false);
+      const authenticated = await authenticateWithBiometrics(
+        'Verify your identity to access baby logs and private memories.',
+      );
+      if (authenticated) {
+        setIsLocked(false);
+      }
     } catch {
       setError('Authentication failed. Please try again.');
     } finally {

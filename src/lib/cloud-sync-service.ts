@@ -1,5 +1,7 @@
+import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabase';
 import { getApiBaseUrl } from './api-base-url';
+import { waitForAuthSession } from './auth-session';
 import {
   fromDiaperLogCloudRow,
   fromFeedLogCloudRow,
@@ -58,8 +60,11 @@ const isLocalBrowserHost = (): boolean => {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 };
 
+const isNativeRuntime = (): boolean =>
+  typeof window !== 'undefined' && Capacitor.isNativePlatform();
+
 const shouldAllowDirectSupabaseFallback = (): boolean =>
-  typeof window === 'undefined' || isLocalBrowserHost();
+  typeof window === 'undefined' || isLocalBrowserHost() || isNativeRuntime();
 
 const formatSyncError = (error: unknown): string => {
   if (error instanceof Error) {
@@ -126,32 +131,8 @@ const getAuthenticatedUser = async (): Promise<{ id: string; email?: string } | 
 
 const normalizeEmail = (value?: string): string => value?.trim().toLowerCase() || '';
 
-const getActiveSessionAccessToken = async (): Promise<string | null> => {
-  const auth = supabase.auth as any;
-  const {
-    data: { session },
-  } = await auth.getSession();
-
-  return session?.access_token || null;
-};
-
-const waitForActiveSessionAccessToken = async (
-  maxAttempts = 6,
-  delayMs = 200,
-): Promise<string | null> => {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const accessToken = await getActiveSessionAccessToken();
-    if (accessToken) {
-      return accessToken;
-    }
-
-    if (attempt < maxAttempts - 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, delayMs * (attempt + 1)));
-    }
-  }
-
-  return null;
-};
+const waitForActiveSessionAccessToken = async (): Promise<string | null> =>
+  waitForAuthSession();
 
 const callSyncBackend = async <TPayload>(
   path: string,

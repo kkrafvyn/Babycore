@@ -1,3 +1,4 @@
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 export interface AIInsight {
@@ -49,7 +50,7 @@ const getJsonHeaders = async (): Promise<Record<string, string>> => {
 };
 
 const postMl = async (path: string, payload: Record<string, unknown>) =>
-  fetch(path, {
+  fetch(resolveApiUrl(path), {
     method: 'POST',
     headers: await getJsonHeaders(),
     body: JSON.stringify(payload),
@@ -67,7 +68,7 @@ export async function generateMonthlyScrapbookSummary(
   year = new Date().getFullYear(),
 ): Promise<ScrapbookSummary | null> {
   try {
-    const response = await postMl('/api/ml/scrapbook-summary', {
+    const response = await postMl('/ml/scrapbook-summary', {
       babyId,
       month,
       year,
@@ -94,7 +95,7 @@ export async function askCareCopilot(
   history: CareCopilotMessage[] = [],
 ): Promise<CareCopilotResponse | null> {
   try {
-    const response = await postMl('/api/ml/care-copilot', {
+    const response = await postMl('/ml/care-copilot', {
       babyId,
       prompt,
       history: history.slice(-8),
@@ -126,7 +127,7 @@ export async function askCareCopilot(
  */
 export async function analyzeSleepPatterns(babyId: string, days: number = 30): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+    const response = await postMl('/ml/analyze-sleep-patterns', {
       babyId,
       daysBack: days,
     });
@@ -215,7 +216,7 @@ export async function predictNextSleepTime(babyId: string): Promise<{
   reason: string;
 } | null> {
   try {
-    const response = await postMl('/api/ml/predict-next-sleep', { babyId });
+    const response = await postMl('/ml/predict-next-sleep', { babyId });
 
     if (!response.ok) throw new Error('Failed to predict sleep time');
     const payload = await response.json();
@@ -238,7 +239,7 @@ export async function predictNextSleepTime(babyId: string): Promise<{
  */
 export async function detectAnomalies(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+    const response = await postMl('/ml/analyze-sleep-patterns', {
       babyId,
       daysBack: 30,
     });
@@ -298,7 +299,7 @@ export async function getFeedingRecommendations(babyId: string): Promise<AIInsig
  */
 export async function getSleepRecommendations(babyId: string): Promise<AIInsight[]> {
   try {
-    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+    const response = await postMl('/ml/analyze-sleep-patterns', {
       babyId,
       daysBack: 21,
     });
@@ -328,7 +329,7 @@ export async function analyzeGrowthTrajectory(babyId: string): Promise<{
   healthAlert?: string;
 } | null> {
   try {
-    const response = await postMl('/api/ml/growth-analysis', { babyId });
+    const response = await postMl('/ml/growth-analysis', { babyId });
 
     if (!response.ok) throw new Error('Failed to analyze growth');
     const payload = await response.json();
@@ -393,7 +394,7 @@ export async function predictMilestonesTiming(
     const milestones = ['rolling', 'sitting', 'crawling', 'walking', 'talking'];
     const results = await Promise.all(
       milestones.map(async (milestone) => {
-        const response = await postMl('/api/ml/predict-milestone', { babyId, milestone });
+        const response = await postMl('/ml/predict-milestone', { babyId, milestone });
         if (!response.ok) return null;
         const payload = await response.json();
         const prediction = payload?.prediction;
@@ -427,7 +428,7 @@ export async function calculateAdvancedSleepScore(babyId: string): Promise<{
   suggestions: string[];
 } | null> {
   try {
-    const response = await postMl('/api/ml/analyze-sleep-patterns', {
+    const response = await postMl('/ml/analyze-sleep-patterns', {
       babyId,
       daysBack: 14,
     });

@@ -48,7 +48,6 @@ import {
   type MedicationSchedule,
   type RefillAlert,
 } from '@/lib/care-advanced-api';
-import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 
 interface HealthRecordsProps {
   babyId: string;
@@ -583,18 +582,35 @@ export function HealthRecords({ babyId, babyName }: HealthRecordsProps) {
         <CardDescription>Track medical history for {babyName}</CardDescription>
       </CardHeader>
       <CardContent>
-        <MedicalDisclaimerBanner className="mb-4" />
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="allergies">Allergies</TabsTrigger>
-            <TabsTrigger value="medications">Meds</TabsTrigger>
-            <TabsTrigger value="adherence">Adherence</TabsTrigger>
-            <TabsTrigger value="visits">Visits</TabsTrigger>
-            <TabsTrigger value="tracker">Tracker</TabsTrigger>
-            <TabsTrigger value="approvals">Approvals</TabsTrigger>
-            <TabsTrigger value="all">All</TabsTrigger>
-          </TabsList>
+          <div className="-mx-1 overflow-x-auto pb-1 no-scrollbar">
+            <TabsList className="inline-flex h-auto w-max min-w-full flex-nowrap gap-1 p-1">
+              <TabsTrigger value="overview" className="shrink-0 px-3 py-2 text-xs">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="allergies" className="shrink-0 px-3 py-2 text-xs">
+                Allergies
+              </TabsTrigger>
+              <TabsTrigger value="medications" className="shrink-0 px-3 py-2 text-xs">
+                Meds
+              </TabsTrigger>
+              <TabsTrigger value="adherence" className="shrink-0 px-3 py-2 text-xs">
+                Adherence
+              </TabsTrigger>
+              <TabsTrigger value="visits" className="shrink-0 px-3 py-2 text-xs">
+                Visits
+              </TabsTrigger>
+              <TabsTrigger value="tracker" className="shrink-0 px-3 py-2 text-xs">
+                Tracker
+              </TabsTrigger>
+              <TabsTrigger value="approvals" className="shrink-0 px-3 py-2 text-xs">
+                Approvals
+              </TabsTrigger>
+              <TabsTrigger value="all" className="shrink-0 px-3 py-2 text-xs">
+                All
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="space-y-3">
             {allergies.length > 0 && (

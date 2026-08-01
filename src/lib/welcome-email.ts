@@ -2,6 +2,8 @@
  * Request a welcome email after sign-in.
  * Idempotent: the backend skips if welcome_email_sent_at is already stored.
  */
+import { resolveApiUrl } from './api-base-url';
+
 export async function requestWelcomeEmail(): Promise<void> {
   try {
     const authHeaders = await getAuthHeaders();
@@ -9,7 +11,7 @@ export async function requestWelcomeEmail(): Promise<void> {
       return;
     }
 
-    const response = await fetch('/api/auth/welcome-email', {
+    const response = await fetch(resolveApiUrl('/auth/welcome-email'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 import { buildStorageReference, createSignedStorageUrl } from './storage-signed-url';
 
@@ -96,7 +97,7 @@ export async function uploadVoiceMemo(
 export async function transcribeVoiceLog(voiceLogId: string, audioUrl: string): Promise<string | null> {
   try {
     // Call backend transcription service
-    const response = await fetch('/api/voice/transcribe', {
+    const response = await fetch(resolveApiUrl('/voice/transcribe'), {
       method: 'POST',
       headers: await getJsonHeaders(),
       body: JSON.stringify({
@@ -138,7 +139,7 @@ export async function analyzeCryPattern(voiceLogId: string): Promise<VoiceRecogn
     if (!voiceLog) return null;
 
     // Call ML service for cry analysis
-    const response = await fetch('/api/voice/analyze-cry', {
+    const response = await fetch(resolveApiUrl('/voice/analyze-cry'), {
       method: 'POST',
       headers: await getJsonHeaders(),
       body: JSON.stringify({

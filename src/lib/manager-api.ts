@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api-base-url';
+import { resolveApiUrl } from './api-base-url';
 import { getResponseErrorMessage, readJsonResponse } from './http-json';
 import { supabase } from './supabase';
 
@@ -78,7 +78,7 @@ const managerRequest = async <T>(path: string, init?: RequestInit): Promise<T & 
   }
 
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetch(resolveApiUrl(path), {
       ...init,
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -104,9 +104,13 @@ const managerRequest = async <T>(path: string, init?: RequestInit): Promise<T & 
 
     return data;
   } catch (error: any) {
+    const message = error?.message || 'Manager request failed.';
     return {
       success: false,
-      error: error?.message || 'Manager request failed.',
+      error:
+        message === 'Failed to fetch'
+          ? 'Could not reach Cradlyn servers. Check your connection and try again.'
+          : message,
     } as T & { success: boolean; error?: string };
   }
 };

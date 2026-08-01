@@ -32,7 +32,6 @@ import {
 } from '../../lib/care-profile';
 import { getCountryCareDefaults } from '../../lib/country-care-defaults';
 import { CareProfileEditorModal } from './CareProfileEditorModal';
-import { MedicalDisclaimerBanner } from './MedicalDisclaimerBanner';
 import { updateCurrentUserMetadata } from '../../lib/supabase';
 import {
   getAdminAccountMode,
@@ -40,6 +39,7 @@ import {
   PRIMARY_ADMIN_EMAIL,
   type AdminAccountMode,
 } from '../../lib/admin-account-mode';
+import { authenticateWithBiometrics, isBiometricAuthAvailable } from '../../lib/native-biometric';
 
 const MotionDiv = motion.div as any;
 
@@ -322,23 +322,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const handleBiometricToggle = async () => {
     const isEnabled = !settings?.biometricLockEnabled;
     if (isEnabled) {
-      const hasWebAuthn =
-        typeof window !== 'undefined' &&
-        'PublicKeyCredential' in window &&
-        typeof window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable === 'function';
-
-      if (!hasWebAuthn) {
-        toast.error('Biometric authentication is not supported on this device/browser.');
+      const available = await isBiometricAuthAvailable();
+      if (!available) {
+        toast.error('Biometric authentication is not supported on this device.');
         return;
       }
 
-      const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-      if (!available) {
-        toast.error('Biometric hardware was not detected on this device.');
+      try {
+        const confirmed = await authenticateWithBiometrics('Confirm biometrics to enable app lock.');
+        if (!confirmed) {
+          return;
+        }
+      } catch {
+        toast.error('Biometric authentication failed.');
         return;
       }
     }
     await updateSettings({ biometricLockEnabled: isEnabled });
+    if (isEnabled) {
+      toast.success('Biometric lock enabled.');
+    }
   };
 
   const handleSaveCareProfile = async (profile: React.ComponentProps<typeof CareProfileEditorModal>['initialProfile']) => {
@@ -411,7 +414,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       toast.success(
         mode === 'child_profile'
-          ? 'Child profile mode is ready. Add a child profile to test the app.'
+          ? 'Child profile mode is ready. Add a child profile to use the app.'
           : 'Admin mode is active.'
       );
 
@@ -726,7 +729,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                </div>
 
                <p className="mb-4 text-xs font-bold leading-relaxed text-text-light">
-                 {PRIMARY_ADMIN_EMAIL} stays a trusted admin. This switch only changes whether this account is testing the admin console or setting up a child profile.
+                 {PRIMARY_ADMIN_EMAIL} stays a trusted admin. This switch only changes whether this account uses the admin console or a child profile.
                </p>
 
                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-inner dark:bg-zinc-900">
@@ -760,8 +763,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                  <p className="text-xs font-bold leading-relaxed text-text-light">
                    {adminAccountMode === 'child_profile'
                      ? babies.length > 0
-                       ? `${babies.length} child profile${babies.length === 1 ? '' : 's'} available for full app testing.`
-                       : 'Child profile mode is on. Add a child profile so this admin can test the family experience.'
+                       ? `${babies.length} child profile${babies.length === 1 ? '' : 's'} available.`
+                       : 'Child profile mode is on. Add a child profile so this admin can use the family experience.'
                      : 'Admin mode is on. Use the dashboard to manage platform controls, payments, and safety checks.'}
                  </p>
                  <div className="mt-3 flex flex-wrap gap-2">
@@ -1250,7 +1253,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </div>
                     <Check size={20} className="text-emerald-500 shrink-0" />
                  </div>
-                 <MedicalDisclaimerBanner className="mx-4 mb-2 sm:mx-8" />
                  <button
                    onClick={() => {
                      window.history.pushState(null, '', '/policies');

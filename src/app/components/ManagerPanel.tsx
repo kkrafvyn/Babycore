@@ -373,7 +373,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
   ];
 
   return (
-    <div className="manager-panel min-h-[100dvh] overflow-x-hidden bg-[#f5f7fa] text-foreground dark:bg-[#050507]">
+    <div className="manager-panel flex h-[100dvh] flex-col overflow-hidden bg-[#f5f7fa] text-foreground dark:bg-[#050507]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/5 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90">
         <div className="mx-auto flex min-h-[4.75rem] w-full max-w-[1180px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -436,6 +436,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
         </div>
       </nav>
 
+      <div className="manager-panel-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
       <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-5 px-4 py-5 pb-8 sm:px-6 sm:py-6 lg:grid-cols-[7.5rem_minmax(0,1fr)] lg:px-8 lg:pb-10">
         <aside className="hidden lg:block">
           <nav className="sticky top-[6.25rem]" aria-label="Manager sections">
@@ -888,6 +889,7 @@ export const ManagerPanel: React.FC<ManagerPanelProps> = ({ onBack }) => {
           )}
           </div>
         </main>
+      </div>
       </div>
     </div>
   );

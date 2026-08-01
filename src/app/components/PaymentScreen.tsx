@@ -232,7 +232,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
     }
 
     if (!premiumAccess.enabled) {
-      setError(premiumAccess.reason || 'Premium access is open for testing right now. No checkout is required.');
+      setError(premiumAccess.reason || 'Premium access is included right now. No checkout is required.');
       return;
     }
 
@@ -385,7 +385,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
             >
               <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
               <div>
-                <p className="text-sm font-black text-amber-800 dark:text-amber-200">Payments are paused for testing</p>
+                <p className="text-sm font-black text-amber-800 dark:text-amber-200">Payments are paused</p>
                 <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
                   {paymentCollection.reason || DEFAULT_PAYMENT_COLLECTION_REASON}
                 </p>
@@ -402,11 +402,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ onBack, onSuccess 
               <AlertCircle className="shrink-0 text-amber-600 dark:text-amber-300" size={20} />
               <div>
                 <p className="text-sm font-black text-amber-800 dark:text-amber-200">
-                  Premium access is open for testing
+                  Premium access is included
                 </p>
                 <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700 dark:text-amber-300">
                   {premiumAccess.reason ||
-                    'Premium tools are available without checkout while Cradlyn tests packages.'}
+                    'Premium tools are available without checkout right now.'}
                 </p>
               </div>
             </MotionDiv>

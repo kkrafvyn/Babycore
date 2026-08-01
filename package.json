@@ -48,6 +48,11 @@
     "cap:open:ios": "node scripts/run-capacitor.mjs open ios",
     "cap:open:android": "node scripts/run-capacitor.mjs open android",
     "run:android": "node scripts/run-android.mjs",
+    "run:aab": "node scripts/run-aab.mjs",
+    "setup:emulator": "node scripts/setup-emulator.mjs",
+    "run:aab:emulator": "node scripts/run-aab-emulator.mjs",
+    "install:phone": "node scripts/install-phone.mjs",
+    "bootstrap:android-e": "node scripts/bootstrap-android-sdk-e.mjs",
     "cap:add:ios": "node scripts/run-capacitor.mjs add ios",
     "cap:add:android": "node scripts/run-capacitor.mjs add android",
     "generate:vapid": "web-push generate-vapid-keys",
@@ -56,7 +61,7 @@
     "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
-    "@cradlyn/native-wearables": "file:plugins/native-wearables",
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/android": "^8.3.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
@@ -65,6 +70,7 @@
     "@capacitor/ios": "^8.3.1",
     "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.3",
+    "@cradlyn/native-wearables": "file:plugins/native-wearables",
     "@hookform/resolvers": "^3.3.4",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.0.6",

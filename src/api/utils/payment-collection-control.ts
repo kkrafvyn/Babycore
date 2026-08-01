@@ -10,9 +10,9 @@ export interface PaymentCollectionSettings {
 }
 
 export const DEFAULT_PAYMENT_COLLECTION_REASON =
-  'Payments are disabled while Cradlyn completes full-app testing before marketing.';
+  'Payments are currently paused. Checkout will be available soon.';
 export const DEFAULT_PREMIUM_ACCESS_REASON =
-  'Premium enforcement is open while Cradlyn completes package testing before marketing.';
+  'Premium features are available without a subscription right now.';
 
 const PAYMENT_COLLECTION_ADDON_NAME = 'config:payments:collection';
 const PAYMENT_COLLECTION_CONTENT_URL = 'payment-config://collection';

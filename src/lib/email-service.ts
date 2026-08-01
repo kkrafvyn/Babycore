@@ -13,6 +13,7 @@ import {
   renderWelcomeEmail,
 } from '../api/utils/email-templates';
 import { clientAppPath, getClientAppName } from './app-branding-client';
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 interface EmailOptions {
@@ -38,7 +39,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     const accessToken: string | undefined = session?.access_token;
 
     // Option 3: Use your own backend endpoint
-    const response = await fetch('/api/send-email', {
+    const response = await fetch(resolveApiUrl('/send-email'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

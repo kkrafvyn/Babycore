@@ -48,8 +48,6 @@ const POLICY_SECTIONS: PolicySection[] = [
     title: '3. Medical Disclaimer',
     purpose: 'Clarifies the app is not a substitute for medical professionals.',
     points: [
-      'Cradlyn does not provide medical diagnosis, treatment, cure, or prevention of any condition.',
-      'This app is for general wellness and informational purposes only and does not replace professional medical advice.',
       'Insights, reminders, and Care Copilot outputs are informational support only and may be incomplete, delayed, or incorrect.',
       'Always consult licensed pediatric or healthcare professionals for health concerns, treatment decisions, and urgent care.',
       'For emergencies, contact local emergency services immediately.',

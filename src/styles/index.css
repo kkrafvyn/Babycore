@@ -230,6 +230,263 @@
     }
   }
 
+  .app-scroll-surface {
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .native-page-scroll {
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html.capacitor-native,
+  html.capacitor-native body {
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+    width: 100%;
+    --native-bottom-chrome: calc(7.75rem + env(safe-area-inset-bottom, 0px));
+    --native-page-header: 5rem;
+  }
+
+  @media (min-width: 640px) {
+    html.capacitor-native,
+    html.capacitor-native body {
+      --native-page-header: 6rem;
+    }
+  }
+
+  /* Native: body is the frame; #root does not scroll (keeps fixed nav/copilot pinned) */
+  html.capacitor-native #root {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html.capacitor-native .app-viewport-shell {
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  html.capacitor-native main.app-scroll-surface {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    margin-bottom: 0 !important;
+  }
+
+  html.capacitor-native .app-shell-content {
+    padding-bottom: var(--native-bottom-chrome) !important;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  html.capacitor-native .home-checklist-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.625rem;
+  }
+
+  @media (min-width: 768px) {
+    html.capacitor-native .home-checklist-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  html.capacitor-native .home-checklist-item {
+    align-items: flex-start;
+    width: 100%;
+    min-width: 0;
+  }
+
+  html.capacitor-native .home-checklist-item p {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  html.capacitor-native .native-floating-back-offset {
+    padding-top: 3rem;
+    padding-left: 0.25rem;
+  }
+
+  html.capacitor-native .app-scroll-surface,
+  html.capacitor-native .native-page-scroll,
+  html.capacitor-native .page-scroll {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Standalone full-screen pages (feeding, sleep, etc.) */
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden !important;
+  }
+
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) > header.fixed,
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) header.fixed {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    width: 100%;
+    flex-shrink: 0;
+    background-color: var(--background) !important;
+    border-bottom: 1px solid var(--border-gray);
+  }
+
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) > main,
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) > main.overflow-y-auto,
+  html.capacitor-native .fit-screen:not(.app-viewport-shell) main.flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-top: var(--native-page-header) !important;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    touch-action: pan-y;
+  }
+
+  /* Nested pages inside AppLayout: one scroll surface (app-scroll-surface) */
+  html.capacitor-native .app-scroll-surface .fit-screen:not(.app-viewport-shell),
+  html.capacitor-native .app-shell-content .fit-screen {
+    height: auto !important;
+    max-height: none !important;
+    min-height: auto !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  html.capacitor-native .app-scroll-surface .fit-screen > main,
+  html.capacitor-native .app-shell-content .fit-screen > main,
+  html.capacitor-native .app-shell-content .fit-screen > main.overflow-y-auto,
+  html.capacitor-native .app-shell-content .fit-screen main.flex-1 {
+    overflow: visible !important;
+    flex: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    touch-action: auto;
+  }
+
+  html.capacitor-native .app-scroll-surface .fit-screen > header.fixed,
+  html.capacitor-native .app-scroll-surface .fit-screen header.fixed,
+  html.capacitor-native .app-shell-content .fit-screen > header.fixed,
+  html.capacitor-native .app-shell-content .fit-screen > header.fixed.top-0 {
+    position: sticky !important;
+    top: 0;
+    z-index: 30;
+    width: 100%;
+    margin-inline: 0 !important;
+    background-color: var(--background) !important;
+    border-bottom: 1px solid var(--border-gray);
+  }
+
+  html.capacitor-native .admin-panel,
+  html.capacitor-native .manager-panel {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  html.capacitor-native .admin-panel-scroll,
+  html.capacitor-native .manager-panel-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  html.capacitor-native .min-h-screen,
+  html.capacitor-native [class*='min-h-[100dvh]'],
+  html.capacitor-native [class*='min-h-screen'] {
+    min-height: auto !important;
+  }
+
+  html.capacitor-native .app-scroll-surface .min-h-screen,
+  html.capacitor-native .app-shell-content .min-h-screen,
+  html.capacitor-native .app-shell-content [class*='pb-24'],
+  html.capacitor-native .app-shell-content [class*='pb-40'] {
+    padding-bottom: 0 !important;
+  }
+
+  /* Pinned chrome: bottom nav + Care Copilot stay on screen while content scrolls */
+  html.capacitor-native .app-bottom-nav {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+  }
+
+  html.capacitor-native .care-copilot-layer {
+    position: fixed !important;
+    inset: 0;
+    z-index: 61;
+    pointer-events: none;
+  }
+
+  /* Android WebView: blur and heavy shadows are costly — use solid surfaces instead */
+  html.capacitor-native [class*='backdrop-blur'] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.capacitor-native .app-viewport-shell > header.fixed.top-0 {
+    background-color: var(--background) !important;
+    border-bottom-color: var(--border-gray);
+  }
+
+  html.capacitor-native .app-viewport-shell > .fixed.bottom-0 nav {
+    background-color: rgba(26, 26, 26, 0.98) !important;
+  }
+
+  html.capacitor-native.dark .app-viewport-shell > .fixed.bottom-0 nav {
+    background-color: rgba(24, 24, 27, 0.98) !important;
+  }
+
+  html.capacitor-native .shadow-2xl,
+  html.capacitor-native .shadow-xl {
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  html.capacitor-android main.app-scroll-surface,
+  html.capacitor-android .fit-screen:not(.app-viewport-shell) > main,
+  html.capacitor-android .native-page-scroll,
+  html.capacitor-android .page-scroll {
+    overscroll-behavior-y: none;
+  }
+
+  html.capacitor-android button,
+  html.capacitor-android a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   .fit-screen > header.fixed.top-0 {
     left: 0;
     right: 0;

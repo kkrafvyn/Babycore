@@ -1,3 +1,4 @@
+import { resolveApiUrl } from './api-base-url';
 import { supabase } from './supabase';
 
 export interface EmailReport {
@@ -105,7 +106,7 @@ export async function sendMilestoneAnnouncement(
     const headers = await getAuthHeaders();
 
     // Send milestone email through the API route
-    const response = await fetch('/api/email-reports/send-milestone-announcement', {
+    const response = await fetch(resolveApiUrl('/email-reports/send-milestone-announcement'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -163,7 +164,7 @@ async function generateSocialMediaCard(babyName: string, milestoneType: string):
 export async function generateWeeklyDigestContent(babyId: string): Promise<string | null> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/email-reports/preview', {
+    const response = await fetch(resolveApiUrl('/email-reports/preview'), {
       method: 'POST',
       headers,
       body: JSON.stringify({ babyId, reportType: 'weekly' }),
@@ -184,7 +185,7 @@ export async function generateWeeklyDigestContent(babyId: string): Promise<strin
 export async function generateMonthlyNewsletterContent(babyId: string): Promise<string | null> {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch('/api/email-reports/preview', {
+    const response = await fetch(resolveApiUrl('/email-reports/preview'), {
       method: 'POST',
       headers,
       body: JSON.stringify({ babyId, reportType: 'monthly' }),
