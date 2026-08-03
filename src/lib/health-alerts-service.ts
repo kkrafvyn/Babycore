@@ -1,7 +1,5 @@
 import { supabase } from './supabase';
-import { getApiBaseUrl } from './api-base-url';
-
-const API_BASE_URL = getApiBaseUrl();
+import { resolveApiUrl } from './api-base-url';
 const DEFAULT_COUNTRY_CODE = 'US';
 const GLOBAL_REGION_CODE = 'GLOBAL';
 
@@ -244,7 +242,7 @@ export async function syncExternalHealthAlerts(): Promise<boolean> {
       return false;
     }
 
-    const response = await fetch(`${API_BASE_URL}/health-alerts/sync-external`, {
+    const response = await fetch(resolveApiUrl('/health-alerts/sync-external'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -284,7 +282,7 @@ export async function getHealthNewsFeed(countryCode = DEFAULT_COUNTRY_CODE): Pro
 
     const normalizedCountryCode = normalizeCountryCode(countryCode || DEFAULT_COUNTRY_CODE);
     const response = await fetch(
-      `${API_BASE_URL}/health-alerts/news?region=${encodeURIComponent(normalizedCountryCode)}`,
+      resolveApiUrl(`/health-alerts/news?region=${encodeURIComponent(normalizedCountryCode)}`),
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,

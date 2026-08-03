@@ -42,7 +42,7 @@ import {
 } from '../lib/onboarding-storage';
 import { consumeAuthModeHint } from '../lib/auth-mode-hint';
 import { BabyLogNotification, NotificationsManager } from '../lib/notifications';
-import { getApiBaseUrl } from '../lib/api-base-url';
+import { resolveApiUrl } from '../lib/api-base-url';
 import { waitForAuthSession } from '../lib/auth-session';
 import { readJsonResponse } from '../lib/http-json';
 import { supabase } from '../lib/supabase';
@@ -657,7 +657,7 @@ export const AppContextProvider: React.FC<AppContextProviderProps> = ({ children
         return;
       }
 
-      const response = await fetch(`${getApiBaseUrl()}/payments/subscription-status`, {
+      const response = await fetch(resolveApiUrl('/payments/subscription-status'), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${session.access_token}`,

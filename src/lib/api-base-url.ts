@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { APP_PRODUCTION_API_BASE_URL } from './app-domain';
 
 const isLocalHost = (hostname: string): boolean =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
@@ -26,6 +27,24 @@ const warnOnce = (message: string): void => {
   }
 };
 
+/** Prefer www host so native clients avoid apex 308 redirects that break fetch/CORS. */
+export const normalizeHostedApiBaseUrl = (value: string): string => {
+  const normalized = normalizeBaseUrl(value.trim());
+  if (!normalized.startsWith('http')) {
+    return normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.hostname === 'cradlyn.com') {
+      parsed.hostname = 'www.cradlyn.com';
+    }
+    return normalizeBaseUrl(parsed.toString());
+  } catch {
+    return normalized;
+  }
+};
+
 const sanitizeConfiguredBaseUrl = (
   configuredUrl: string,
   appIsLocal: boolean,
@@ -50,7 +69,7 @@ const sanitizeConfiguredBaseUrl = (
       return undefined;
     }
 
-    return normalizeBaseUrl(parsed.toString());
+    return normalizeHostedApiBaseUrl(parsed.toString());
   } catch {
     warnOnce(`Invalid API base URL ignored: "${configuredUrl}"`);
     return undefined;
@@ -107,7 +126,7 @@ export const getApiBaseUrl = (): string => {
         return safeNativeBaseUrl;
       }
 
-      return sanitizeNativeBaseUrl('https://cradlyn.com/api') || 'https://cradlyn.com/api';
+      return APP_PRODUCTION_API_BASE_URL;
     }
 
     const appIsLocal = isLocalHost(window.location.hostname);

@@ -60,15 +60,16 @@ const applyCorsHeaders = (
   methods: RequestMethod[],
 ): void => {
   const origin = resolveCorsOrigin(request, parseAllowedOrigins());
-  if (!origin) {
-    return;
-  }
+  const allowOrigin = origin || '*';
 
-  response.setHeader('Access-Control-Allow-Origin', origin);
-  response.setHeader('Access-Control-Allow-Credentials', 'true');
+  response.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  if (origin) {
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+    response.setHeader('Vary', 'Origin');
+  }
   response.setHeader('Access-Control-Allow-Methods', methods.join(', '));
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  response.setHeader('Vary', 'Origin');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  response.setHeader('Access-Control-Max-Age', '86400');
 };
 
 type RouterLike = {

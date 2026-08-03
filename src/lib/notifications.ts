@@ -8,14 +8,13 @@ import { toast } from 'sonner';
 import { Baby, SleepLog, FeedLog, DiaperLog, VaccinationRecord, UserSettings } from '../types/index';
 import { supabase } from './supabase';
 import { APP_LOGO_SRC } from './app-branding-client';
-import { getApiBaseUrl } from './api-base-url';
+import { resolveApiUrl } from './api-base-url';
 import { readJsonResponse } from './http-json';
 import { buildNativeAppUrl } from './native-app-links';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 const NATIVE_REMOTE_PUSH_ENABLED =
   String(import.meta.env.VITE_NATIVE_REMOTE_PUSH_ENABLED || '').toLowerCase() === 'true';
-const API_BASE_URL = getApiBaseUrl();
 const hasSupabaseClientConfig = Boolean(
   import.meta.env.VITE_SUPABASE_URL &&
     (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY),
@@ -1070,7 +1069,7 @@ export class NotificationsManager {
         return false;
       }
 
-      const response = await fetch(`${API_BASE_URL}/notifications/subscribe`, {
+      const response = await fetch(resolveApiUrl('/notifications/subscribe'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1110,7 +1109,7 @@ export class NotificationsManager {
       const accessToken: string | undefined = session?.access_token;
       if (!accessToken) return;
 
-      await fetch(`${API_BASE_URL}/notifications/unsubscribe`, {
+      await fetch(resolveApiUrl('/notifications/unsubscribe'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1146,7 +1145,7 @@ export class NotificationsManager {
       const accessToken: string | undefined = session?.access_token;
       if (!accessToken) return;
 
-      await fetch(`${API_BASE_URL}/notifications/unsubscribe`, {
+      await fetch(resolveApiUrl('/notifications/unsubscribe'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1435,8 +1434,8 @@ export class NotificationsManager {
       };
 
       const [scheduleResponse, logsResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/care/medications/${babyId}/schedules`, { headers }),
-        fetch(`${API_BASE_URL}/care/medications/${babyId}/logs?limit=40`, { headers }),
+        fetch(resolveApiUrl(`/care/medications/${babyId}/schedules`), { headers }),
+        fetch(resolveApiUrl(`/care/medications/${babyId}/logs?limit=40`), { headers }),
       ]);
 
       const schedulesPayload = scheduleResponse.ok ? await readJsonResponse(scheduleResponse) : null;

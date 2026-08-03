@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabase';
-import { getApiBaseUrl } from './api-base-url';
+import { resolveApiUrl } from './api-base-url';
 import { waitForAuthSession } from './auth-session';
 import {
   fromDiaperLogCloudRow,
@@ -154,7 +154,7 @@ const callSyncBackend = async <TPayload>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     ...init,
     headers,
   });

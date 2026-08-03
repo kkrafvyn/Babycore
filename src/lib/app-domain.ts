@@ -1,5 +1,7 @@
 export const APP_DOMAIN = 'cradlyn.com';
-export const APP_PRODUCTION_ORIGIN = `https://${APP_DOMAIN}`;
+export const APP_HOST = `www.${APP_DOMAIN}`;
+export const APP_PRODUCTION_ORIGIN = `https://${APP_HOST}`;
+export const APP_PRODUCTION_API_BASE_URL = `${APP_PRODUCTION_ORIGIN}/api`;
 export const APP_SUPPORT_EMAIL = `support@${APP_DOMAIN}`;
 export const APP_NOREPLY_EMAIL = `noreply@${APP_DOMAIN}`;
 export const APP_SHARE_EMAIL_DOMAIN = `share.${APP_DOMAIN}`;
