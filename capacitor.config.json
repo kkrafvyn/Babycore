@@ -2,8 +2,16 @@
   "appId": "com.cradlyn.app",
   "appName": "Cradlyn",
   "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
   "android": {
     "backgroundColor": "#ffffff",
     "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }
